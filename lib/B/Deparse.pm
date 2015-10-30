@@ -20,7 +20,8 @@ use B qw(class main_root main_start main_cv svref_2object opnumber perlstring
          CVf_METHOD CVf_LVALUE
 	 PMf_KEEP PMf_GLOBAL PMf_CONTINUE PMf_EVAL PMf_ONCE
 	 PMf_MULTILINE PMf_SINGLELINE PMf_FOLD PMf_EXTENDED);
-$VERSION = '1.20';
+
+$VERSION = '2.0';
 use strict;
 use vars qw/$AUTOLOAD/;
 use warnings ();
@@ -41,122 +42,7 @@ BEGIN {
     }
 }
 
-# Changes between 0.50 and 0.51:
-# - fixed nulled leave with live enter in sort { }
-# - fixed reference constants (\"str")
-# - handle empty programs gracefully
-# - handle infinite loops (for (;;) {}, while (1) {})
-# - differentiate between 'for my $x ...' and 'my $x; for $x ...'
-# - various minor cleanups
-# - moved globals into an object
-# - added '-u', like B::C
-# - package declarations using cop_stash
-# - subs, formats and code sorted by cop_seq
-# Changes between 0.51 and 0.52:
-# - added pp_threadsv (special variables under USE_5005THREADS)
-# - added documentation
-# Changes between 0.52 and 0.53:
-# - many changes adding precedence contexts and associativity
-# - added '-p' and '-s' output style options
-# - various other minor fixes
-# Changes between 0.53 and 0.54:
-# - added support for new 'for (1..100)' optimization,
-#   thanks to Gisle Aas
-# Changes between 0.54 and 0.55:
-# - added support for new qr// construct
-# - added support for new pp_regcreset OP
-# Changes between 0.55 and 0.56:
-# - tested on base/*.t, cmd/*.t, comp/*.t, io/*.t
-# - fixed $# on non-lexicals broken in last big rewrite
-# - added temporary fix for change in opcode of OP_STRINGIFY
-# - fixed problem in 0.54's for() patch in 'for (@ary)'
-# - fixed precedence in conditional of ?:
-# - tweaked list paren elimination in 'my($x) = @_'
-# - made continue-block detection trickier wrt. null ops
-# - fixed various prototype problems in pp_entersub
-# - added support for sub prototypes that never get GVs
-# - added unquoting for special filehandle first arg in truncate
-# - print doubled rv2gv (a bug) as '*{*GV}' instead of illegal '**GV'
-# - added semicolons at the ends of blocks
-# - added -l '#line' declaration option -- fixes cmd/subval.t 27,28
-# Changes between 0.56 and 0.561:
-# - fixed multiply-declared my var in pp_truncate (thanks to Sarathy)
-# - used new B.pm symbolic constants (done by Nick Ing-Simmons)
-# Changes between 0.561 and 0.57:
-# - stylistic changes to symbolic constant stuff
-# - handled scope in s///e replacement code
-# - added unquote option for expanding "" into concats, etc.
-# - split method and proto parts of pp_entersub into separate functions
-# - various minor cleanups
-# Changes after 0.57:
-# - added parens in \&foo (patch by Albert Dvornik)
-# Changes between 0.57 and 0.58:
-# - fixed '0' statements that weren't being printed
-# - added methods for use from other programs
-#   (based on patches from James Duncan and Hugo van der Sanden)
-# - added -si and -sT to control indenting (also based on a patch from Hugo)
-# - added -sv to print something else instead of '???'
-# - preliminary version of utf8 tr/// handling
-# Changes after 0.58:
-# - uses of $op->ppaddr changed to new $op->name (done by Sarathy)
-# - added support for Hugo's new OP_SETSTATE (like nextstate)
-# Changes between 0.58 and 0.59
-# - added support for Chip's OP_METHOD_NAMED
-# - added support for Ilya's OPpTARGET_MY optimization
-# - elided arrows before '()' subscripts when possible
-# Changes between 0.59 and 0.60
-# - support for method attributes was added
-# - some warnings fixed
-# - separate recognition of constant subs
-# - rewrote continue block handling, now recognizing for loops
-# - added more control of expanding control structures
-# Changes between 0.60 and 0.61 (mostly by Robin Houston)
-# - many bug-fixes
-# - support for pragmas and 'use'
-# - support for the little-used $[ variable
-# - support for __DATA__ sections
-# - UTF8 support
-# - BEGIN, CHECK, INIT and END blocks
-# - scoping of subroutine declarations fixed
-# - compile-time output from the input program can be suppressed, so that the
-#   output is just the deparsed code. (a change to O.pm in fact)
-# - our() declarations
-# - *all* the known bugs are now listed in the BUGS section
-# - comprehensive test mechanism (TEST -deparse)
-# Changes between 0.62 and 0.63 (mostly by Rafael Garcia-Suarez)
-# - bug-fixes
-# - new switch -P
-# - support for command-line switches (-l, -0, etc.)
-# Changes between 0.63 and 0.64
-# - support for //, CHECK blocks, and assertions
-# - improved handling of foreach loops and lexicals
-# - option to use Data::Dumper for constants
-# - more bug fixes
-# - discovered lots more bugs not yet fixed
-#
-# ...
-#
-# Changes between 0.72 and 0.73
-# - support new switch constructs
-
-# Todo:
-#  (See also BUGS section at the end of this file)
-#
-# - finish tr/// changes
-# - add option for even more parens (generalize \&foo change)
-# - left/right context
-# - copy comments (look at real text with $^P?)
-# - avoid semis in one-statement blocks
-# - associativity of &&=, ||=, ?:
-# - ',' => '=>' (auto-unquote?)
-# - break long lines ("\r" as discretionary break?)
-# - configurable syntax highlighting: ANSI color, HTML, TeX, etc.
-# - more style options: brace style, hex vs. octal, quotes, ...
-# - print big ints as hex/octal instead of decimal (heuristic?)
-# - handle 'my $x if 0'?
-# - version using op_next instead of op_first/sibling?
-# - avoid string copies (pass arrays, one big join?)
-# - here-docs?
+# See older source for inline comments recording changes prior to 2.0
 
 # Current test.deparse failures
 # comp/hints 6 - location of BEGIN blocks wrt. block openings
@@ -251,6 +137,7 @@ BEGIN {
 #
 # parens: -p
 # linenums: -l
+# copaddr: -c
 # unquote: -q
 # cuddle: ' ' or '\n', depending on -sC
 # indent_size: -si
@@ -310,8 +197,6 @@ BEGIN {
 # \b - decrease indent ('outdent')
 # \f - flush left (no indent)
 # \cK - kill following semicolon, if any
-
-
 
 
 # _pessimise_walk(): recursively walk the optree of a sub,
@@ -465,7 +350,7 @@ sub next_todo {
 	if ($self->{'linenums'}) {
 	    my $line = $gv->LINE;
 	    my $file = $gv->FILE;
-	    $l = "\n\f#line $line \"$file\"\n";
+	    $l = "\n# line $line \"$file\"\n";
 	}
 	my $p = '';
 	if (class($cv->STASH) ne "SPECIAL") {
@@ -488,8 +373,8 @@ sub begin_is_use {
     local @$self{qw'curcv curcvlex'} = ($cv);
     local $B::overlay = {};
     $self->pessimise($root, $cv->START);
-#require B::Debug;
-#B::walkoptree($cv->ROOT, "debug");
+    # require B::Debug;
+    # B::walkoptree($cv->ROOT, "debug");
     my $lineseq = $root->first;
     return if $lineseq->name ne "lineseq";
 
@@ -686,6 +571,7 @@ sub new {
     $self->{'expand'} = 0;
     $self->{'files'} = {};
     $self->{'indent_size'} = 4;
+    $self->{'copaddr'} = 0;
     $self->{'linenums'} = 0;
     $self->{'parens'} = 0;
     $self->{'subs_todo'} = [];
@@ -707,6 +593,9 @@ sub new {
 	    $self->{'files'}{$1} = 1;
 	} elsif ($arg eq "-l") {
 	    $self->{'linenums'} = 1;
+	} elsif ($arg eq "-c") {
+	    $self->{'linenums'} = 1;
+	    $self->{'copaddr'} = 1;
 	} elsif ($arg eq "-p") {
 	    $self->{'parens'} = 1;
 	} elsif ($arg eq "-P") {
@@ -818,11 +707,28 @@ sub compile {
 
 sub coderef2text {
     my $self = shift;
-    my $sub = shift;
-    croak "Usage: ->coderef2text(CODEREF)" unless UNIVERSAL::isa($sub, "CODE");
+    my $func = shift;
+    croak "Usage: ->coderef2text(CODEREF)" unless UNIVERSAL::isa($func, "CODE");
 
     $self->init();
-    return $self->indent($self->deparse_sub(svref_2object($sub)));
+    return $self->indent($self->deparse_sub(svref_2object($func)));
+}
+
+sub coderef2text_new {
+    my $self = shift;
+    my $func = shift;
+    croak "Usage: ->coderef2text(CODEREF)" unless UNIVERSAL::isa($func, "CODE");
+
+    $self->init();
+    my @exprs = $self->coderef2list($func);
+    return $self->indent(join(";\n", map {$_->[1]}  @exprs));
+}
+
+sub coderef2list {
+    my ($self, $coderef) = @_;
+    croak "Usage: ->coderef2list(CODEREF)" unless UNIVERSAL::isa($coderef, "CODE");
+    $self->init();
+    return $self->deparse_sub_list(svref_2object($coderef));
 }
 
 my %strict_bits = do {
@@ -955,13 +861,16 @@ sub deparse {
 }
 
 sub indent {
-    my $self = shift;
-    my $txt = shift;
-    my @lines = split(/\n/, $txt);
+    my ($self, $text) = @_;
+    my @lines = split(/\n/, $text);
+    return $self->indent_list(\@lines);
+}
+
+sub indent_list {
+    my ($self, $lines_ref) = @_;
     my $leader = "";
     my $level = 0;
-    my $line;
-    for $line (@lines) {
+    for my $line (@{$lines_ref}) {
 	my $cmd = substr($line, 0, 1);
 	if ($cmd eq "\t" or $cmd eq "\b") {
 	    $level += ($cmd eq "\t" ? 1 : -1) * $self->{'indent_size'};
@@ -979,9 +888,8 @@ sub indent {
 	}
 	$line =~ s/\cK;?//g;
     }
-    return join("\n", @lines);
+    return join("\n", @$lines_ref);
 }
-
 sub deparse_sub {
     my $self = shift;
     my $cv = shift;
@@ -1035,6 +943,56 @@ Carp::confess("SPECIAL in deparse_sub") if $cv->isa("B::SPECIAL");
 	}
     }
     return $proto ."{\n\t$body\n\b}" ."\n";
+}
+
+sub deparse_sub_list {
+    my ($self, $cv) = @_;
+    my $proto = "";
+    Carp::confess("NULL in deparse_sub_list") if !defined($cv) || $cv->isa("B::NULL");
+    Carp::confess("SPECIAL in deparse_sub_list") if $cv->isa("B::SPECIAL");
+    local $self->{'curcop'} = $self->{'curcop'};
+    if ($cv->FLAGS & SVf_POK) {
+	$proto = "(". $cv->PV . ") ";
+    }
+    if ($cv->CvFLAGS & (CVf_METHOD|CVf_LOCKED|CVf_LVALUE)) {
+        $proto .= ": ";
+        $proto .= "lvalue " if $cv->CvFLAGS & CVf_LVALUE;
+        $proto .= "locked " if $cv->CvFLAGS & CVf_LOCKED;
+        $proto .= "method " if $cv->CvFLAGS & CVf_METHOD;
+    }
+
+    local($self->{'curcv'}) = $cv;
+    local($self->{'curcvlex'});
+    local(@$self{qw'curstash warnings hints hinthash'})
+		= @$self{qw'curstash warnings hints hinthash'};
+    my @body = ([sprintf("0x%x", $$cv), $proto]);
+    my $root = $cv->ROOT;
+    local $B::overlay = {};
+    if (not null $root) {
+	$self->pessimise($root, $cv->START);
+	my $lineseq = $root->first;
+	if ($lineseq->name eq "lineseq") {
+	    my @ops;
+	    for(my$o=$lineseq->first; $$o; $o=$o->sibling) {
+		push @ops, $o;
+	    }
+	    push @body, $self->lineseq_list(undef, 0, @ops);
+	    my $scope_en = $self->find_scope_en($lineseq);
+	}
+	else {
+	    push @body, $self->deparse($root->first, 0);
+	}
+    }
+    else {
+	my $sv = $cv->const_sv;
+	if ($$sv) {
+	    # uh-oh. inlinable sub... format it differently
+	    return ($proto . "{ " . $self->const($sv, 0) . ") }");
+	} else { # XSUB? (or just a declaration)
+	    return ("$proto");
+	}
+    }
+    return @body;
 }
 
 sub deparse_format {
@@ -1291,6 +1249,38 @@ sub lineseq {
     return join($sep, grep {length} $body, $subs);
 }
 
+sub lineseq_list {
+    my($self, $root, $cx, @ops) = @_;
+
+    my $out_cop = $self->{'curcop'};
+    my $out_seq = defined($out_cop) ? $out_cop->cop_seq : undef;
+    my $limit_seq;
+    if (defined $root) {
+	$limit_seq = $out_seq;
+	my $nseq;
+	$nseq = $self->find_scope_st($root->sibling) if ${$root->sibling};
+	$limit_seq = $nseq if !defined($limit_seq)
+			   or defined($nseq) && $nseq < $limit_seq;
+    }
+    $limit_seq = $self->{'limit_seq'}
+	if defined($self->{'limit_seq'})
+	&& (!defined($limit_seq) || $self->{'limit_seq'} < $limit_seq);
+    local $self->{'limit_seq'} = $limit_seq;
+
+    my $fn = sub {
+	my ($exprs, $i, $text) = @_;
+	$text =~ s/\f//;
+	$text =~ s/\n$//;
+	$text =~ s/;\n?\z//;
+	$text =~ s/^\((.+)\)$/$1/;
+	my $op = $ops[$i];
+	push @$exprs, [sprintf("0x%x", $$op), $text];
+    };
+    return $self->walk_lineseq_list($root, \@ops, $fn);
+    # $self->walk_lineseq($root, \@ops,
+    # 		       sub { push @exprs, $_[0]} );
+}
+
 sub scopeop {
     my($real_block, $self, $op, $cx) = @_;
     my $kid;
@@ -1375,6 +1365,34 @@ sub walk_lineseq {
 	$expr =~ s/;\n?\z//;
 	$callback->($expr, $i);
     }
+}
+
+sub walk_lineseq_list {
+    my ($self, $op, $kids, $callback) = @_;
+    my @kids = @$kids;
+    my @exprs = ();
+    my $expr;
+    for (my $i = 0; $i < @kids; $i++) {
+	if (is_state $kids[$i]) {
+	    $expr = ($self->deparse($kids[$i], 0));
+	    $callback->(\@exprs, $i, $expr);
+	    $i++;
+	    if ($i > $#kids) {
+		last;
+	    }
+	}
+	if (is_for_loop($kids[$i])) {
+	    my $loop_expr = $self->for_loop($kids[$i], 0);
+	    $loop_expr =~ s/\cK//;
+	    $callback->(\@exprs,
+			$i += $kids[$i]->sibling->name eq "unstack" ? 2 : 1,
+			$loop_expr);
+	    next;
+	}
+	$expr = $self->deparse($kids[$i], (@kids != 1)/2);
+	$callback->(\@exprs, $i, $expr);
+    }
+    return @exprs;
 }
 
 # The BEGIN {} is used here because otherwise this code isn't executed
@@ -1563,7 +1581,7 @@ sub cop_subs {
 sub seq_subs {
     my ($self, $seq) = @_;
     my @text;
-#push @text, "# ($seq)\n";
+    # push @text, "# ($seq)\n";
 
     return "" if !defined $seq;
     while (scalar(@{$self->{'subs_todo'}})
@@ -1669,8 +1687,9 @@ sub pp_nextstate {
     # increase the chances that it refers to the same line it did in
     # the original program.
     if ($self->{'linenums'}) {
-	push @text, "\f#line " . $op->line .
-	  ' "' . $op->file, qq'"\n';
+	my $line = sprintf("\n# line %s '%s'", $op->line, $op->file);
+	$line .= sprintf(" 0x%x", $$op) if $self->{'copaddr'};
+	push @text, $line . "\cK\n";
     }
 
     push @text, $op->label . ": " if $op->label;
@@ -4352,7 +4371,7 @@ sub pchr { # ASCII
     } elsif ($n >= ord("\cA") and $n <= ord("\cZ")) {
 	return '\\c' . chr(ord("@") + $n);
     } else {
-#	return '\x' . sprintf("%02x", $n);
+	# return '\x' . sprintf("%02x", $n);
 	return '\\' . sprintf("%03o", $n);
     }
 }
