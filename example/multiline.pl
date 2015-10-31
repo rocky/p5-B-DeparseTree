@@ -16,11 +16,11 @@ sub foo {
     return 0;
 }
 
-sub fib($) {
-    my $x = shift;
-    return 1 if $x <= 1;
-    return(fib($x-1) + fib($x-2))
-}
+my $walker = B::Concise::compile('-basic', '-src', 'foo', \&foo);
+B::Concise::set_style_standard('debug');
+B::Concise::walk_output(\my $buf);
+$walker->();			# walks and renders into $buf;
+print($buf);
 
 my $deparse = B::Deparse->new("-p", "-l", "-c", "-sC");
 foo();
@@ -31,14 +31,3 @@ Data::Printer::p(@exprs);
 print $deparse->coderef2text(\&foo);
 print '-' x 30, "\n";
 print $deparse->coderef2text_new(\&foo);
-
-my $walker = B::Concise::compile('-basic', '-src', 'foo', \&foo);
-B::Concise::set_style_standard('debug');
-B::Concise::walk_output(\my $buf);
-$walker->();			# walks and renders into $buf;
-print($buf);
-
-# foo();
-# my $x = 0; $x += 1; $x *= 2;
-# my $z = 1;
-# printf "fib(2)= %d, fib(3) = %d, fib(4) = %d\n", fib(2), fib(3), fib(4);
