@@ -337,17 +337,19 @@ sub next_todo {
     if ($ent->[2]) {
 	my $info = $self->deparse_format($ent->[1], $cv);
 	my $texts = ["format $name", "=", $info->{text} + "\n"];
-	return { body => $info,
-		texts => $texts,
-		text => join(" ", @$texts),
+	return {
+	    body => $info,
+	    texts => $texts,
+	    type => 'format_todo',
+	    text => join(" ", @$texts),
 	};
     } else {
 	$self->{'subs_declared'}{$name} = 1;
 	if ($name eq "BEGIN") {
 	    my $use_dec = $self->begin_is_use($cv);
 	    if (defined ($use_dec) and $self->{'expand'} < 5) {
-		return { text => '' } if 0 == length($use_dec);
-		return { text => $use_dec };
+		return { text => '', type => 'begin_todo' } if 0 == length($use_dec);
+		return { text => $use_dec, type => 'begin_todo' };
 	    }
 	}
 	my $l = '';
@@ -366,11 +368,12 @@ sub next_todo {
 	    }
 	    $name =~ s/^\Q$stash\E::(?!\z|.*::)//;
 	}
-	my $info = @$self->deparse_sub($cv, $parent);
+	my $info = $self->deparse_sub($cv, $parent);
 	my $texts = ["${p}${l}sub $name ", $info->{text}];
         return {
 	    text => join('', @$texts),
 	    texts => $texts,
+	    type => 'sub_todo',
 	    body => $info
 	};
     }
@@ -658,7 +661,7 @@ sub init {
 sub compile {
     my(@args) = @_;
     return sub {
-	my $self = B::Deparse->new(@args);
+	my $self = B::DeparseTree->new(@args);
 	# First deparse command-line args
 	if (defined $^I) { # deparse -i
 	    print q(BEGIN { $^I = ).perlstring($^I).qq(; }\n);
@@ -699,7 +702,8 @@ sub compile {
 	local $B::overlay = {};
 	unless (null $root) {
 	    $self->pessimise($root, main_start);
-	    print $self->indent($self->deparse_root($root)), "\n";
+	    my $deparsed = $self->deparse_root($root);
+	    print $self->indent($deparsed->{text}), "\n";
 	}
 	my @texts;
 	while (scalar(@{$self->{'subs_todo'}})) {
@@ -926,8 +930,12 @@ sub deparse_sub {
     my $root = $cv->ROOT;
     my $body;
 
-    my $op_info = {};
-    $op_info->{op} = $root;
+    my $op_info = {
+	op => $root,
+	cop => undef,
+	parent => undef,
+	type => 'sub',
+    };
 
     local $B::overlay = {};
     if (not null $root) {
@@ -944,22 +952,19 @@ sub deparse_sub {
 	else {
 	    $body = $self->deparse($root->first, 0, $root);
 	}
-	$op_info->{texts} = [$proto, @{$body->{texts}}];
-	$op_info->{text} = join("\n", @{$op_info->{texts}});
 	$op_info->{body} = $body;
+	$op_info->{texts} = ["$proto", "{\t", @{$body->{texts}}, "\b}"];
+	$op_info->{text} = "$proto {\n\t" . join("\n", @{$body->{texts}}) . "\n\b}";
     }
     else {
 	my $sv = $cv->const_sv;
-	my @texts;
 	if ($$sv) {
 	    # uh-oh. inlinable sub... format it differently
-	    @texts = [$proto,  "{", $self->const($sv, 0), "}"];
+	    $op_info->{texts} = ["$proto {" . $self->const($sv, 0) . " }"];
 	} else { # XSUB? (or just a declaration)
-	    @texts = ($proto);
+	    $op_info->{texts} = [$proto];
 	}
-	my $text = join(' ', @texts);
-	$op_info->{text} => $text;
-	$op_info->{texts} => \@texts;
+	$op_info->{text} = join("\n", @{$op_info->{texts}});
     }
 
     $self->{optree}{$$root} = $op_info;
@@ -1116,9 +1121,20 @@ sub maybe_parens_func {
     my $self = shift;
     my($func, $text, $cx, $prec) = @_;
     if ($prec <= $cx or substr($text, 0, 1) eq "(" or $self->{'parens'}) {
-	return "$func($text)";
+	return ("$func", "(", "$text", ")");
     } else {
-	return "$func $text";
+	return ($func,  $text);
+    }
+}
+
+sub dedup_parens_func {
+    my $sub_name = shift;
+    my @args = @_;
+    if (scalar @args == 1 && substr($args[0], 0, 1) eq '(' &&
+	substr($args[0], -1, 1) eq ')') {
+	return ($sub_name, $args[0]);
+    } else {
+	return ($sub_name, '(', @args, ')', );
     }
 }
 
@@ -1227,6 +1243,7 @@ sub lineseq {
 	$text =~ s/\n$//;
 	$text =~ s/;\n?\z//;
 	$text =~ s/^\((.+)\)$/$1/;
+	$info->{type} = $op->name;
 	$info->{op} = $op;
 	$info->{parent} = $$parent unless $info->{parent};
 	$self->{optree}{$$op} = $info;
@@ -1281,22 +1298,33 @@ sub pp_lineseq { scopeop(0, @_); }
 sub pp_leave { scopeop(1, @_); }
 
 # This is a special case of scopeop and lineseq, for the case of the
-# main_root. The difference is that we print the output statements as
-# soon as we get them, for the sake of impatient users.
+# main_root.
 sub deparse_root {
     my $self = shift;
     my($op) = @_;
     local(@$self{qw'curstash warnings hints hinthash'})
       = @$self{qw'curstash warnings hints hinthash'};
-    my @kids;
+    my @ops;
     return if null $op->first; # Can happen, e.g., for Bytecode without -k
     for (my $kid = $op->first->sibling; !null($kid); $kid = $kid->sibling) {
-	push @kids, $kid;
+	push @ops, $kid;
     }
-    $self->walk_lineseq($op, \@kids,
-			sub { print $self->indent($_[0].';');
-			      print "\n" unless $_[1] == $#kids;
-			  });
+    my $fn = sub {
+	my ($exprs, $i, $info, $parent) = @_;
+	my $text = $info->{text};
+	my $op = $ops[$i];
+	$text =~ s/\f//;
+	$text =~ s/\n$//;
+	$text =~ s/;\n?\z//;
+	$text =~ s/^\((.+)\)$/$1/;
+	$info->{type} = $op->name;
+	$info->{op} = $op;
+	$info->{parent} = $$parent unless $info->{parent};
+	$self->{optree}{$$op} = $info;
+	$info->{text} = $text;
+	push @$exprs, $info;
+    };
+    return $self->walk_lineseq($op, \@ops, $fn);
 }
 
 sub walk_lineseq {
@@ -1330,12 +1358,15 @@ sub walk_lineseq {
     # assume will always be the last line in the text and start after a \n.
     my @texts = map { $_->{text} =~ /\n#/ ?
 			  $_->{text} : $_->{text} . ';' } @body;
-    return {
+    my $info = {
+	type => 'lineseq',
 	op => $op,
 	body => \@body,
 	texts => \@texts,
 	text => join("\n", @texts)
     };
+    $self->{optree}{$$op} = $info;
+    return $info;
 }
 
 # The BEGIN {} is used here because otherwise this code isn't executed
@@ -1548,8 +1579,7 @@ sub pp_nextstate {
     my $self = shift;
     my($op, $cx) = @_;
     $self->{'curcop'} = $op;
-    my @text;
-    push @text, $self->cop_subs($op);
+    my @text = map($_->{text}, $self->cop_subs($op));
     my $stash = $op->stashpv;
     if ($stash ne $self->{'curstash'}) {
 	push @text, "package $stash;\n";
@@ -2591,7 +2621,7 @@ sub logop {
 	     and $self->{'expand'} < 7) { # $b if $a
 	$lhs = $self->deparse($right, 1, $op);
 	$rhs = $self->deparse($left, 1, $op);
-	$texts = [$right->{text}, $blockname, $left->{text}];
+	$texts = [$rhs->{text}, $blockname, $lhs->{text}];
 	$text = join(' ', @$texts);
     } elsif ($cx > $lowprec and $highop) { # $a && $b
 	$lhs = $self->deparse_binop_left($op, $left, $highprec);
@@ -2869,43 +2899,65 @@ sub indirop {
     my($op, $cx, $name) = @_;
     my($expr, @exprs);
     my $firstkid = my $kid = $op->first->sibling;
-    my $indir = "";
+    my $indir_info;
+    my $indir;
+    my @texts = ();
+    my $type = 'indirop';
     if ($op->flags & OPf_STACKED) {
-	$indir = $kid;
-	$indir = $indir->first; # skip rv2gv
-	if (is_scope($indir)) {
-	    $indir = "{" . $self->deparse($indir, 0) . "}";
-	    $indir = "{;}" if $indir eq "{}";
+	my $indir_op = $kid->first; # skip rv2gv
+	if (is_scope($indir_op)) {
+	    $indir_info = $self->deparse($indir_op, 0, $op);
+	    @texts = $indir_info->{text} eq '' ?
+		("{", ';', "}") : ("{", $indir_info->{texts}, "}");
 	} elsif ($indir->name eq "const" && $indir->private & OPpCONST_BARE) {
-	    $indir = $self->const_sv($indir)->PV;
+	    @texts = ($self->const_sv($indir)->PV);
 	} else {
-	    $indir = $self->deparse($indir, 24);
+	    $indir_info = $self->deparse($indir, 24, $op);
+	    @texts = @$indir_info->{texts};
 	}
-	$indir = $indir . " ";
 	$kid = $kid->sibling;
     }
     if ($name eq "sort" && $op->private & (OPpSORT_NUMERIC | OPpSORT_INTEGER)) {
-	$indir = ($op->private & OPpSORT_DESCEND) ? '{$b <=> $a} '
-						  : '{$a <=> $b} ';
+	$type = 'sort_num_int';
+	@texts = ($op->private & OPpSORT_DESCEND) ?
+	    ('{', $b, '<=>', '$a', '}' ) : ('{', $a, '<=>', '$b', '}' );
     }
     elsif ($name eq "sort" && $op->private & OPpSORT_DESCEND) {
-	$indir = '{$b cmp $a} ';
-    }
-    for (; !null($kid); $kid = $kid->sibling) {
-	$expr = $self->deparse($kid, !$indir && $kid == $firstkid && $name eq "sort" && $firstkid->name eq "entersub" ? 16 : 6);
-	push @exprs, $expr;
-    }
-    my $name2;
-    if ($name eq "sort" && $op->private & OPpSORT_REVERSE) {
-	$name2 = $self->keyword('reverse') . ' ' . $self->keyword('sort');
-    }
-    else { $name2 = $self->keyword($name) }
-    if ($name eq "sort" && ($op->private & OPpSORT_INPLACE)) {
-	return "$exprs[0] = $name2 $indir $exprs[0]";
+	$type = 'sort_descend';
+	@texts =  ('{', $b, 'cmp', '}' );
     }
 
-    my $args = $indir . join(", ", @exprs);
-    if ($indir ne "" && $name eq "sort") {
+    $indir = join(' ', @texts);
+    for (; !null($kid); $kid = $kid->sibling) {
+	my $cx = (!$indir &&
+		  $kid == $firstkid && $name eq "sort" &&
+		  $firstkid->name eq "entersub")
+	    ? 16 : 6;
+	$expr = $self->deparse($kid, $cx, $op);
+	push @exprs, $expr;
+    }
+    my @texts2;
+    if ($name eq "sort" && $op->private & OPpSORT_REVERSE) {
+	$type = 'sort_reverse';
+	@texts2 = ($self->keyword('reverse'), $self->keyword('sort'));
+    }  else {
+	@texts2 = ( $self->keyword($name) );
+    }
+    if ($name eq "sort" && ($op->private & OPpSORT_INPLACE)) {
+	@texts = ($exprs[0], '=', @texts2, @texts, $exprs[0]->{text});
+	my $text = join(' ', @texts);
+	return {
+	    text => $text,
+	    texts => \@texts,
+	    type => 'sort_inplace',
+	}
+    }
+
+    my @body = @exprs;
+    unshift @body, $indir_info if defined($indir_info);
+
+    my $args = $indir .  join(', ', map($_->{text},  @exprs));
+    if (0 == scalar @texts && $name eq "sort") {
 	# We don't want to say "sort(f 1, 2, 3)", since perl -w will
 	# give bareword warnings in that case. Therefore if context
 	# requires, we'll put parens around the outside "(sort f 1, 2,
@@ -2913,20 +2965,40 @@ sub indirop {
 	# necessary more often that they really are, because we don't
 	# distinguish which side of an assignment we're on.
 	if ($cx >= 5) {
-	    return "($name2 $args)";
+	    @texts = ('(', @texts2, $args, ')');
 	} else {
-	    return "$name2 $args";
+	    @texts = (@texts2, $args);
 	}
-    } elsif (
-	!$indir && $name eq "sort"
-      && !null($op->first->sibling)
-      && $op->first->sibling->name eq 'entersub'
-    ) {
+	my $text = join(' ', @texts);
+	return {
+	    text => $text,
+	    texts => \@texts,
+	    body => \@body,
+	    type => 'sort1',
+	}
+    } elsif (0 != scalar @texts
+	     && $name eq "sort"
+	     && !null($op->first->sibling)
+	     && $op->first->sibling->name eq 'entersub' ) {
 	# We cannot say sort foo(bar), as foo will be interpreted as a
 	# comparison routine.  We have to say sort(...) in that case.
-	return "$name2($args)";
+	@texts = (@texts2, '(', $args, ')');
+	my $text = join(' ', @texts);
+	return {
+	    text => $text,
+	    texts => \@texts,
+	    body => \@body,
+	    type => 'sort2',
+	}
     } else {
-	return $self->maybe_parens_func($name2, $args, $cx, 5);
+	@texts = $self->maybe_parens_func($texts2[0], $args, $cx, 5);
+	$args = join('', @texts);
+	return {
+	    text => $args,
+	    texts => \@texts,
+	    body => \@body,
+	    type => $type,
+	}
     }
 
 }
@@ -3264,6 +3336,7 @@ sub pp_null {
 	my $body = [$self->deparse($op->first, $cx, $op)];
 	my $texts = ["do {", "\t" . $body->[0]->{text}, "\b};"];
 	return {text => join("\n", @$texts),
+		type => 'null_special',
 		body => $body,
 		texts => $texts};
 
@@ -3877,11 +3950,8 @@ sub pp_entersub {
 
 	my $dproto = defined($proto) ? $proto : "undefined";
         if (!$declared) {
-	    if (scalar @arg_texts == 1) {
-		$texts = [$sub_name, @arg_texts, ];
-	    } else {
-		$texts = [$sub_name, '(', @arg_texts, ')'];
-	    }
+	    my @texts = dedup_parens_func($sub_name, @arg_texts);
+	    $texts = \@texts;
 	} elsif ($dproto eq "") {
 	    $texts = [''];
 	} elsif ($dproto eq "\$" and is_scalar($exprs[0])) {
@@ -3893,11 +3963,8 @@ sub pp_entersub {
 	} elsif ($dproto ne '$' and defined($proto) || $simple) { #'
 	    $texts = self->maybe_parens_func($sub_name, $args, $cx, 5);
 	} else {
-	    if (scalar @arg_texts == 1) {
-		$texts = [$sub_name, @arg_texts, ];
-	    } else {
-		$texts = [$sub_name, '(', @arg_texts, ')'];
-	    }
+	    my @texts = dedup_parens_func($sub_name, @arg_texts);
+	    $texts = \@texts;
 	}
     }
     return {
@@ -4985,27 +5052,24 @@ sub pp_padcv {
 
 unless (caller) {
     eval "use Data::Printer;";
-    # eval "use B::Concise;";
 
-    sub fib {
-	my $x = shift;
-	return 1 if $x <= 1;
-	return(fib($x-1) + fib($x-2))
-    }
-
-    # printf "fib(2)= %d, fib(3) = %d, fib(4) = %d\n", fib(2), fib(3), fib(4);
-    # my $walker = B::Concise::compile('-basic', '-src', 'fib', \&fib);
-    # B::Concise::set_style_standard('debug');
-    # B::Concise::walk_output(\my $buf);
-    # $walker->();			# walks and renders into $buf;
-    # print($buf);
+    eval {
+	sub fib {
+	    my $x = shift;
+	    return 1 if $x <= 1;
+	    return(fib($x-1) + fib($x-2))
+	}
+	sub bar {
+	    printf "fib(2)= %d, fib(3) = %d, fib(4) = %d\n", fib(2), fib(3), fib(4);
+	}
+    };
 
     my $deparse = __PACKAGE__->new("-p", "-l", "-c", "-sC");
-    my $info = $deparse->coderef2list(\&fib);
+    my $info = $deparse->coderef2list(\&bar);
     import Data::Printer colored => 0;
     Data::Printer::p($info);
     print "\n", '=' x 30, "\n";
-    print $deparse->coderef2text(\&fib);
+    print $deparse->coderef2text(\&bar);
     print "\n", '-' x 30, "\n";
     while (my($key, $value) = each $deparse->{optree}) {
 	printf "0x%x %s | %s", $key, $value->{op}->name, $value->{text};
