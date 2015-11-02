@@ -868,10 +868,12 @@ sub deparse {
 					|| class($op) eq "NULL";
     my $meth = "pp_" . $op->name;
     my $info = $self->$meth($op, $cx);
-    $info->{parent} = $$parent;
+    eval {
+    $info->{parent} = $$parent if $parent;
     $info->{cop} = $self->{'curcop'};
     $info->{op} = $op;
     $self->{optree}{$$op} = $info;
+    };
     return $info;
 }
 
@@ -1275,9 +1277,16 @@ sub scopeop {
 	    }
 	    my $cond = $top->first;
 	    my $body = $cond->sibling->first; # skip lineseq
-	    $cond = $self->deparse($cond, 1, $top);
-	    $body = $self->deparse($body, 1, $top);
-	    return "$body $name $cond";
+	    my $cond_info = $self->deparse($cond, 1, $top);
+	    my $body_info = $self->deparse($body, 1, $top);
+	    my @texts = ($body_info->{text}, $name, $cond->{text});
+	    my $text = join(' ', @texts);
+	    return {
+		type => 'scopeop_block',
+		body => [$cond_info, $body_info],
+		texts => \@texts,
+		text => $text,
+	    };
 	}
     } else {
 	$kid = $op->first;
@@ -1285,12 +1294,23 @@ sub scopeop {
     for (; !null($kid); $kid = $kid->sibling) {
 	push @kids, $kid;
     }
-    if ($cx > 0) { # inside an expression, (a do {} while for lineseq)
+    if ($cx > 0) {
+	# inside an expression, (a do {} while for lineseq)
 	my $body = $self->lineseq($op, 0, @kids);
-	return is_lexical_subs(@kids) ? $body : "do {\n\t$body\n\b}";
+	my @texts = ($body->{text});
+	my $text;
+	unless (is_lexical_subs(@kids)) {
+	    @texts = ('do ', '{\n\t', @texts, "\n\b");
+	};
+	return {
+	    type => 'scope_expr',
+	    text => join('', @texts),
+	    texts => \@texts,
+	};
     } else {
-	my $lineseq = $self->lineseq($op, $cx, @kids);
-	return (length ($lineseq) ? "$lineseq;" : "");
+	my $ls = $self->lineseq($op, $cx, @kids);
+	my $text = $ls->{text};
+	return text_info($text);
     }
 }
 
@@ -3128,16 +3148,25 @@ sub pp_cond_expr {
     unless ($cx < 1 and (is_scope($true) and $true->name ne "null") and
 	    (is_scope($false) || is_ifelse_cont($false))
 	    and $self->{'expand'} < 7) {
-	$cond = $self->deparse($cond, 8);
-	$true = $self->deparse($true, 6);
-	$false = $self->deparse($false, 8);
-	return $self->maybe_parens("$cond ? $true : $false", $cx, 8);
+	my $cond_info = $self->deparse($cond, 8, $op);
+	my $true_info = $self->deparse($true, 6, $op);
+	my $false_info = $self->deparse($false, 8, $op);
+	my @texts = ($cond_info->{text}, '?', $true_info->{text}, ':', $false_info->{text});
+	my $text = $self->maybe_parens(join(' ', @texts), $cx, 8);
+	return {
+	    text => $text,
+	    texts => \@texts,
+	    type => 'pp_cond_expr1',
+	    body => [$cond_info, $true_info, $false_info],
+	};
     }
 
-    $cond = $self->deparse($cond, 1);
-    $true = $self->deparse($true, 0);
-    my $head = "if ($cond) {\n\t$true\n\b}";
+    my $cond_info = $self->deparse($cond, 1, $op);
+    my $true_info = $self->deparse($true, 0, $op);
+    my @head = ('if ', '(', $cond_info->{text}, ') ', "{\n\t", $true_info->{text}, "\n\b}");
     my @elsifs;
+    my @body = ($cond_info, $true_info);
+
     while (!null($false) and is_ifelse_cont($false)) {
 	my $newop = $false->first;
 	my $newcond = $newop->first;
@@ -3149,17 +3178,28 @@ sub pp_cond_expr {
 	    # Bug #37302 fixed by change #33710.
 	    $newcond = $newcond->first->sibling;
 	}
-	$newcond = $self->deparse($newcond, 1);
-	$newtrue = $self->deparse($newtrue, 0);
-	push @elsifs, "elsif ($newcond) {\n\t$newtrue\n\b}";
+	my $newcond_info = $self->deparse($newcond, 1, $op);
+	my $newtrue_info = $self->deparse($newtrue, 0, $op);
+	push @body, $newcond_info;
+	push @body, $newtrue_info;
+	push @elsifs, "elsif ($newcond_info->{text}) {\n\t$newtrue_info->{text}\n\b}";
     }
+    my $false_info;
     if (!null($false)) {
-	$false = $cuddle . "else {\n\t" .
-	  $self->deparse($false, 0) . "\n\b}\cK";
+	$false_info = $self->deparse($false, 0, $op);
+	$false_info->{text} = $cuddle . "else {\n\t" . $false_info->{text} . "\n\b}\cK";
+	push @body, $false_info;
     } else {
-	$false = "\cK";
+	$false_info->{text} = "\cK";
     }
-    return $head . join($cuddle, "", @elsifs) . $false;
+    my @texts = (@head, @elsifs, $false_info->{text});
+    my $text = join('', @head) . join($cuddle, @elsifs) . $false_info->{text};
+    return {
+	text => $text,
+	texts => \@texts,
+	body => \@body,
+	type => 'pp_cond_expr',
+    };
 }
 
 sub pp_once {
@@ -3302,7 +3342,7 @@ BEGIN { for (qw[ const stringify rv2sv list glob ]) {
 sub pp_null {
     my $self = shift;
     my($op, $cx) = @_;
-    my $text;
+    my $text = '';
     if (class($op) eq "OP") {
 	# old value is lost
 	$text = $self->{'ex_const'} if $op->targ == OP_CONST;
@@ -4325,11 +4365,13 @@ sub const {
 	return $self->maybe_parens("\\" . $self->const($ref, 20), $cx, 20);
     } elsif ($sv->FLAGS & SVf_POK) {
 	my $str = $sv->PV;
+	my $safe_str;
 	if ($str =~ /[[:^print:]]/) {
-	    return text_info single_delim("qq", '"', uninterp escape_str unback $str);
+	    $safe_str = single_delim("qq", '"', uninterp escape_str unback $str);
 	} else {
-	    return text_info single_delim("q", "'", unback $str);
+	    $safe_str = single_delim("q", "'", unback $str);
 	}
+	return text_info($safe_str);
     } else {
 	return text_info "undef";
     }
@@ -4372,7 +4414,9 @@ sub pp_const {
 #	return $self->const_sv($op)->PV;
 #    }
     my $sv = $self->const_sv($op);
-    return $self->const($sv, $cx);
+    my $ret = $self->const($sv, $cx);;
+    my %y = %{$ret};
+    return \%y;
 }
 
 sub dq {
@@ -5072,10 +5116,14 @@ unless (caller) {
 	sub bar {
 	    printf "fib(2)= %d, fib(3) = %d, fib(4) = %d\n", fib(2), fib(3), fib(4);
 	}
+	sub baz {
+	    no strict;
+	    if ($x eq $x) { print "ok 1\n"; } else { print "not ok 1\n";}
+	}
     };
 
     my $deparse = __PACKAGE__->new("-p", "-l", "-c", "-sC");
-    my $info = $deparse->coderef2list(\&bar);
+    my $info = $deparse->coderef2list(\&baz);
     import Data::Printer colored => 0;
     Data::Printer::p($info);
     print "\n", '=' x 30, "\n";
