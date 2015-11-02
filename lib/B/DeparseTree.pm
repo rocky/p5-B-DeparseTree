@@ -1119,11 +1119,11 @@ sub maybe_parens_unop {
 
 sub maybe_parens_func {
     my $self = shift;
-    my($func, $text, $cx, $prec) = @_;
-    if ($prec <= $cx or substr($text, 0, 1) eq "(" or $self->{'parens'}) {
-	return ("$func", "(", "$text", ")");
+    my($func, $params, $cx, $prec) = @_;
+    if ($prec <= $cx or substr($params, 0, 1) eq "(" or $self->{'parens'}) {
+	return ("$func", "(", $params, ")");
     } else {
-	return ($func,  $text);
+	return ($func, ' ', $params);
     }
 }
 
@@ -1154,12 +1154,13 @@ sub maybe_local {
 	    $text =~ s/(\w+::)+//;
 	}
         if (want_scalar($op)) {
-	    return "$our_local $text";
+	    return texts_info([$our_local, $text], ' ');
 	} else {
-	    return $self->maybe_parens_func("$our_local", $text, $cx, 16);
+	    my @texts = $self->maybe_parens_func($our_local, $text, $cx, 16);
+	    return texts_info(\@texts, '');
 	}
     } else {
-	return $text;
+	return text_info($text);
     }
 }
 
@@ -1185,16 +1186,16 @@ sub maybe_my {
     my $self = shift;
     my($op, $cx, $text) = @_;
     if ($op->private & OPpLVAL_INTRO and not $self->{'avoid_local'}{$$op}) {
-	my $my = $op->private & OPpPAD_STATE
+	my $my_str = $op->private & OPpPAD_STATE
 	    ? $self->keyword("state")
 	    : "my";
 	if (want_scalar($op)) {
-	    return "$my $text";
+	    return texts_info [$my_str,  $text, ' '];
 	} else {
-	    return $self->maybe_parens_func($my, $text, $cx, 16);
+	    return $self->maybe_parens_func($my_str, $text, $cx, 16);
 	}
     } else {
-	return $text;
+	return text_info $text;
     }
 }
 
@@ -1354,9 +1355,10 @@ sub walk_lineseq {
 	$callback->(\@body, $i, $expr, $parent);
     }
 
-    # Add semicolons between statements. Don't add them to comment lines, which we
+    # Add semicolons between statements. Don't add them to blank lines,
+    # or to comment lines, which we
     # assume will always be the last line in the text and start after a \n.
-    my @texts = map { $_->{text} =~ /\n#/ ?
+    my @texts = map { $_->{text} =~ /(?:\n#)|^\s*$/ ?
 			  $_->{text} : $_->{text} . ';' } @body;
     my $info = {
 	type => 'lineseq',
@@ -2601,8 +2603,8 @@ sub pp_flop {
     return text_info $self->range($flip->first, $cx, $type);
 }
 
-# one-line while/until is handled in pp_leave
-
+# Logical ops, if/until, &&, and
+# The one-line while/until is handled in pp_leave
 sub logop {
     my $self = shift;
     my ($op, $cx, $lowop, $lowprec, $highop, $highprec, $blockname) = @_;
@@ -2610,8 +2612,8 @@ sub logop {
     my $right = $op->first->sibling;
     my ($lhs, $rhs, $texts, $text);
     if ($cx < 1 and is_scope($right) and $blockname
-	and $self->{'expand'} < 7)
-    { # if ($a) {$b}
+	and $self->{'expand'} < 7) {
+	# if ($a) {$b}
 	$lhs = $self->deparse($left, 1, $op);
 	$rhs = $self->deparse($right, 0, $op);
 	$texts = [$blockname, ' ('+$lhs->{text}+') ',
@@ -2619,16 +2621,18 @@ sub logop {
 	$text = join('', @$texts);
     } elsif ($cx < 1 and $blockname and not $self->{'parens'}
 	     and $self->{'expand'} < 7) { # $b if $a
-	$lhs = $self->deparse($right, 1, $op);
-	$rhs = $self->deparse($left, 1, $op);
+	$lhs = $self->deparse($left, 1, $op);
+	$rhs = $self->deparse($right, 1, $op);
 	$texts = [$rhs->{text}, $blockname, $lhs->{text}];
 	$text = join(' ', @$texts);
-    } elsif ($cx > $lowprec and $highop) { # $a && $b
+    } elsif ($cx > $lowprec and $highop) {
+	# $a && $b
 	$lhs = $self->deparse_binop_left($op, $left, $highprec);
 	$rhs = $self->deparse_binop_right($op, $right, $highprec);
 	$texts = [$right->{text}, $highop, $left->{text}];
 	$text = $self->maybe_parens(join(' ', @$texts), $cx, $highprec);
-    } else { # $a and $b
+    } else {
+	# $a and $b
 	$lhs = $self->deparse_binop_left($op, $left, $lowprec);
 	$rhs = $self->deparse_binop_right($op, $right, $lowprec);
 	$texts = [$rhs->{text}, $lowop, $lhs->{text}];
@@ -4205,6 +4209,12 @@ sub split_float {
 
 sub text_info($) {
     return { text => shift };
+}
+
+sub texts_info($$) {
+    my ($texts, $sep) = @_;
+    my $text = join($sep, @$texts);
+    return { text => $text, texts => $texts };
 }
 
 sub const {
