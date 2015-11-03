@@ -867,13 +867,12 @@ sub deparse {
     Carp::confess("Null op in deparse") if !defined($op)
 					|| class($op) eq "NULL";
     my $meth = "pp_" . $op->name;
+    # print "YYY $meth\n";
     my $info = $self->$meth($op, $cx);
-    eval {
     $info->{parent} = $$parent if $parent;
     $info->{cop} = $self->{'curcop'};
     $info->{op} = $op;
     $self->{optree}{$$op} = $info;
-    };
     return $info;
 }
 
@@ -905,7 +904,9 @@ sub indent_list {
 	}
 	$line =~ s/\cK;?//g;
     }
-    return join("\n", @$lines_ref);
+
+    my @lines = grep $_ !~ /^\s*$/, @$lines_ref;
+    return join("\n", @lines)
 }
 # Deparse a subroutine
 sub deparse_sub {
@@ -1093,30 +1094,38 @@ sub maybe_parens {
 # same as above, but get around the 'if it looks like a function' rule
 sub maybe_parens_unop {
     my $self = shift;
-    my($name, $kid, $cx) = @_;
+    my($name, $op, $cx, $parent) = @_;
+    my ($info, $ret, $text);
     if ($cx > 16 or $self->{'parens'}) {
-	$kid =  $self->deparse($kid, 1);
- 	if ($name eq "umask" && $kid =~ /^\d+$/) {
-	    $kid = sprintf("%#o", $kid);
+	$info =  $self->deparse($op, 1, $parent);
+	$text = $info->{text};
+ 	if ($name eq "umask" && $info->{text} =~ /^\d+$/) {
+	    $text = sprintf("%#o", $text);
 	}
-	return $self->keyword($name) . "($kid)";
+	$ret = texts_info([$self->keyword($name), '(', $text, ')'], '',
+			     'maybe_parens_unop1');
     } else {
-	$kid = $self->deparse($kid, 16);
- 	if ($name eq "umask" && $kid =~ /^\d+$/) {
-	    $kid = sprintf("%#o", $kid);
+	$info = $self->deparse($op, 16, $parent);
+	$text = $info->{text};
+ 	if ($name eq "umask" && $text =~ /^\d+$/) {
+	    $text = sprintf("%#o", $text);
 	}
 	$name = $self->keyword($name);
-	if (substr($kid, 0, 1) eq "\cS") {
-	    # use kid's parens
-	    return $name . substr($kid, 1);
-	} elsif (substr($kid, 0, 1) eq "(") {
+	if (substr($text, 0, 1) eq "\cS") {
+	    # use op's parens
+	    $ret = texts_info([$name, substr($text, 1)], '',
+			      'maybe_parens_unop2');
+	} elsif (substr($text, 0, 1) eq "(") {
 	    # avoid looks-like-a-function trap with extra parens
 	    # ('+' can lead to ambiguities)
-	    return "$name(" . $kid  . ")";
+	    $ret = texts_info([$name, '(', $text, ')'], '',
+			      "maybe_parens_unop3");
 	} else {
-	    return "$name $kid";
+	    $ret = texts_info([$name,  $text], '', 'maybe_parens_unop4');
 	}
     }
+    $ret->{body} = [$info];
+    return $ret;
 }
 
 sub maybe_parens_func {
@@ -1156,10 +1165,10 @@ sub maybe_local {
 	    $text =~ s/(\w+::)+//;
 	}
         if (want_scalar($op)) {
-	    return texts_info([$our_local, $text], ' ');
+	    return texts_info([$our_local, $text], ' ', 'maybe_local_scalar');
 	} else {
 	    my @texts = $self->maybe_parens_func($our_local, $text, $cx, 16);
-	    return texts_info(\@texts, '');
+	    return texts_info(\@texts, '', 'maybe_local_array');
 	}
     } else {
 	return text_info($text);
@@ -1197,7 +1206,7 @@ sub maybe_my {
 	    return $self->maybe_parens_func($my_str, $text, $cx, 16);
 	}
     } else {
-	return text_info $text;
+	return text_info($text, 'maybe_my');
     }
 }
 
@@ -1878,7 +1887,7 @@ sub pp_stub {
 }
 sub pp_wantarray { baseop(@_, "wantarray") }
 sub pp_fork { baseop(@_, "fork") }
-sub pp_wait { maybe_targmy(@_, \&baseop, "wait") }
+sub pp_wait { maybe_my(@_, \&baseop, "wait") }
 sub pp_getppid { maybe_targmy(@_, \&baseop, "getppid") }
 sub pp_time { maybe_targmy(@_, \&baseop, "time") }
 sub pp_tms { baseop(@_, "times") }
@@ -1908,14 +1917,25 @@ sub pfixop {
     my($op, $cx, $name, $prec, $flags) = (@_, 0);
     my $kid = $op->first;
     $kid = $self->deparse($kid, $prec, $op);
-    return $self->maybe_parens(($flags & POSTFIX)
-				 ? "$kid$name"
-				   # avoid confusion with filetests
-				 : $name eq '-'
-				   && $kid =~ /^[a-zA-Z](?!\w)/
-					? "$name($kid)"
-					: "$name$kid",
-			       $cx, $prec);
+    my $type = 'pfixop';
+    my @texts;
+    if ($flags & POSTFIX) {
+	@texts = ($kid->{text}, $name);
+	$type = 'pfixop_postfix';
+    } elsif ($name eq '-' && $kid =~ /^[a-zA-Z](?!\w)/) {
+	# avoid confusion with filetests
+	$type = 'pfixop_minus';
+	@texts = ($kid->{text}, '(', $name, ')');
+    } else {
+	@texts = ($name, $kid->{text});
+    }
+
+    my $text = $self->maybe_parens(join('', @texts), $cx, $prec);
+    return {
+	text => $text,
+	texts => @texts,
+	type => $type
+    };
 }
 
 sub pp_preinc { pfixop(@_, "++", 23) }
@@ -1955,7 +1975,6 @@ sub unop {
     my $self = shift;
     my($op, $cx, $name, $nollafr) = @_;
     my $kid;
-    my $text;
     if ($op->flags & OPf_KIDS) {
 	$kid = $op->first;
  	if (not $name) {
@@ -1971,19 +1990,33 @@ sub unop {
 	}
 
 	if ($nollafr) {
-	    ($kid = $self->deparse($kid, 16, $op)) =~ s/^\cS//;
-	    $text = $self->maybe_parens(
-		$self->keyword($name) . " $kid", $cx, 16
-		);
+	    $kid = $self->deparse($kid, 16, $op);
+	    ($kid->{text}) =~ s/^\cS//;
+	    my @texts = ($self->keyword($name), ' ', $kid->{text});
+	    my $text = join('', @texts);
+	    $text = $self->maybe_parens($text, $cx, 16);
+	    return {
+		text => $text,
+		texts => @texts,
+		type => 'unop_noallafr',
+		body => [$kid],
+		type => 'unop_nollafr',
+	    };
 	}
-        $text = $self->maybe_parens_unop($name, $kid, $cx);
+	return {
+	    text => $self->maybe_parens_unop($name, $kid, $cx, $op),
+	    type => 'unop',
+	};
     } else {
-	$text = $self->maybe_parens(
-	    $self->keyword($name) . ($op->flags & OPf_SPECIAL ? "()" : ""),
-	    $cx, 16,
-	);
+	my @texts = ($self->keyword($name));
+	push @texts, '()' if $op->flags & OPf_SPECIAL;
+	my $text = $self->maybe_parens(join('', @texts), $cx, 16);
+	return {
+	    text => $text,
+	    texts => \@texts,
+	    type => 'unop_nokid',
+	};
     }
-    return {text => $text};
 }
 
 sub pp_chop { maybe_targmy(@_, \&unop, "chop") }
@@ -2289,7 +2322,7 @@ sub dq_unop {
        $kid = $op->first;
        # If there's more than one kid, the first is an ex-pushmark.
        $kid = $kid->sibling if not null $kid->sibling;
-       return $self->maybe_parens_unop($name, $kid, $cx);
+       return $self->maybe_parens_unop($name, $kid, $cx, $op);
     } else {
        return $name .  ($op->flags & OPf_SPECIAL ? "()" : "");
     }
@@ -2332,7 +2365,7 @@ sub ftst {
 	    (my $kid = $self->deparse($op->first, 16, $op)) =~ s/^\cS//;
 	    return $self->maybe_parens("$name $kid", $cx, 16);
 	}
-	return $self->maybe_parens_unop($name, $op->first, $cx);
+	return $self->maybe_parens_unop($name, $op->first, $cx, $op);
     } elsif (class($op) =~ /^(SV|PAD)OP$/) {
 	return $self->maybe_parens_func($name, $self->pp_gv($op, 1), $cx, 16);
     } else { # I don't think baseop filetests ever survive ck_ftst, but...
@@ -2480,13 +2513,12 @@ sub binop {
 	$lhs->{text} = "($lhs->{text})";
     }
     my $rhs = $self->deparse_binop_right($op, $right, $prec);
-    my $body = $self->bin_info_join_maybe_parens($lhs, $rhs,
-						 "$opname$eq", ' ', $cx, $prec);
-    my $texts = [$lhs->{text}, "$opname$eq", $rhs->{text}];
+    my @texts = ($lhs->{text}, "$opname$eq", $rhs->{text});
+    my $text = $self->maybe_parens(join(' ', @texts), $cx, $prec);
     return {
-	texts => $texts,
+	texts => \@texts,
 	body => [$lhs, $rhs],
-	text => $body->{text},
+	text => $text,
     };
 }
 
@@ -2544,16 +2576,21 @@ sub pp_smartmatch {
     }
 }
 
-sub bin_info_join($$$$) {
-    my ($lhs, $rhs, $mid, $sep) = @_;
+sub bin_info_join($$$$$) {
+    my ($lhs, $rhs, $mid, $sep, $type) = @_;
     my $texts = [$lhs->{text}, $mid, $rhs->{text}];
     my $text = join(' ', @$texts);
-    return {text => $text, body => [$lhs, $rhs], texts => $texts};
+    return {
+	text => $text,
+	body => [$lhs, $rhs],
+	texts => $texts,
+	type => $type
+    };
 }
 
 sub bin_info_join_maybe_parens($$$$$$) {
-    my ($self, $lhs, $rhs, $mid, $sep, $cx, $prec) = @_;
-    my $info = bin_info_join($lhs, $rhs, $mid, $sep);
+    my ($self, $lhs, $rhs, $mid, $sep, $cx, $prec, $type) = @_;
+    my $info = bin_info_join($lhs, $rhs, $mid, $sep, $type);
     $info->{text} = $self->maybe_parens($info->{text}, $cx, $prec);
     return $info;
 }
@@ -2575,7 +2612,8 @@ sub real_concat {
     }
     my $lhs = $self->deparse_binop_left($op, $left, $prec);
     my $rhs  = $self->deparse_binop_right($op, $right, $prec);
-    return $self->bin_info_join_maybe_parens($lhs, $rhs, ".$eq", " ", $cx, $prec);
+    return $self->bin_info_join_maybe_parens($lhs, $rhs, ".$eq", " ", $cx, $prec,
+	'real_concat');
 }
 
 # 'x' is weird when the left arg is a list
@@ -2649,7 +2687,7 @@ sub logop {
 	# $a && $b
 	$lhs = $self->deparse_binop_left($op, $left, $highprec);
 	$rhs = $self->deparse_binop_right($op, $right, $highprec);
-	$texts = [$right->{text}, $highop, $left->{text}];
+	$texts = [$rhs->{text}, $highop, $lhs->{text}];
 	$text = $self->maybe_parens(join(' ', @$texts), $cx, $highprec);
     } else {
 	# $a and $b
@@ -2927,6 +2965,7 @@ sub indirop {
     my $indir;
     my @texts = ();
     my $type = 'indirop';
+
     if ($op->flags & OPf_STACKED) {
 	my $indir_op = $kid->first; # skip rv2gv
 	if (is_scope($indir_op)) {
@@ -2968,7 +3007,7 @@ sub indirop {
 	@texts2 = ( $self->keyword($name) );
     }
     if ($name eq "sort" && ($op->private & OPpSORT_INPLACE)) {
-	@texts = ($exprs[0], '=', @texts2, @texts, $exprs[0]->{text});
+	@texts = ($exprs[0]->{text}, '=', @texts2, @texts, $exprs[0]->{text});
 	my $text = join(' ', @texts);
 	return {
 	    text => $text,
@@ -3124,11 +3163,21 @@ sub pp_list {
 	}
 	push @exprs, $expr;
     }
+    my @args = map $_->{text}, @exprs;
+    my $info = {
+	body => \@exprs,
+    };
+
     if ($local) {
-	return "$local(" . join(", ", @exprs) . ")";
+	$info->{texts} = [$local, '(', join(", ", @args), ')'];
+	$info->{text} = join('', $info->{texts});
+	$info->{type} = 'pp_list_local';
     } else {
-	return $self->maybe_parens( join(", ", @exprs), $cx, 6);
+	$info->{texts} = @args;
+	$info->{text} = $self->maybe_parens( join(", ", @args), $cx, 6);
+	$info->{type} = 'pp_list';
     }
+    return $info;
 }
 
 sub is_ifelse_cont {
@@ -3342,6 +3391,7 @@ BEGIN { for (qw[ const stringify rv2sv list glob ]) {
 sub pp_null {
     my $self = shift;
     my($op, $cx) = @_;
+
     my $text = '';
     if (class($op) eq "OP") {
 	# old value is lost
@@ -3355,7 +3405,7 @@ sub pp_null {
     } elsif ($op->first->name eq "scope") {
 	$text = $self->pp_scope($op->first, $cx);
     } elsif ($op->targ == OP_STRINGIFY) {
-	$text = $self->dquote($op, $cx);
+	return $self->dquote($op, $cx);
     } elsif ($op->targ == OP_GLOB) {
 	$text = $self->pp_glob(
 	    $op->first    # entersub
@@ -3380,7 +3430,7 @@ sub pp_null {
 	my $body = [$self->deparse($op->first, $cx, $op)];
 	my $texts = ["do {", "\t" . $body->[0]->{text}, "\b};"];
 	return {text => join("\n", @$texts),
-		type => 'null_special',
+		type => 'null_do',
 		body => $body,
 		texts => $texts};
 
@@ -3391,7 +3441,8 @@ sub pp_null {
 	     $op->first->sibling->first->name eq "rcatline") {
 	my $lhs = $self->deparse($op->first, 18);
 	my $rhs = $self->deparse($op->first->sibling, 18);
-	return $self->bin_info_join_maybe_parens($lhs, $rhs, '=', " ", $cx, 20);
+	return $self->bin_info_join_maybe_parens($lhs, $rhs, '=', " ", $cx, 20,
+						 'null_rcatline');
     } else {
 	return $self->deparse($op->first, $cx, $op);
     }
@@ -3440,8 +3491,9 @@ sub pp_gvsv {
     my $self = shift;
     my($op, $cx) = @_;
     my $gv = $self->gv_or_padgv($op);
-    return $self->maybe_local($op, $cx, $self->stash_variable("\$",
-				 $self->gv_name($gv), $cx));
+    my $ret = $self->maybe_local($op, $cx, $self->stash_variable("\$",
+								 $self->gv_name($gv), $cx));
+    return $ret;
 }
 
 sub pp_gv {
@@ -3456,7 +3508,7 @@ sub pp_aelemfast_lex {
     my($op, $cx) = @_;
     my $name = $self->padname($op->targ);
     $name =~ s/^@/\$/;
-    return $name . "[" .  ($op->private + $self->{'arybase'}) . "]";
+    return texts_info([$name, "[", ($op->private + $self->{'arybase'}), "]"], '');
 }
 
 sub pp_aelemfast {
@@ -3468,7 +3520,7 @@ sub pp_aelemfast {
     my $gv = $self->gv_or_padgv($op);
     my($name,$quoted) = $self->stash_variable_name('@',$gv);
     $name = $quoted ? "$name->" : '$' . $name;
-    return $name . "[" .  ($op->private + $self->{'arybase'}) . "]";
+    return texts_info([$name, "[", ($op->private + $self->{'arybase'}), "]"], '');
 }
 
 sub rv2x {
@@ -3962,19 +4014,19 @@ sub pp_entersub {
 	}
     }
 
-    my ($args, $texts, @arg_texts);
-    $args = [];
-    @arg_texts = ();
+    my (@arg_texts, @texts, @body, $type);
+    @body = ();
     if ($declared and defined $proto and not $amper) {
+	my $args;
 	($amper, $args) = $self->check_proto($op, $proto, @exprs);
 	if ($amper eq "&") {
-	    $args = map($self->deparse($_, 6, $op), @exprs);
+	    @body = map($self->deparse($_, 6, $op), @exprs);
 	}
     } else {
-	my @args = map($self->deparse($_, 6, $op), @exprs);
-	$args = \@args;
+	@body  = map($self->deparse($_, 6, $op), @exprs);
     }
-    @arg_texts = map $_->{text}, @$args;
+    @arg_texts = map $_->{text}, @body;
+    my $arg_texts = join(', ', @arg_texts);
     if ($prefix or $amper) {
 	if ($sub_name eq '&') {
 	    # &{&} cannot be written as &&
@@ -3982,39 +4034,44 @@ sub pp_entersub {
 	    $kid_info->{text} = join('', $kid_info->{texts});
 	}
 	if ($op->flags & OPf_STACKED) {
-	    $texts = [$prefix, $amper, $sub_name, "(", @arg_texts, ")"];
+	    $type = 'entersub_prefix_or_amper_stacked';
+	    @texts = ($prefix, $amper, $sub_name, "(", $arg_texts, ")");
 	} else {
-	    $texts = [$prefix, $amper, $sub_name];
+	    $type = 'entersub_prefix_or_amper';
+	    @texts = ($prefix, $amper, $sub_name);
 	}
     } else {
 	# It's a syntax error to call CORE::GLOBAL::foo with a prefix,
 	# so it must have been translated from a keyword call. Translate
 	# it back.
 	$sub_name =~ s/^CORE::GLOBAL:://;
-
 	my $dproto = defined($proto) ? $proto : "undefined";
         if (!$declared) {
-	    my @texts = dedup_parens_func($sub_name, @arg_texts);
-	    $texts = \@texts;
+	    $type = 'entersub_not_declared';
+	    @texts = dedup_parens_func($sub_name, @arg_texts);
 	} elsif ($dproto eq "") {
-	    $texts = [''];
+	    $type = 'entersub_null_proto';
+	    @texts = ($sub_name);
 	} elsif ($dproto eq "\$" and is_scalar($exprs[0])) {
+	    $type = 'entersub_dollar_proto';
 	    # is_scalar is an excessively conservative test here:
 	    # really, we should be comparing to the precedence of the
 	    # top operator of $exprs[0] (ala unop()), but that would
 	    # take some major code restructuring to do right.
-	    $texts = [$self->maybe_parens_func($sub_name, $args, $cx, 16)];
+	    @texts = $self->maybe_parens_func($sub_name, join(', ', @arg_texts), $cx, 16);
 	} elsif ($dproto ne '$' and defined($proto) || $simple) { #'
-	    $texts = self->maybe_parens_func($sub_name, $args, $cx, 5);
+	    $type = 'entersub_proto';
+	    @texts = $self->maybe_parens_func($sub_name, join(', ', @arg_texts), $cx, 5);
 	} else {
-	    my @texts = dedup_parens_func($sub_name, @arg_texts);
-	    $texts = \@texts;
+	    $type = 'entersub';
+	    @texts = dedup_parens_func($sub_name, @arg_texts);
 	}
     }
     return {
-	texts => $texts,
-	body => $args,
-	text => join('', @$texts),
+	texts => \@texts,
+	body => \@body,
+	text => join('', @texts),
+	type => $type,
     }
 }
 
@@ -4206,20 +4263,25 @@ sub balanced_delim {
 
 sub single_delim {
     my($q, $default, $str) = @_;
-    return "$default$str$default" if $default and index($str, $default) == -1;
+    return texts_info([$default, $str, $default], '')
+	if $default and index($str, $default) == -1;
     if ($q ne 'qr') {
 	(my $succeed, $str) = balanced_delim($str);
-	return "$q$str" if $succeed;
+	return texts_info([$q, $str], '', 'single_delim') if $succeed;
     }
     for my $delim ('/', '"', '#') {
-	return "$q$delim" . $str . $delim if index($str, $delim) == -1;
+	return texts_info([$q, $delim, $str,
+			   $delim], '', 'single_delim_qr')
+	    if index($str, $delim) == -1;
     }
     if ($default) {
 	$str =~ s/$default/\\$default/g;
-	return "$default$str$default";
+	return texts_info([$default, $str, $default], '',
+	    'single_delim_qr_esc');
     } else {
 	$str =~ s[/][\\/]g;
-	return "$q/$str/";
+	return texts_info([$q, '/', $str, '/'], '',
+	    'single_delim_qr');
     }
 }
 
@@ -4247,14 +4309,19 @@ sub split_float {
     return ($mantissa, $exponent);
 }
 
-sub text_info($) {
-    return { text => shift };
+sub text_info($$) {
+    my ($text, $type) = @_;
+    my $info = {text => $text};
+    $info->{type} = $type;
+    return $info;
 }
 
-sub texts_info($$) {
-    my ($texts, $sep) = @_;
+sub texts_info($$$) {
+    my ($texts, $sep, $type) = @_;
     my $text = join($sep, @$texts);
-    return { text => $text, texts => $texts };
+    my $info = {text => $text, texts => $texts};
+    $info->{type} = $type;
+    return $info;
 }
 
 sub const {
@@ -4266,10 +4333,10 @@ sub const {
     if (class($sv) eq "SPECIAL") {
 	# sv_undef, sv_yes, sv_no
 	my $text = ('undef', '1', $self->maybe_parens("!1", $cx, 21))[$$sv-1];
-	return text_info $text;
+	return text_info $text, 'const_special';
     }
     if (class($sv) eq "NULL") {
-	return text_info 'undef';
+	return text_info 'undef', 'const_NULL';
     }
     # convert a version object into the "v1.2.3" string in its V magic
     if ($sv->FLAGS & SVs_RMG) {
@@ -4281,37 +4348,42 @@ sub const {
     if ($sv->FLAGS & SVf_IOK) {
 	my $str = $sv->int_value;
 	$str = $self->maybe_parens($str, $cx, 21) if $str < 0;
-	return text_info $str;
+	return text_info $str, 'const_INT';
     } elsif ($sv->FLAGS & SVf_NOK) {
 	my $nv = $sv->NV;
 	if ($nv == 0) {
 	    if (pack("F", $nv) eq pack("F", 0)) {
 		# positive zero
-		return text_info "0";
+		return text_info "0", 'const_plus_zero';
 	    } else {
 		# negative zero
-		return text_info $self->maybe_parens("-.0", $cx, 21);
+		return text_info($self->maybe_parens("-.0", $cx, 21),
+				 'const_minus_zero');
 	    }
 	} elsif (1/$nv == 0) {
 	    if ($nv > 0) {
 		# positive infinity
-		return text_info $self->maybe_parens("9**9**9", $cx, 22);
+		return text_info($self->maybe_parens("9**9**9", $cx, 22),
+				 'const_plus_inf');
 	    } else {
 		# negative infinity
-		return text_info $self->maybe_parens("-9**9**9", $cx, 21);
+		return text_info($self->maybe_parens("-9**9**9", $cx, 21),
+				 'const_minus_inf');
 	    }
 	} elsif ($nv != $nv) {
 	    # NaN
 	    if (pack("F", $nv) eq pack("F", sin(9**9**9))) {
 		# the normal kind
-		return text_info "sin(9**9**9)";
+		return text_info "sin(9**9**9)", 'const_Nan';
 	    } elsif (pack("F", $nv) eq pack("F", -sin(9**9**9))) {
 		# the inverted kind
-		return text_info $self->maybe_parens("-sin(9**9**9)", $cx, 21);
+		return text_info($self->maybe_parens("-sin(9**9**9)", $cx, 21),
+				 'const_Nan_invert');
 	    } else {
 		# some other kind
 		my $hex = unpack("h*", pack("F", $nv));
-		return text_info qq'unpack("F", pack("h*", "$hex"))';
+		return text_info(qq'unpack("F", pack("h*", "$hex"))',
+				 'const_Na_na_na');
 	    }
 	}
 	# first, try the default stringification
@@ -4324,11 +4396,12 @@ sub const {
 		# not representable in decimal with whatever sprintf()
 		# and atof() Perl is using here.
 		my($mant, $exp) = split_float($nv);
-		return text_info $self->maybe_parens("$mant * 2**$exp", $cx, 19);
+		return text_info($self->maybe_parens("$mant * 2**$exp", $cx, 19),
+				 'const_not_nv');
 	    }
 	}
 	$str = $self->maybe_parens($str, $cx, 21) if $nv < 0;
-	return text_info $str;
+	return text_info $str, 'const_nv';
     } elsif ($sv->FLAGS & SVf_ROK && $sv->can("RV")) {
 	my $ref = $sv->RV;
 	if (class($ref) eq "AV") {
@@ -4339,7 +4412,7 @@ sub const {
 	    for my $k (sort keys %hash) {
 		push @elts, "$k => " . $self->const($hash{$k}, 6);
 	    }
-	    return text_info "{" . join(", ", @elts) . "}";
+	    return texts_info(["{", join(", ", @elts), "}"], '', 'const_hv');
 	} elsif (class($ref) eq "CV") {
 	    BEGIN {
 		if ($] > 5.0150051) {
@@ -4349,15 +4422,18 @@ sub const {
 	    }
 	    if ($] > 5.0150051 && $self->{curcv} &&
 		 $self->{curcv}->object_2svref == $ref->object_2svref) {
-		return text_info $self->keyword("__SUB__");
+		return text_info($self->keyword("__SUB__"), 'const_sub');
 	    }
-	    return text_info "sub " . $self->deparse_sub($ref);
+	    my $sub_info = $self->deparse_sub($ref);
+	    my $info = texts_info(["sub ", $sub_info->{text}], '', 'const_sub2');
+	    $info->{body} = [$sub_info];
+	    return $info;
 	}
 	if ($ref->FLAGS & SVs_SMG) {
 	    for (my $mg = $ref->MAGIC; $mg; $mg = $mg->MOREMAGIC) {
 		if ($mg->TYPE eq 'r') {
 		    my $re = re_uninterp(escape_str(re_unback($mg->precomp)));
-		    return text_info single_delim("qr", "", $re);
+		    return single_delim("qr", "", $re);
 		}
 	    }
 	}
@@ -4365,15 +4441,13 @@ sub const {
 	return $self->maybe_parens("\\" . $self->const($ref, 20), $cx, 20);
     } elsif ($sv->FLAGS & SVf_POK) {
 	my $str = $sv->PV;
-	my $safe_str;
 	if ($str =~ /[[:^print:]]/) {
-	    $safe_str = single_delim("qq", '"', uninterp escape_str unback $str);
+	    return single_delim("qq", '"', uninterp escape_str unback $str);
 	} else {
-	    $safe_str = single_delim("q", "'", unback $str);
+	    return single_delim("q", "'", unback $str);
 	}
-	return text_info($safe_str);
     } else {
-	return text_info "undef";
+	return text_info "undef", 'const_undef';
     }
 }
 
@@ -4408,24 +4482,24 @@ sub pp_const {
     my $self = shift;
     my($op, $cx) = @_;
     if ($op->private & OPpCONST_ARYBASE) {
-        return text_info '$[';
+        return text_info '$[', 'const_ary';
     }
 #    if ($op->private & OPpCONST_BARE) { # trouble with '=>' autoquoting
 #	return $self->const_sv($op)->PV;
 #    }
     my $sv = $self->const_sv($op);
-    my $ret = $self->const($sv, $cx);;
-    my %y = %{$ret};
-    return \%y;
+    return $self->const($sv, $cx);;
 }
 
 sub dq {
     my $self = shift;
     my $op = shift;
     my $type = $op->name;
+    my $info;
     if ($type eq "const") {
-	return '$[' if $op->private & OPpCONST_ARYBASE;
-	return uninterp(escape_str(unback($self->const_sv($op)->as_string)));
+	return text_info('$[', 'dq_const_ary') if $op->private & OPpCONST_ARYBASE;
+	return text_info(uninterp(escape_str(unback($self->const_sv($op)->as_string))),
+			 'dq_const');
     } elsif ($type eq "concat") {
 	my $first = $self->dq($op->first);
 	my $last  = $self->dq($op->last);
@@ -4436,24 +4510,31 @@ sub dq {
 	    || ($last =~ /^[:'{\[\w_]/ && #'
 		$first =~ s/([\$@])([A-Za-z_]\w*)$/${1}{$2}/);
 
-	return $first . $last;
-    } elsif ($type eq "uc") {
-	return '\U' . $self->dq($op->first->sibling) . '\E';
-    } elsif ($type eq "lc") {
-	return '\L' . $self->dq($op->first->sibling) . '\E';
-    } elsif ($type eq "ucfirst") {
-	return '\u' . $self->dq($op->first->sibling);
-    } elsif ($type eq "lcfirst") {
-	return '\l' . $self->dq($op->first->sibling);
-    } elsif ($type eq "quotemeta") {
-	return '\Q' . $self->dq($op->first->sibling) . '\E';
-    } elsif ($type eq "fc") {
-	return '\F' . $self->dq($op->first->sibling) . '\E';
+	$info = texts_info([$first->{text}, $last->{text}], '', 'dq_concat');
+	$info->{body} = [$first, $last];
+	return $info;
     } elsif ($type eq "join") {
 	return $self->deparse($op->last, 26); # was join($", @ary)
     } else {
 	return $self->deparse($op, 26);
     }
+    my $kid = $self->dq($op->first->sibling);
+    my $kid_text = $kid->{text};
+    if ($type eq "uc") {
+	$info = texts_infos(['\U', $kid, '\E'], '', 'dq_uc');
+    } elsif ($type eq "lc") {
+	$info = texts_infos(['\L', $kid, '\E'], '', 'dq_lc');
+    } elsif ($type eq "ucfirst") {
+	$info = texts_infos(['\u', $kid, '\E'], '', 'dq_ucfirst');
+    } elsif ($type eq "lcfirst") {
+	$info = texts_infos(['\l', $kid, '\E'], '', 'dq_lcfirst');
+    } elsif ($type eq "quotemeta") {
+	$info = texts_infos(['\Q', $kid, '\E'], '', 'dq_quotemeta');
+    } elsif ($type eq "fc") {
+	$info = texts_infos(['\F', $kid, '\E'], '', 'dq_fc');
+    }
+    $info->{body} = [$kid];
+    return $info;
 }
 
 sub pp_backtick {
@@ -4474,7 +4555,7 @@ sub dquote {
     my $kid = $op->first->sibling; # skip ex-stringify, pushmark
     return $self->deparse($kid, $cx) if $self->{'unquote'};
     $self->maybe_targmy($kid, $cx,
-			sub {single_delim("qq", '"', $self->dq($_[1]))});
+			sub {single_delim("qq", '"', $self->dq($_[1])->{text})});
 }
 
 # OP_STRINGIFY is a listop, but it only ever has one arg
@@ -5118,7 +5199,8 @@ unless (caller) {
 	}
 	sub baz {
 	    no strict;
-	    if ($x eq $x) { print "ok 1\n"; } else { print "not ok 1\n";}
+	    $b ? "ok 1\n"  : "not ok 1 # $a\n";
+	    # if ($x eq $x) { print "ok 1\n"; } else { print "not ok 1\n";}
 	}
     };
 
@@ -5127,8 +5209,8 @@ unless (caller) {
     import Data::Printer colored => 0;
     Data::Printer::p($info);
     print "\n", '=' x 30, "\n";
-    print $deparse->coderef2text(\&bar);
-    print "\n", '-' x 30, "\n";
+    # print $deparse->coderef2text(\&bar);
+    # print "\n", '-' x 30, "\n";
     while (my($key, $value) = each $deparse->{optree}) {
 	printf "0x%x %s | %s", $key, $value->{op}->name, $value->{text};
 	printf " [%s]\n", $value->{cop} ? $value->{cop}->line : 'undef';
