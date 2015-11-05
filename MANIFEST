@@ -1,0 +1,4 @@
+Build.PL
+lib/B/DeparseTree.pm
+MANIFEST			This list of files
+t/Deparse-subclass.t
