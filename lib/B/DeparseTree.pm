@@ -766,7 +766,7 @@ sub compile {
 	unless (null $root) {
 	    $self->pessimise($root, main_start);
 	    my $deparsed = $self->deparse_root($root);
-	    print $self->indent($deparsed->{text}), "\n";
+	    print $self->indent_info($deparsed), "\n";
 	}
 	my @texts;
 	while (scalar(@{$self->{'subs_todo'}})) {
@@ -804,35 +804,50 @@ sub coderef2list {
     return $self->deparse_sub(svref_2object($coderef));
 }
 
-# Create an info structure from a single string
-sub info_from_text($$) {
-    my ($text, $type) = @_;
-    my $info = {text => $text, texts => [$text]};
-    $info->{type} = $type;
-    $info->{sep} = '';
-    return $info;
+# Possibly add () around $text depending on precidence $prec and
+# context $cx. We return a string.
+sub maybe_parens($$$$)
+{
+    my($self, $text, $cx, $prec) = @_;
+    if ($prec < $cx
+	# unary ops nest just fine
+	or $prec == $cx and $cx != 4 and $cx != 16 and $cx != 21
+	or $self->{'parens'}) {
+	$text = "($text)";
+	# In a unop, let parent reuse our parens; see maybe_parens_unop
+	$text = "\cS" . $text if $cx == 16;
+	return $text;
+    } else {
+	return $text;
+    }
 }
 
 # Create an info structure from a list of strings
-sub info_from_list($$$) {
-    my ($texts, $sep, $type) = @_;
+sub info_from_list($$$$) {
+    my ($texts, $sep, $type, $opts) = @_;
     my $text = join($sep, @$texts);
-    return {
+    my $info = {
 	text => $text,
 	texts => $texts,
 	type => $type,
 	sep => $sep,
     };
+    foreach my $optname (qw(body other_ops)) {
+	$info->{$optname} = $opts->{$optname};
+    }
+    if ($opts->{maybe_parens}) {
+	my ($self, $cx, $prec) = @{$opts->{maybe_parens}};
+	$info->{text} = $self->maybe_parens($info->{text}, $cx, $prec);
+	$info->{cx} = $cx;
+	$info->{prec} = $prec;
+    }
+    return $info
 }
 
-# Create an info structure from a list of strings and
-# a body
-### FIXME go through and populate
-sub info_from_list_body($$$$) {
-    my ($texts, $sep, $body, $type) = @_;
-    my $info = info_from_list($texts, $sep, $type);
-    $info->{body} = $body;
-    return $info;
+# Create an info structure from a single string
+sub info_from_text($$$) {
+    my ($text, $type, $opts) = @_;
+    return info_from_list([$text], '', $type, $opts)
 }
 
 my %strict_bits = do {
@@ -976,13 +991,8 @@ sub deparse {
     return $info;
 }
 
-sub indent {
-    my ($self, $text) = @_;
-    my @lines = split(/\n/, $text);
-    return $self->indent_list(\@lines);
-}
-
-sub indent_list {
+sub indent_list($$)
+{
     my ($self, $lines_ref) = @_;
     my $leader = "";
     my $level = 0;
@@ -1011,6 +1021,29 @@ sub indent_list {
     my @lines = grep $_ !~ /^\s*$/, @$lines_ref;
     return join("\n", @lines)
 }
+
+sub indent($$)
+{
+    my ($self, $text) = @_;
+    my @lines = split(/\n/, $text);
+    return $self->indent_list(\@lines);
+}
+
+# Like indent, but takes an info object and removes leading
+# parenthesis.
+sub indent_info($$)
+{
+    my ($self, $info) = @_;
+    my $text = $info->{text};
+    if ($info->{maybe_parens} and
+	substr($text, 0, 1) == '(' and
+	substr($text, -1) == ')' ) {
+	$text = substr($text, 1, length($text) -2)
+    }
+    return $self->indent($text);
+}
+
+
 # Deparse a subroutine
 sub deparse_sub {
     my ($self, $cv, $parent) = @_;
@@ -1071,11 +1104,11 @@ sub deparse_sub {
 	    # uh-oh. inlinable sub... format it differently
 	    my @texts = ("{", $self->const($sv, 0)->{text}, "}");
 	    unshift @texts, $proto if $proto;
-	    $info = info_from_list \@texts, '', 'sub_const';
+	    $info = info_from_list \@texts, '', 'sub_const', {};
 	} else { # XSUB? (or just a declaration)
 	    my @texts = ();
 	    @texts = push @texts, $proto if $proto;
-	    $info = info_from_list \@texts, ' ', 'sub_decl';
+	    $info = info_from_list \@texts, ' ', 'sub_decl', {};
 	}
     }
 
@@ -1140,61 +1173,38 @@ sub is_scalar {
 	      && $op->first->name eq "gvsv");
 }
 
-# Possibly add () around $text depending on precidence $prec and
-# context $cx. We return a string.
-sub maybe_parens {
-    my $self = shift;
-    my($text, $cx, $prec) = @_;
-    if ($prec < $cx
-	# unary ops nest just fine
-	or $prec == $cx and $cx != 4 and $cx != 16 and $cx != 21
-	or $self->{'parens'}) {
-	$text = "($text)";
-	# In a unop, let parent reuse our parens; see maybe_parens_unop
-	$text = "\cS" . $text if $cx == 16;
-	return $text;
-    } else {
-	return $text;
-    }
-}
-
-# Sort of like above in that we may possibly add ().  However we take
+# Sort of like maybe_parens in that we may possibly add ().  However we take
 # an op rather than text, and return a tree node. Also, we get around
 # the 'if it looks like a function' rule.
-sub maybe_parens_unop {
+sub maybe_parens_unop($self, $name, $op, $cx, $parent)
+{
     my $self = shift;
     my($name, $op, $cx, $parent) = @_;
-    my ($info, $ret, $text);
+    my $info =  $self->deparse($op, 1, $parent);
+    my $text = $info->{text};
+    if ($name eq "umask" && $info->{text} =~ /^\d+$/) {
+	$text = sprintf("%#o", $text);
+    }
     if ($cx > 16 or $self->{'parens'}) {
-	$info =  $self->deparse($op, 1, $parent);
-	$text = $info->{text};
- 	if ($name eq "umask" && $info->{text} =~ /^\d+$/) {
-	    $text = sprintf("%#o", $text);
-	}
-	$ret = info_from_list([$self->keyword($name), '(', $text, ')'], '',
-			     'maybe_parens_unop1');
+	return info_from_list([$self->keyword($name), '(', $text, ')'], '',
+			      'maybe_parens_unop_parens', {body => [$info]});
     } else {
-	$info = $self->deparse($op, 16, $parent);
-	$text = $info->{text};
- 	if ($name eq "umask" && $text =~ /^\d+$/) {
-	    $text = sprintf("%#o", $text);
-	}
 	$name = $self->keyword($name);
 	if (substr($text, 0, 1) eq "\cS") {
 	    # use op's parens
-	    $ret = info_from_list([$name, substr($text, 1)], '',
-			      'maybe_parens_unop2');
+	    return info_from_list([$name, substr($text, 1)], '',
+				  'maybe_parens_unop_cS', {body => [$info]});
 	} elsif (substr($text, 0, 1) eq "(") {
 	    # avoid looks-like-a-function trap with extra parens
 	    # ('+' can lead to ambiguities)
-	    $ret = info_from_list([$name, '(', $text, ')'], '',
-			      "maybe_parens_unop3");
+	    return info_from_list([$name, '(', $text, ')'], '',
+				  "maybe_parens_unop_fn", {});
 	} else {
-	    $ret = info_from_list([$name,  $text], '', 'maybe_parens_unop4');
+	    return info_from_list([$name,  $text], '',
+				  'maybe_parens_unop', {});
 	}
     }
-    $ret->{body} = [$info];
-    return $ret;
+    Carp::confess("unhandled condition in maybe_parens_unop");
 }
 
 sub maybe_parens_func($$$$$)
@@ -1235,13 +1245,13 @@ sub maybe_local_str($$$$)
 	    $text =~ s/(\w+::)+//;
 	}
         if (want_scalar($op)) {
-	    return info_from_list([$our_local, $text], ' ', 'maybe_local_scalar');
+	    return info_from_list([$our_local, $text], ' ', 'maybe_local_scalar', {});
 	} else {
 	    my @texts = $self->maybe_parens_func($our_local, $text, $cx, 16);
-	    return info_from_list(\@texts, '', 'maybe_local_array');
+	    return info_from_list(\@texts, '', 'maybe_local_array', {});
 	}
     } else {
-	return info_from_text($text, 'maybe_local');
+	return info_from_text($text, 'maybe_local', {});
     }
 }
 
@@ -1277,14 +1287,14 @@ sub maybe_my {
 	    ? $self->keyword("state")
 	    : "my";
 	if ($forbid_parens || want_scalar($op)) {
-	    return info_from_list [$my_str,  $text], ' ', 'maybe_my_no_parens';
+	    return info_from_list([$my_str,  $text], ' ', 'maybe_my_no_parens', {});
 	} else {
-	    my $info = info_from_list [$my_str,  $text], ' ', 'maybe_my_parens';
-	    $info->{text} = $self->maybe_parens($info->{text}, $cx, 16);
-	    return $info;
+	    return info_from_list([$my_str,  $text], ' ',
+				  'maybe_my_parens',
+				  {maybe_parens => [$self, $cx, 16]});
 	}
     } else {
-	return info_from_text($text, 'maybe_my_avoid_local');
+	return info_from_text($text, 'maybe_my_avoid_local', {});
     }
 }
 
@@ -1338,6 +1348,11 @@ sub lineseq {
 	if ($parent) {
 	    Carp::confess("nonref parent, op: $op->name") if !ref($parent);
 	    $info->{parent} = $$parent ;
+	}
+	if ($info->{body}) {
+	    foreach my $bod (@{$info->{body}}) {
+		$bod->{parent} = $$op;
+	    }
 	}
 	$self->{optree}{$$op} = $info;
 	$info->{text} = $text;
@@ -1401,7 +1416,7 @@ sub scopeop
     } else {
 	my $ls = $self->lineseq($op, $cx, @kids);
 	my $text = $ls->{text};
-	return info_from_text($text, 'scopeop');
+	return info_from_text($text, 'scopeop', {});
     }
 }
 
@@ -1898,7 +1913,7 @@ sub pp_setstate { pp_nextstate(@_) }
 
 sub pp_unstack {
     # see also leaveloop
-    return info_from_text '', 'unstack' ;
+    return info_from_text('', 'unstack', {});
 }
 
 my %feature_keywords = (
@@ -1963,10 +1978,10 @@ sub pp_stub {
     my $self = shift;
     my($op, $cx, $name) = @_;
     if ($cx >= 1) {
-	return info_from_list(["(", ")"], '', 'stub_cx');
+	return info_from_list(["(", ")"], '', 'stub_cx', {});
     }
     else {
-	return info_from_list(["(", ")", ';'], '', 'stub');
+	return info_from_list(["(", ")", ';'], '', 'stub', {});
     }
 }
 sub pp_wantarray { baseop(@_, "wantarray") }
@@ -2340,9 +2355,7 @@ sub anon_hash_or_list
 	$pre = "+{";
     }
     my $texts = [$pre, join(", ", map($_->{text}, @exprs), $post)];
-    my $info = info_from_list($texts, '', $name);
-    $info->{body} = @exprs;
-    return $info;
+    return info_from_list($texts, '', $name, {body => \@exprs});
 }
 
 sub pp_anonlist {
@@ -2352,7 +2365,7 @@ sub pp_anonlist {
 	return $self->anon_hash_or_list($op, $cx);
     }
     warn "Unexpected op pp_" . $op->name() . " without OPf_SPECIAL";
-    return info_from_text 'XXX', 'bad_anonlist';
+    return info_from_text 'XXX', 'bad_anonlist', {};
 }
 
 *pp_anonhash = \&pp_anonlist;
@@ -2361,9 +2374,8 @@ sub e_anoncode($$)
 {
     my ($self, $info) = @_;
     my $sub_info = $self->deparse_sub($info->{code});
-    my $info = info_from_list(['sub', $sub_info->{text}], ' ', 'e_anoncode');
-    $info->{body} = [$sub_info];
-    return $info;
+    return info_from_list(['sub', $sub_info->{text}], ' ', 'e_anoncode',
+	{body=> [$sub_info]});
 }
 
 sub pp_refgen
@@ -2384,10 +2396,8 @@ sub pp_refgen
                 # The @a in \(@a) isn't in ref context, but only when the
                 # parens are there.
 		my $list_info  = $self->pp_list($op->first);
-		my $info = info_from_list(['\(', $list_info->{text}, ')'], '',
-				      'refgen_pushmark');
-		$info->{body} = $list_info;
-		return $info;
+		return info_from_list(['\(', $list_info->{text}, ')'], '',
+				      'refgen_pushmark', {body=>$list_info});
             } elsif ($sib_name eq 'entersub') {
                 my $kid_info = $self->deparse($kid->sibling, 1, $op);
                 # Always show parens for \(&func()), but only with -p otherwise
@@ -2395,9 +2405,8 @@ sub pp_refgen
 		if ($self->{'parens'} or $kid->sibling->private & OPpENTERSUB_AMPER) {
 		    @texts = ('(', '\\', $kid_info->{text}, ')');
 		}
-		my $info = info_from_list(\@texts, '', 'refgen_entersub');
-                $info->{body} = $kid_info;
-		return $info;
+		return info_from_list(\@texts, '', 'refgen_entersub',
+		    {body => $kid_info});
             }
         }
     }
@@ -2413,9 +2422,8 @@ sub pp_readline {
     $kid = $kid->first if $kid->name eq "rv2gv"; # <$fh>
     if (is_scalar($kid)) {
 	my $body = [$self->deparse($kid, 1, $op)];
-	my $info = info_from_list ['<', $body->[0]{text}, '>'], '', 'readline_scalar';
-	$info->{body} = $body;
-	return $info;
+	return info_from_list(['<', $body->[0]{text}, '>'], '',
+			      'readline_scalar', {body=>$body});
     }
     return $self->unop($op, $cx, "readline");
 }
@@ -2423,7 +2431,8 @@ sub pp_readline {
 sub pp_rcatline {
     my $self = shift;
     my($op) = @_;
-    return "<" . $self->gv_name($self->gv_or_padgv($op)) . ">";
+    return info_from_list(["<", $self->gv_name($self->gv_or_padgv($op)), ">"],
+			  '', 'rcatline', {});
 }
 
 # Unary operators that can occur as pseudo-listops inside double quotes
@@ -2452,24 +2461,22 @@ sub pp_fc { dq_unop(@_, "fc") }
 sub loopex
 {
     my ($self, $op, $cx, $name) = @_;
-    my @texts = ($name);
+    my $opts = {maybe_parens => [$self, $cx, 7]};
     my ($type, $body);
     if (class($op) eq "PVOP") {
-	push @texts, $op->pv;
-	$type = 'loopex_pvop';
+	return info_from_list([$name, $op->pv], ' ', 'loopex_pvop', {});
     } elsif (class($op) eq "OP") {
 	# no-op
 	$type = 'loopex_op';
+	return info_from_text($name, 'loopex_op', $opts);
     } elsif (class($op) eq "UNOP") {
-	$type = 'loopex_unop';
 	(my $kid_info = $self->deparse($op->first, 7, $op)) =~ s/^\cS//;
-	push @texts, $op->pv;
-	$body = [$kid_info];
+	$opts->{body} = [$kid_info];
+	return info_from_list([$name, $op->pv], ' ', 'loopex_unop', $opts);
+    } else {
+	return info_from_text($name, 'loopex', $opts);
     }
-    my $info = info_from_list(\@texts, ' ', $type);
-    $info->{text} = $self->maybe_parens($info->{text}, $cx, 7);
-    $info->{body} = $body if $body;
-    return $info
+    Carp::confess("unhandled condition in lopex");
 }
 
 sub pp_last { loopex(@_, "last") }
@@ -2761,17 +2768,15 @@ sub pp_repeat {
 	$right = $kid;
 	@body = @exprs;
 	my $args = join(', ', map($_->{text}, @exprs));
-	$left_info = info_from_list(["(", $args, ")"], '', 'repeat_left');
-	$left_info->{body} = \@exprs;
+	$left_info = info_from_list(["(", $args, ")"], '', 'repeat_left', {body => \@exprs});
     } else {
 	$left_info = $self->deparse_binop_left($op, $left, $prec);
     }
     my $right_info  = $self->deparse_binop_right($op, $right, $prec);
     my $texts = [$left_info->{text}, "x$eq", $right_info->{text}];
-    my $info = info_from_list($texts, ' ', 'repeat');
-    $info->{body} = [$left_info, $right_info];
-    $info->{text} = $self->maybe_parens($info->{text}, $cx, $prec);
-    return $info;
+    return info_from_list($texts, ' ', 'repeat',
+			  {body => [$left_info, $right_info],
+			   maybe_parens => [$self, $cx, $prec]});
 }
 
 sub range {
@@ -2781,7 +2786,8 @@ sub range {
     my $right = $left->sibling;
     $left = $self->deparse($left, 9, $op);
     $right = $self->deparse($right, 9, $op);
-    return info_from_text $self->maybe_parens("$left $type $right", $cx, 9), 'range';
+    return info_from_list([$left, $type, $right], ' ', 'range',
+			  {maybe_parens => [$self, $cx, 9]});
 }
 
 sub pp_flop {
@@ -2789,7 +2795,7 @@ sub pp_flop {
     my($op, $cx) = @_;
     my $flip = $op->first;
     my $type = ($flip->flags & OPf_SPECIAL) ? "..." : "..";
-    return info_from_text $self->range($flip->first, $cx, $type), 'pp_flop';
+    return info_from_text $self->range($flip->first, $cx, $type), 'pp_flop', {};
 }
 
 # Logical ops, if/until, &&, and
@@ -2862,19 +2868,25 @@ sub rv2gv_or_string {
     if ($op->name eq "gv") { # could be open("open") or open("###")
 	my($name,$quoted) =
 	    $self->stash_variable_name("", $self->gv_or_padgv($op));
-	return info_from_text($quoted ? $name : "*$name", 'r2gv_or_string');
+	return info_from_text($quoted ? $name : "*$name", 'r2gv_or_string', {});
     }
     else {
 	return $self->deparse($op, 6, $parent);
     }
 }
 
-sub listop {
-    my $self = shift;
-    my($op, $cx, $name, $kid, $nollafr) = @_;
+sub listop
+{
+    my($self, $op, $cx, $name, $kid, $nollafr) = @_;
     my(@exprs);
     my $parens = ($cx >= 5) || $self->{'parens'};
-    $kid ||= $op->first->sibling;
+    my $other_ops = undef;
+
+    unless ($kid) {
+	$other_ops = [$op->first];
+	$kid = $op->first->sibling;
+    }
+
     # If there are no arguments, add final parentheses (or parenthesize the
     # whole thing if the llafr does not apply) to account for cases like
     # (return)+1 or setpgrp()+1.  When the llafr does not apply, we use a
@@ -2901,7 +2913,7 @@ sub listop {
 	$first = $self->deparse($kid, 6, $op);
     }
     if ($name eq "chmod" && $first->{text} =~ /^\d+$/) {
-	$first = info_from_text sprintf("%#o", $first), 'listop_chmod';
+	$first = info_from_text sprintf("%#o", $first), 'listop_chmod', {};
     }
     $first->{text} = "+" + $first->{text}
 	if not $parens and not $nollafr and substr($first->{text}, 0, 1) eq "(";
@@ -2953,6 +2965,7 @@ sub listop {
     unshift @texts, $fullname;
     $info->{texts} = \@texts;
     $info->{text} = $text;
+    $info->{other_ops} = $other_ops if $other_ops;
     return $info;
 }
 
@@ -3061,14 +3074,14 @@ sub pp_glob {
 	my $kid = $self->deparse($kid, 0, $op);
 	if ($cx >= 5 || $self->{'parens'}) {
 	    return info_from_list([$keyword, '(', $text, ')'], '',
-			   'glob_paren');
+			   'glob_paren', {});
 	} else {
 	    return info_from_list([$keyword, $text], ' ',
-				  'glob_space');
+				  'glob_space', {});
 	}
     } else {
 	return info_from_list(['<', $text, '>'], '',
-			      'glob_angle');
+			      'glob_angle', {});
     }
 }
 
@@ -3250,9 +3263,8 @@ sub pp_list {
     my $kid = $op->first->sibling; # skip pushmark
 
     if (class($kid) eq 'NULL') {
-	my $info = info_from_text('', 'list_null');
-	$info->{other_ops} = $other_ops;
-	return $info;
+	return info_from_text('', 'list_null',
+			      {other_ops => $other_ops});
     }
     my $lop;
     my $local = "either"; # could be local(...), my(...), state(...) or our(...)
@@ -3487,6 +3499,7 @@ sub loop_common
 	}
 
 	# skip OP_AND and OP_ITER
+	my $other_ops = [$kid->first, $kid->first->first];
 	$body = $kid->first->first->sibling;
 
 	@head = (@ary_info, @var_info);
@@ -3496,10 +3509,8 @@ sub loop_common
 	    my $body_info = $self->deparse($body, 2, $op);
 	    push @head, $body_info;
 	    my @texts = ($body_info->{text}, "foreach", '(', @ary_text, ')');
-	    my $info = info_from_list(\@texts, ' ', 'loop_foreach_ary');
-	    $info->{body} = \@head;
-	    $info->{texts} = \@texts;
-	    return $info
+	    return info_from_list(\@texts, ' ', 'loop_foreach_ary',
+				  {body => \@head, other_ops => $other_ops});
 	}
 	@head_text = ("foreach", @var_text, '(', @ary_text, ')');
     } elsif ($kid->name eq "null") {
@@ -3512,9 +3523,8 @@ sub loop_common
 	@head_text = ($name,  "($cond_info->{text})");
 	$body = $kid->first->sibling;
     } elsif ($kid->name eq "stub") {
-	$type = 'loop_stub';
 	# bare and empty
-	return info_from_list(['{', ';', '}'], '', 'loop_stub');
+	return info_from_list(['{', ';', '}'], '', 'loop_stub', {});
     }
 
     # If there isn't a continue block, then the next pointer for the loop
@@ -3556,7 +3566,7 @@ sub loop_common
 			  $cont_info->{text} , "\n\b}\cK");
 	}
     } else {
-	return info_from_text([''], 'loop_no_body') if !defined $body;
+	return info_from_text([''], 'loop_no_body', {}) if !defined $body;
 	if (defined $init) {
 	    @head_text = ('for', '(', "$init->{text};", "$cond_info->{text};", ")");
 	}
@@ -3566,7 +3576,8 @@ sub loop_common
     (my $body_text = $body_info->{text}) =~ s/;?$/;\n/;
 
     my @texts = (@head_text, "{\n\t", $body_text, "\b}", @cont_text);
-    return info_from_list(\@texts, ' ', $type);
+    return info_from_list(\@texts, ' ', $type,
+	{body => [$body_info]});
 }
 
 sub pp_leaveloop {
@@ -3585,10 +3596,8 @@ sub for_loop {
 sub pp_leavetry {
     my $self = shift;
     my $leave_info = $self->pp_leave(@_);
-    my $info = info_from_list(['eval', '{\n\t"', $leave_info->{text}, "\n\b}"],
-			  ' ', 'leavetry');
-    $info->{body} = [$leave_info];
-    return $info;
+    return info_from_list(['eval', '{\n\t"', $leave_info->{text}, "\n\b}"],
+			  ' ', 'leavetry', {body=>[$leave_info]});
 }
 
 sub _op_is_or_was {
@@ -3606,9 +3615,9 @@ sub pp_null {
     if (class($op) eq "OP") {
 	# old value is lost
 	if ($op->targ == OP_CONST) {
-	    return info_from_text($self->{'ex_const'}, 'null_const')
+	    return info_from_text($self->{'ex_const'}, 'null_const', {})
 	} else {
-	    return info_from_text('???', 'null_unknown');
+	    return info_from_text('???', 'null_unknown', {});
 	}
     }
     my $kid = $op->first;
@@ -3647,11 +3656,9 @@ sub pp_null {
     	return $self->bin_info_join_maybe_parens($lhs, $rhs, '=~', " ", $cx, 20);
     } elsif ($op->flags & OPf_SPECIAL && $cx < 1 && !$op->targ) {
     	my $kid_info = $self->deparse($kid, $cx, $op);
-	my $info = info_from_list(['do', "{\n\t", $kid_info->{text},
-				   "\n\b};"], '', 'null_special');
-	$info->{body} = [$kid_info];
-	return $info;
-
+	return info_from_list(['do', "{\n\t", $kid_info->{text},
+			       "\n\b};"], '', 'null_special',
+	    {body => [$kid_info]});
     } elsif (!null($kid->sibling) and
 	     $kid->sibling->name eq "null" and
 	     class($kid->sibling) eq "UNOP" and
@@ -3706,34 +3713,34 @@ sub gv_or_padgv {
     }
 }
 
-sub pp_gvsv {
-    my $self = shift;
-    my($op, $cx) = @_;
+sub pp_gvsv
+{
+    my($self, $op, $cx) = @_;
     my $gv = $self->gv_or_padgv($op);
     return $self->maybe_local_str($op, $cx,
 				  $self->stash_variable("\$",
 							$self->gv_name($gv), $cx));
 }
 
-sub pp_gv {
-    my $self = shift;
-    my($op, $cx) = @_;
+sub pp_gv
+{
+    my($self, $op, $cx) = @_;
     my $gv = $self->gv_or_padgv($op);
-    return info_from_text($self->gv_name($gv), 'pp_gv');
+    return info_from_text($self->gv_name($gv), 'pp_gv', {});
 }
 
-sub pp_aelemfast_lex {
-    my $self = shift;
-    my($op, $cx) = @_;
+sub pp_aelemfast_lex
+{
+    my($self, $op, $cx) = @_;
     my $name = $self->padname($op->targ);
     $name =~ s/^@/\$/;
     return info_from_list([$name, "[", ($op->private + $self->{'arybase'}), "]"],
-		      '', 'pp_aelemfast_lex');
+		      '', 'pp_aelemfast_lex', {});
 }
 
-sub pp_aelemfast {
-    my $self = shift;
-    my($op, $cx) = @_;
+sub pp_aelemfast
+{
+    my($self, $op, $cx) = @_;
     # optimised PADAV, pre 5.15
     return $self->pp_aelemfast_lex(@_) if ($op->flags & OPf_SPECIAL);
 
@@ -3743,23 +3750,23 @@ sub pp_aelemfast {
     my $i = $op->private;
     $i -= 256 if $i > 127;
     return info_from_list([$name, "[", ($op->private + $self->{'arybase'}), "]"],
-		      '', 'pp_aelemfast');
+		      '', 'pp_aelemfast', {});
 }
 
-sub rv2x {
-    my $self = shift;
-    my($op, $cx, $type) = @_;
+sub rv2x
+{
+    my($self, $op, $cx, $type) = @_;
 
     if (class($op) eq 'NULL' || !$op->can("first")) {
 	carp("Unexpected op in pp_rv2x");
-	return info_from_text 'XXX', 'bad_rv2x';
+	return info_from_text 'XXX', 'bad_rv2x', {};
     }
     my ($info, $kid_info);
     my $kid = $op->first;
     if ($kid->name eq "gv") {
 	$kid_info = $self->deparse($kid, 0, $op);
 	my $str = $self->stash_variable($type, $kid_info->{text}, $cx);
-	$info = info_from_text $str, 'rv2x_gv';
+	return info_from_text($str, 'rv2x_gv', {body => [$kid_info]});
     } elsif (is_scalar $kid) {
 	$kid_info = $self->deparse($kid, 0, $op);
 	my $str = $kid_info->{text};
@@ -3775,13 +3782,14 @@ sub rv2x {
 	    # disambiguation braces.
 	    $str = '$' . "{$1}"; #'
 	}
-	$info = info_from_list [$type, $str], '', 'rv2x_scalar' ;
+	return info_from_list([$type, $str], '', 'rv2x_scalar',
+			      {body => [$kid_info]});
     } else {
 	my $kid_info = $self->deparse($kid, 0, $op);
-	$info = info_from_list [$type, "{", "}"], '', 'rv2x';
+	return info_from_list([$type, "{", "}"], '', 'rv2x',
+			      {body => [$kid_info]});
     }
-    $info->{body} = $kid_info;
-    return $info;
+    Carp::confess("unhandled condition in rv2x");
 }
 
 sub pp_rv2sv { maybe_local(@_, rv2x(@_, "\$")) }
@@ -3821,11 +3829,10 @@ sub list_const {
     my $type = 'list_const';
     my $prec = 6;
     if (@texts == 0) {
-	return info_from_list(['(', ')'], '', 'list_const_null');
+	return info_from_list(['(', ')'], '', 'list_const_null', {});
     } elsif (@texts == 1) {
-	my $info = info_from_text($texts[0], 'list_const_one');
-	$info->{body} = \@a;
-	return $info;
+	return info_from_text($texts[0], 'list_const_one',
+	    {body => \@a});
     } elsif ( @texts > 2 and !grep(!/^-?\d+$/, @texts)) {
 	# collapse (-1,0,1,2) into (-1..2)
 	my ($s, $e) = @texts[0,-1];
@@ -3836,9 +3843,8 @@ sub list_const {
 	    $prec = 9;
 	}
     }
-    my $info = info_from_list(\@texts,  '', $type);
-    $info->{text} = $self->maybe_parens($info->{text}, $cx, $prec);
-    return $info;
+    return info_from_list(\@texts,  '', $type,
+	{maybe_parens => [$self, $cx, $prec]});
 }
 
 sub pp_rv2av {
@@ -3933,16 +3939,17 @@ sub elem_or_slice_single_index($$)
     #
     $idx =~ s/^([A-Za-z_]\w*)$/$1()/;
 
-    my $info = info_from_text($idx, 'elem_or_slice_single_index');
-    $info->{body} = $idx_info;
+    return info_from_text($idx, 'elem_or_slice_single_index',
+			  {body => [$idx_info]});
 }
 
-sub elem {
-    my $self = shift;
-    my ($op, $cx, $left, $right, $padname) = @_;
+sub elem
+{
+    my ($self, $op, $cx, $left, $right, $padname) = @_;
     my($array, $idx) = ($op->first, $op->first->sibling);
 
     my $idx_info = $self->elem_or_slice_single_index($idx, $op);
+    my $opts = {body => [$idx_info]};
 
     unless ($array->name eq $padname) { # Maybe this has been fixed
 	$array = $array->first; # skip rv2av (or ex-rv2av in _53+)
@@ -3959,17 +3966,15 @@ sub elem {
 	    unshift @texts, '$' ;
 	}
 	push @texts, $left, $idx_info->{text}, $right;
-	$info = info_from_list(\@texts, '', 'elem')
+	return info_from_list(\@texts, '', 'elem', $opts)
     } else {
 	# $x[20][3]{hi} or expr->[20]
 	my $arrow = is_subscriptable($array) ? "" : "->";
 	my $info = $self->deparse($array, 24, $op);
 	@texts = ($array_name , $arrow, $left, $idx, $right);
-	$info = info_from_list(\@texts, '', 'elem_arrow');
+	info_from_list(\@texts, '', 'elem_arrow', $opts);
     }
-    $info->{body} = [$idx_info];
-    return $info;
-
+    Carp::confess("unhandled condition in elem");
 }
 
 sub pp_aelem { maybe_local(@_, elem(@_, "[", "]", "padav")) }
@@ -4014,10 +4019,8 @@ sub slice {
     my $list = join(', ', map($_->{text}, @elems));
     my $lead = '@';
     $lead = '%' if $op->name =~ /^kv/i;
-    return $lead . $array . $left . $list . $right;
-    my $info = info_from_list([$lead, $array_info->{text}, $left, $list, $right], '', 'slice');
-    $info->{body} = \@elems;
-    return $info;
+    return info_from_list([$lead, $array_info->{text}, $left, $list, $right], '', 'slice',
+	{body => \@elems});
 }
 
 sub pp_aslice { maybe_local(@_, slice(@_, "[", "]", "rv2av", "padav")) }
@@ -4533,25 +4536,25 @@ sub balanced_delim {
 
 sub single_delim {
     my($q, $default, $str) = @_;
-    return info_from_list([$default, $str, $default], '', 'single_delim_default')
+    return info_from_list([$default, $str, $default], '', 'single_delim_default', {})
 	if $default and index($str, $default) == -1;
     if ($q ne 'qr') {
 	(my $succeed, $str) = balanced_delim($str);
-	return info_from_list([$q, $str], '', 'single_delim') if $succeed;
+	return info_from_list([$q, $str], '', 'single_delim', {}) if $succeed;
     }
     for my $delim ('/', '"', '#') {
 	return info_from_list([$q, $delim, $str,
-			   $delim], '', 'single_delim_qr')
+			   $delim], '', 'single_delim_qr', {})
 	    if index($str, $delim) == -1;
     }
     if ($default) {
 	$str =~ s/$default/\\$default/g;
 	return info_from_list([$default, $str, $default], '',
-	    'single_delim_qr_esc');
+	    'single_delim_qr_esc', {});
     } else {
 	$str =~ s[/][\\/]g;
 	return info_from_list([$q, '/', $str, '/'], '',
-	    'single_delim_qr');
+	    'single_delim_qr', {});
     }
 }
 
@@ -4588,10 +4591,10 @@ sub const {
     if (class($sv) eq "SPECIAL") {
 	# sv_undef, sv_yes, sv_no
 	my $text = ('undef', '1', $self->maybe_parens("!1", $cx, 21))[$$sv-1];
-	return info_from_text $text, 'const_special';
+	return info_from_text $text, 'const_special', {};
     }
     if (class($sv) eq "NULL") {
-	return info_from_text 'undef', 'const_NULL';
+	return info_from_text 'undef', 'const_NULL', {};
     }
     # convert a version object into the "v1.2.3" string in its V magic
     if ($sv->FLAGS & SVs_RMG) {
@@ -4603,42 +4606,42 @@ sub const {
     if ($sv->FLAGS & SVf_IOK) {
 	my $str = $sv->int_value;
 	$str = $self->maybe_parens($str, $cx, 21) if $str < 0;
-	return info_from_text $str, 'const_INT';
+	return info_from_text $str, 'const_INT', {};
     } elsif ($sv->FLAGS & SVf_NOK) {
 	my $nv = $sv->NV;
 	if ($nv == 0) {
 	    if (pack("F", $nv) eq pack("F", 0)) {
 		# positive zero
-		return info_from_text "0", 'const_plus_zero';
+		return info_from_text "0", 'const_plus_zero', {};
 	    } else {
 		# negative zero
 		return info_from_text($self->maybe_parens("-.0", $cx, 21),
-				 'const_minus_zero');
+				 'const_minus_zero', {});
 	    }
 	} elsif (1/$nv == 0) {
 	    if ($nv > 0) {
 		# positive infinity
 		return info_from_text($self->maybe_parens("9**9**9", $cx, 22),
-				 'const_plus_inf');
+				 'const_plus_inf', {});
 	    } else {
 		# negative infinity
 		return info_from_text($self->maybe_parens("-9**9**9", $cx, 21),
-				 'const_minus_inf');
+				 'const_minus_inf', {});
 	    }
 	} elsif ($nv != $nv) {
 	    # NaN
 	    if (pack("F", $nv) eq pack("F", sin(9**9**9))) {
 		# the normal kind
-		return info_from_text "sin(9**9**9)", 'const_Nan';
+		return info_from_text "sin(9**9**9)", 'const_Nan', {};
 	    } elsif (pack("F", $nv) eq pack("F", -sin(9**9**9))) {
 		# the inverted kind
 		return info_from_text($self->maybe_parens("-sin(9**9**9)", $cx, 21),
-				 'const_Nan_invert');
+				 'const_Nan_invert', {});
 	    } else {
 		# some other kind
 		my $hex = unpack("h*", pack("F", $nv));
 		return info_from_text(qq'unpack("F", pack("h*", "$hex"))',
-				 'const_Na_na_na');
+				 'const_Na_na_na', {});
 	    }
 	}
 	# first, try the default stringification
@@ -4646,31 +4649,30 @@ sub const {
 	if ($str != $nv) {
 	    # failing that, try using more precision
 	    $str = sprintf("%.${max_prec}g", $nv);
-#	    if (pack("F", $str) ne pack("F", $nv)) {
+	    # if (pack("F", $str) ne pack("F", $nv)) {
 	    if ($str != $nv) {
 		# not representable in decimal with whatever sprintf()
 		# and atof() Perl is using here.
 		my($mant, $exp) = split_float($nv);
 		return info_from_text($self->maybe_parens("$mant * 2**$exp", $cx, 19),
-				 'const_not_nv');
+				 'const_not_nv', {});
 	    }
 	}
 	$str = $self->maybe_parens($str, $cx, 21) if $nv < 0;
-	return info_from_text $str, 'const_nv';
+	return info_from_text $str, 'const_nv', {};
     } elsif ($sv->FLAGS & SVf_ROK && $sv->can("RV")) {
 	my $ref = $sv->RV;
 	if (class($ref) eq "AV") {
 	    my $list_info = $self->list_const(2, $ref->ARRAY);
-	    my $info = info_from_list(['[', $list_info->{text}, ']'], '', 'const_av');
-	    $info->{body} = $list_info;
-	    return $info;
+	    return info_from_list(['[', $list_info->{text}, ']'], '', 'const_av',
+		{body => $list_info});
 	} elsif (class($ref) eq "HV") {
 	    my %hash = $ref->ARRAY;
 	    my @elts;
 	    for my $k (sort keys %hash) {
 		push @elts, "$k => " . $self->const($hash{$k}, 6);
 	    }
-	    return info_from_list(["{", join(", ", @elts), "}"], '', 'const_hv');
+	    return info_from_list(["{", join(", ", @elts), "}"], '', 'const_hv', {});
 	} elsif (class($ref) eq "CV") {
 	    BEGIN {
 		if ($] > 5.0150051) {
@@ -4680,12 +4682,11 @@ sub const {
 	    }
 	    if ($] > 5.0150051 && $self->{curcv} &&
 		 $self->{curcv}->object_2svref == $ref->object_2svref) {
-		return info_from_text($self->keyword("__SUB__"), 'const_sub');
+		return info_from_text($self->keyword("__SUB__"), 'const_sub', {});
 	    }
 	    my $sub_info = $self->deparse_sub($ref);
-	    my $info = info_from_list(["sub ", $sub_info->{text}], '', 'const_sub2');
-	    $info->{body} = [$sub_info];
-	    return $info;
+	    return info_from_list(["sub ", $sub_info->{text}], '', 'const_sub2',
+				  {body => [$sub_info]});
 	}
 	if ($ref->FLAGS & SVs_SMG) {
 	    for (my $mg = $ref->MAGIC; $mg; $mg = $mg->MOREMAGIC) {
@@ -4713,7 +4714,7 @@ sub const {
 	    return single_delim("q", "'", unback $str);
 	}
     } else {
-	return info_from_text "undef", 'const_undef';
+	return info_from_text "undef", 'const_undef', {};
     }
 }
 
@@ -4748,7 +4749,7 @@ sub pp_const {
     my $self = shift;
     my($op, $cx) = @_;
     if ($op->private & OPpCONST_ARYBASE) {
-        return info_from_text '$[', 'const_ary';
+        return info_from_text '$[', 'const_ary', {};
     }
 #    if ($op->private & OPpCONST_BARE) { # trouble with '=>' autoquoting
 #	return $self->const_sv($op)->PV;
@@ -4763,9 +4764,9 @@ sub dq {
     my $type = $op->name;
     my $info;
     if ($type eq "const") {
-	return info_from_text('$[', 'dq_const_ary') if $op->private & OPpCONST_ARYBASE;
+	return info_from_text('$[', 'dq_const_ary', {}) if $op->private & OPpCONST_ARYBASE;
 	return info_from_text(uninterp(escape_str(unback($self->const_sv($op)->as_string))),
-			 'dq_const');
+			 'dq_const', {});
     } elsif ($type eq "concat") {
 	my $first = $self->dq($op->first);
 	my $last  = $self->dq($op->last);
@@ -4776,9 +4777,8 @@ sub dq {
 	    || ($last =~ /^[:'{\[\w_]/ && #'
 		$first =~ s/([\$@])([A-Za-z_]\w*)$/${1}{$2}/);
 
-	$info = info_from_list([$first->{text}, $last->{text}], '', 'dq_concat');
-	$info->{body} = [$first, $last];
-	return $info;
+	return info_from_list([$first->{text}, $last->{text}], '', 'dq_concat',
+			      {body => [$first, $last]});
     } elsif ($type eq "join") {
 	return $self->deparse($op->last, 26); # was join($", @ary)
     } else {
@@ -4787,17 +4787,17 @@ sub dq {
     my $kid = $self->dq($op->first->sibling);
     my $kid_text = $kid->{text};
     if ($type eq "uc") {
-	$info = info_from_lists(['\U', $kid, '\E'], '', 'dq_uc');
+	$info = info_from_lists(['\U', $kid, '\E'], '', 'dq_uc', {});
     } elsif ($type eq "lc") {
-	$info = info_from_lists(['\L', $kid, '\E'], '', 'dq_lc');
+	$info = info_from_lists(['\L', $kid, '\E'], '', 'dq_lc', {});
     } elsif ($type eq "ucfirst") {
-	$info = info_from_lists(['\u', $kid, '\E'], '', 'dq_ucfirst');
+	$info = info_from_lists(['\u', $kid, '\E'], '', 'dq_ucfirst', {});
     } elsif ($type eq "lcfirst") {
-	$info = info_from_lists(['\l', $kid, '\E'], '', 'dq_lcfirst');
+	$info = info_from_lists(['\l', $kid, '\E'], '', 'dq_lcfirst', {});
     } elsif ($type eq "quotemeta") {
-	$info = info_from_lists(['\Q', $kid, '\E'], '', 'dq_quotemeta');
+	$info = info_from_lists(['\Q', $kid, '\E'], '', 'dq_quotemeta', {});
     } elsif ($type eq "fc") {
-	$info = info_from_lists(['\F', $kid, '\E'], '', 'dq_fc');
+	$info = info_from_lists(['\F', $kid, '\E'], '', 'dq_fc', {});
     }
     $info->{body} = [$kid];
     return $info;
@@ -5077,7 +5077,7 @@ sub pp_trans {
     $to = "" if $from eq $to and $flags eq "";
     $flags .= "s" if $priv_flags & OPpTRANS_SQUASH;
     return info_from_list(['tr', double_delim($from, $to), $flags],
-		      '', 'pp_trans');
+		      '', 'pp_trans', {});
 }
 
 sub pp_transr { &pp_trans . 'r' }
@@ -5376,12 +5376,12 @@ map($substwords{join "", sort split //, $_} = $_, 'ego', 'egoism', 'em',
     'sir', 'rise', 'smore', 'more', 'seer', 'rome', 'gore', 'grim', 'grime',
     'or', 'rose', 'rosie');
 
-sub pp_subst {
-    my $self = shift;
-    my($op, $cx) = @_;
+sub pp_subst
+{
+    my($self, $op, $cx) = @_;
     my $kid = $op->first;
-    my($binop, $var, $re, $repl) = ("", "", "", "");
-    my $repl_info;
+    my($binop, $var, $re, @other_ops) = ("", "", "", ());
+    my ($repl, $repl_info);
     if ($op->flags & OPf_STACKED) {
 	$binop = 1;
 	$var = $self->deparse($kid, 20);
@@ -5393,10 +5393,12 @@ sub pp_subst {
 	$repl = $kid;
 	$kid = $kid->sibling;
     } else {
+	push @other_ops, $op->pmreplroot;
 	$repl = $op->pmreplroot->first; # skip substcont
     }
     while ($repl->name eq "entereval") {
-	    $repl = $repl->first;
+	push @other_ops, $repl;
+	$repl = $repl->first;
 	    $flags .= "e";
     }
     {
@@ -5426,15 +5428,17 @@ sub pp_subst {
     $flags = $substwords{$flags} if $substwords{$flags};
     my $info;
     my $repl_text = $repl_info->{text};
+    my $opts = {body => [$repl_info]};
+    $opts->{other_ops} = \@other_ops if @other_ops;
     if ($binop) {
 	my @texts = ("$var", " ", "=~", " ", "s", double_delim($re, $repl_text), $flags);
-	$info = info_from_list(\@texts, '', 'subst_binop');
-	$info->{text} = $self->maybe_parens($info->{text}, $cx, 20);
+	$opts->{maybe_parens} = [$self, $cx, 20];
+	return info_from_list(\@texts, '', 'subst_binop', $opts);
     } else {
-	$info = info_from_list(['s', double_delim($re, $repl_text)], '', 'subst');
+	return info_from_list(['s', double_delim($re, $repl_text)], '', 'subst',
+			      $opts);
     }
-    $info->{body} = $repl;
-    return $info;
+    Carp::confess("unhandled condition in pp_subst");
 }
 
 sub is_lexical_subs {
@@ -5480,7 +5484,7 @@ unless (caller) {
 	}
 	sub baz {
 	    no strict;
-	    -((1, 2) x 2);
+	    my $foo = "Ab\x{100}\200\x{200}\237Cd\000Ef\x{1000}\cA\x{2000}\cZ";
 	}
     };
 
@@ -5507,5 +5511,3 @@ unless (caller) {
     # my $deparse_old = B::Deparse->new("-p", "-l", "-sC");
     # print $deparse_old->coderef2text(\&fib);
 }
-
-__END__
