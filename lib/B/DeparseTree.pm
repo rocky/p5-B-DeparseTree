@@ -345,6 +345,51 @@ sub todo {
     }
 }
 
+sub deparse_format($$$)
+{
+    my ($self, $form, $parent) = @_;
+    my @texts;
+    local($self->{'curcv'}) = $form;
+    local($self->{'curcvlex'});
+    local($self->{'in_format'}) = 1;
+    local(@$self{qw'curstash warnings hints hinthash'})
+		= @$self{qw'curstash warnings hints hinthash'};
+    my $op = $form->ROOT;
+    local $B::overlay = {};
+    $self->pessimise($op, $form->START);
+    my $info = {
+	op  => $op,
+	parent => $parent,
+	cop => $self->{'curcop'}
+    };
+    $self->{optree}{$$op} = $info;
+
+    if ($op->first->name eq 'stub' || $op->first->name eq 'nextstate') {
+	my $info->{text} = "\f.";
+	return $info;
+    }
+
+    $op = $op->first->first; # skip leavewrite, lineseq
+    my $kid;
+    while (not null $op) {
+	$op = $op->sibling; # skip nextstate
+	my @body;
+	$kid = $op->first->sibling; # skip pushmark
+	push @texts, "\f".$self->const_sv($kid)->PV;
+	$kid = $kid->sibling;
+	for (; not null $kid; $kid = $kid->sibling) {
+	    push @body, $self->deparse($kid, -1, $op);
+	    $body[-1] =~ s/;\z//;
+	}
+	push @texts, "\f".join(", ", @body)."\n" if @body;
+	$op = $op->sibling;
+    }
+
+    $info->{text} = join("", @texts) . "\f.";
+    $info->{texts} = \@texts;
+    return $info;
+}
+
 sub next_todo {
     my ($self, $parent) = @_;
     my $ent = shift @{$self->{'subs_todo'}};
@@ -397,7 +442,8 @@ sub next_todo {
 }
 
 # Return a "use" declaration for this BEGIN block, if appropriate
-sub begin_is_use {
+sub begin_is_use
+{
     my ($self, $cv) = @_;
     my $root = $cv->ROOT;
     local @$self{qw'curcv curcvlex'} = ($cv);
@@ -922,6 +968,11 @@ sub deparse {
     $info->{cop} = $self->{'curcop'};
     $info->{op} = $op;
     $self->{optree}{$$op} = $info;
+    if ($info->{other_ops}) {
+	foreach my $other (@{$info->{other_ops}}) {
+	    $self->{optree}{$$other} = $info;
+	}
+    }
     return $info;
 }
 
@@ -1029,50 +1080,6 @@ sub deparse_sub {
     }
 
     $self->{optree}{$$root} = $info;
-    return $info;
-}
-
-sub deparse_format {
-    my ($self, $form, $parent) = @_;
-    my @texts;
-    local($self->{'curcv'}) = $form;
-    local($self->{'curcvlex'});
-    local($self->{'in_format'}) = 1;
-    local(@$self{qw'curstash warnings hints hinthash'})
-		= @$self{qw'curstash warnings hints hinthash'};
-    my $op = $form->ROOT;
-    local $B::overlay = {};
-    $self->pessimise($op, $form->START);
-    my $info = {
-	op  => $op,
-	parent => $parent,
-	cop => $self->{'curcop'}
-    };
-    $self->{optree}{$$op} = $info;
-
-    if ($op->first->name eq 'stub' || $op->first->name eq 'nextstate') {
-	my $info->{text} = "\f.";
-	return $info;
-    }
-
-    $op = $op->first->first; # skip leavewrite, lineseq
-    my $kid;
-    while (not null $op) {
-	$op = $op->sibling; # skip nextstate
-	my @body;
-	$kid = $op->first->sibling; # skip pushmark
-	push @texts, "\f".$self->const_sv($kid)->PV;
-	$kid = $kid->sibling;
-	for (; not null $kid; $kid = $kid->sibling) {
-	    push @body, $self->deparse($kid, -1, $op);
-	    $body[-1] =~ s/;\z//;
-	}
-	push @texts, "\f".join(", ", @body)."\n" if @body;
-	$op = $op->sibling;
-    }
-
-    $info->{text} = join("", @texts) . "\f.";
-    $info->{texts} = \@texts;
     return $info;
 }
 
@@ -2314,7 +2321,8 @@ sub padval
     return $self->{'curcv'}->PADLIST->ARRAYelt(1)->ARRAYelt($targ);
 }
 
-sub anon_hash_or_list {
+sub anon_hash_or_list
+{
     my $self = shift;
     my($op, $cx) = @_;
 
@@ -3237,8 +3245,15 @@ sub pp_list {
     my $self = shift;
     my($op, $cx) = @_;
     my($expr, @exprs);
+
+    my $other_ops = [$op->first];
     my $kid = $op->first->sibling; # skip pushmark
-    return info_from_text('', 'list_null') if class($kid) eq 'NULL';
+
+    if (class($kid) eq 'NULL') {
+	my $info = info_from_text('', 'list_null');
+	$info->{other_ops} = $other_ops;
+	return $info;
+    }
     my $lop;
     my $local = "either"; # could be local(...), my(...), state(...) or our(...)
     for ($lop = $kid; !null($lop); $lop = $lop->sibling) {
@@ -3283,7 +3298,10 @@ sub pp_list {
 	}
     }
     $local = "" if $local eq "either"; # no point if it's all undefs
-    return $self->deparse($kid, $cx) if null $kid->sibling and not $local;
+    if (null $kid->sibling and not $local) {
+	my $info = $self->deparse($kid, $cx, $op);
+	$info->{other_ops} = $other_ops;
+    }
     for (; !null($kid); $kid = $kid->sibling) {
 	if ($local) {
 	    if (class($kid) eq "UNOP" and $kid->first->name eq "gvsv") {
@@ -3314,6 +3332,7 @@ sub pp_list {
 	$info->{text} = $self->maybe_parens(join(", ", @args), $cx, 6);
 	$info->{type} = 'pp_list';
     }
+    $info->{other_ops} = $other_ops;
     return $info;
 }
 
@@ -4191,9 +4210,9 @@ sub check_proto {
     return ('', \@reals);
 }
 
-sub pp_entersub {
-    my $self = shift;
-    my($op, $cx) = @_;
+sub pp_entersub
+{
+    my($self, $op, $cx) = @_;
     return $self->e_method($self->_method($op, $cx))
         unless null $op->first->sibling;
     my $prefix = "";
@@ -4205,7 +4224,10 @@ sub pp_entersub {
 	$amper = "&";
     }
     $kid = $op->first;
+
+    my $other_ops = [$kid->first];
     $kid = $kid->first->sibling; # skip ex-list, pushmark
+
     for (; not null $kid->sibling; $kid = $kid->sibling) {
 	push @exprs, $kid;
     }
@@ -4235,7 +4257,8 @@ sub pp_entersub {
     } else {
 	$prefix = "";
 	my $arrow = is_subscriptable($kid->first) || $kid->first->name eq "padcv" ? "" : "->";
-	$kid_info = $self->deparse($kid, 24, $op) . $arrow;
+	$kid_info = $self->deparse($kid, 24, $op);
+	$kid_info->{text} .= $arrow;
     }
 
     # Doesn't matter how many prototypes there are, if
@@ -4265,6 +4288,8 @@ sub pp_entersub {
 	($amper, $args) = $self->check_proto($op, $proto, @exprs);
 	if ($amper eq "&") {
 	    @body = map($self->deparse($_, 6, $op), @exprs);
+	} else {
+	    @body = @$args;
 	}
     } else {
 	@body  = map($self->deparse($_, 6, $op), @exprs);
@@ -4316,6 +4341,7 @@ sub pp_entersub {
 	body => \@body,
 	text => join('', @texts),
 	type => $type,
+	other_ops => $other_ops,
     }
 }
 
@@ -5447,19 +5473,14 @@ unless (caller) {
     eval "use Data::Printer;";
 
     eval {
-	sub fib {
+	sub fib($) {
 	    my $x = shift;
 	    return 1 if $x <= 1;
 	    return(fib($x-1) + fib($x-2))
 	}
-	sub bar {
-	    printf "fib(2)= %d, fib(3) = %d, fib(4) = %d\n", fib(2), fib(3), fib(4);
-	}
 	sub baz {
 	    no strict;
-	    my $test = sub : lvalue {
-		my $x;
-	    }
+	    -((1, 2) x 2);
 	}
     };
 
