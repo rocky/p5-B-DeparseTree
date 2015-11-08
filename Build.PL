@@ -36,9 +36,10 @@ my $builder = Module::Build->new(
     },
     test_requires  => {
         'Test::Simple' => '0.81',
+	'Text::Diff' => 0,
     },
     requires => {
-	'perl'                              => '5.020000',
+	'perl'                              => '5.018000',
         'version'                           => 0,
     },
     sign                => ($ENV{PERL_MB_NOSIGN} ? 0 : 1),

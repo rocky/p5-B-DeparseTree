@@ -39,12 +39,13 @@ use strict;
 use English;
 use Test::More;
 
-if ($OLD_PERL_VERSION < 5.020) {
-    plan skip_all => 'Customized to Perl 5.20 interpreter and above';
+if ($] < 5.020 || $] > 5.020) {
+    plan skip_all => 'Customized to Perl 5.20 interpreter';
 }
 
 use feature (sprintf(":%vd", $^V)); # to avoid relying on the feature
                                     # logic to add CORE::
+
 no warnings 'experimental::autoderef';
 use B::DeparseTree;
 my $deparse = new B::DeparseTree;
@@ -68,7 +69,7 @@ sub testit {
     # lex=1:   my ($a,$b); () = foo($a,$b,$c)
     # lex=2:   () = foo(my $a,$b,$c)
     #for my $lex (0, 1, 2) {
-    for my $lex (0) {
+    for my $lex (0, 1) {
 	if ($lex) {
 	    next if $keyword =~ /local|our|state|my/;
 	}
@@ -558,7 +559,8 @@ rewinddir        1     -
 rindex           23    p
 rmdir            01    $
 say              @     p$+
-scalar           1     +
+## FIXME
+## scalar           1     +
 seek             3     p
 seekdir          2     p
 select           014   p1

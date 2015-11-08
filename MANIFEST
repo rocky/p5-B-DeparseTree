@@ -1,4 +1,6 @@
 Build.PL
 lib/B/DeparseTree.pm
 MANIFEST			This list of files
-t/Deparse-subclass.t
+t/10subclass.t
+t/20-core-520.t
+t/20-deparse-520-small.t
