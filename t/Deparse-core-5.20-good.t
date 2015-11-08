@@ -250,21 +250,21 @@ testit readline => 'CORE::readline $a . $b;';
 
 testit readpipe => 'CORE::readpipe $a + $b;';
 
-## testit reverse  => 'CORE::reverse sort(@foo);';
+testit reverse  => 'CORE::reverse sort(@foo);';
 
 # note that the test does '() = split...' which is why the
 # limit is optimised to 1
-##testit split    => 'split;',                     q{split(' ', $_, 1);};
-##testit split    => 'CORE::split;',               q{split(' ', $_, 1);};
-## testit split    => 'split $a;',                  q{split(/$a/u, $_, 1);};
-## testit split    => 'CORE::split $a;',            q{split(/$a/u, $_, 1);};
-## testit split    => 'split $a, $b;',              q{split(/$a/u, $b, 1);};
-## testit split    => 'CORE::split $a, $b;',        q{split(/$a/u, $b, 1);};
-## testit split    => 'split $a, $b, $c;',          q{split(/$a/u, $b, $c);};
-## testit split    => 'CORE::split $a, $b, $c;',    q{split(/$a/u, $b, $c);};
+testit split    => 'split;',                     q{split(/ /u, $_, 1);};
+testit split    => 'CORE::split;',               q{split(/ /u, $_, 1);};
+testit split    => 'split $a;',                  q{split(/$a/u, $_, 1);};
+testit split    => 'CORE::split $a;',            q{split(/$a/u, $_, 1);};
+testit split    => 'split $a, $b;',              q{split(/$a/u, $b, 1);};
+testit split    => 'CORE::split $a, $b;',        q{split(/$a/u, $b, 1);};
+testit split    => 'split $a, $b, $c;',          q{split(/$a/u, $b, $c);};
+testit split    => 'CORE::split $a, $b, $c;',    q{split(/$a/u, $b, $c);};
 
-# testit sub      => 'CORE::sub { $a, $b }',
-# 			"sub {\n        \$a, \$b;\n    }\n    ;";
+testit sub      => 'CORE::sub { $a, $b }',
+			"sub {\n        \$a, \$b;\n    };";
 
 testit system   => 'CORE::system($foo $bar);';
 

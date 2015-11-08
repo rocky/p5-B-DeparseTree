@@ -1309,7 +1309,7 @@ sub AUTOLOAD {
 	warn "unexpected OP_".uc $AUTOLOAD;
 	return "XXX";
     } else {
-	die "Undefined subroutine $AUTOLOAD called";
+	Carp::confess "Undefined subroutine $AUTOLOAD called";
     }
 }
 
@@ -2057,9 +2057,9 @@ sub real_negate {
 }
 sub pp_i_negate { pp_negate(@_) }
 
-sub pp_not {
-    my $self = shift;
-    my($op, $cx) = @_;
+sub pp_not
+{
+    my($self, $op, $cx) = @_;
     if ($cx <= 4) {
 	$self->listop($op, $cx, "not", $op->first);
     } else {
@@ -2067,9 +2067,9 @@ sub pp_not {
     }
 }
 
-sub unop {
-    my $self = shift;
-    my($op, $cx, $name, $nollafr) = @_;
+sub unop
+{
+    my($self, $op, $cx, $name, $nollafr) = @_;
     my $kid;
     if ($op->flags & OPf_KIDS) {
 	$kid = $op->first;
@@ -3206,7 +3206,7 @@ sub indirop
 	$type='sort2';
     } else {
 	$type='indirop';
-	@texts = $self->maybe_parens_func($texts2[0], $args, $cx, 5);
+	@texts = $self->maybe_parens_func(join(' ', @texts2), $args, $cx, 5);
     }
     return info_from_list(\@texts, '', $type, $opts);
 }
@@ -4813,21 +4813,21 @@ sub dq
     return $info;
 }
 
-sub pp_backtick {
-    my $self = shift;
-    my($op, $cx) = @_;
+sub pp_backtick
+{
+    my($self, $op, $cx) = @_;
     # skip pushmark if it exists (readpipe() vs ``)
     my $child = $op->first->sibling->isa('B::NULL')
 	? $op->first : $op->first->sibling;
     if ($self->pure_string($child)) {
 	return single_delim("qx", '`', $self->dq($child, 1)->{text});
     }
-    unop($self, @_, "readpipe");
+    unop($self, $op, $cx, "readpipe");
 }
 
-sub dquote {
-    my $self = shift;
-    my($op, $cx) = @_;
+sub dquote
+{
+    my($self, $op, $cx) = @_;
     my $kid = $op->first->sibling; # skip ex-stringify, pushmark
     return $self->deparse($kid, $cx, $op) if $self->{'unquote'};
     $self->maybe_targmy($kid, $cx,
@@ -5208,12 +5208,14 @@ sub regcomp {
     return ($self->deparse($kid, $cx), 0);
 }
 
-sub pp_regcomp {
+sub pp_regcomp
+{
     my ($self, $op, $cx) = @_;
     return (($self->regcomp($op, $cx, 0))[0]);
 }
 
-sub re_flags {
+sub re_flags
+{
     my ($self, $op) = @_;
     my $flags = '';
     my $pmflags = $op->pmflags;
@@ -5252,16 +5254,18 @@ map($matchwords{join "", sort split //, $_} = $_, 'cig', 'cog', 'cos', 'cogs',
     'cox', 'go', 'is', 'ism', 'iso', 'mig', 'mix', 'osmic', 'ox', 'sic',
     'sig', 'six', 'smog', 'so', 'soc', 'sog', 'xi');
 
-sub matchop {
-    my $self = shift;
-    my($op, $cx, $name, $delim) = @_;
+sub matchop
+{
+    my($self, $op, $cx, $name, $delim) = @_;
     my $kid = $op->first;
     my $info = {};
-    my ($binop, $var, $re) = ("", "", "");
+    my @body = ();
+    my ($binop, $var, $re_str) = ("", "", "");
+    my $re;
     if ($op->flags & OPf_STACKED) {
 	$binop = 1;
 	$var = $self->deparse($kid, 20, $op);
-	$info ->{body} = [$var];
+	push @body, $var;
 	$kid = $kid->sibling;
     }
     my $quote = 1;
@@ -5271,14 +5275,16 @@ sub matchop {
     if (null $kid) {
 	my $unbacked = re_unback($op->precomp);
 	if ($extended) {
-	    $re = re_uninterp_extended(escape_extended_re($unbacked));
+	    $re_str = re_uninterp_extended(escape_extended_re($unbacked));
 	} else {
-	    $re = re_uninterp(escape_str(re_unback($op->precomp)));
+	    $re_str = re_uninterp(escape_str(re_unback($op->precomp)));
 	}
     } elsif ($kid->name ne 'regcomp') {
 	carp("found ".$kid->name." where regcomp expected");
     } else {
 	($re, $quote) = $self->regcomp($kid, 21, $extended);
+	push @body, $re;
+	$re_str = $re->{text};
 	my $matchop = $kid->first;
 	if ($matchop->name eq 'regcrest') {
 	    $matchop = $matchop->first;
@@ -5288,36 +5294,37 @@ sub matchop {
 	    $rhs_bound_to_defsv = 1;
 	}
     }
-    my $flags = "";
+    my $flags = '';
     $flags .= "c" if $pmflags & PMf_CONTINUE;
     $flags .= $self->re_flags($op);
     $flags = join '', sort split //, $flags;
     $flags = $matchwords{$flags} if $matchwords{$flags};
+
     if ($pmflags & PMf_ONCE) { # only one kind of delimiter works here
-	$re =~ s/\?/\\?/g;
-	$re = "?$re?";
+	$re_str =~ s/\?/\\?/g;
+	$re_str = "?$re_str?";
     } elsif ($quote) {
-	$re = single_delim($name, $delim, $re)->{text};
+	my $re = single_delim($name, $delim, $re_str);
+	push @body, $re;
+	$re_str = $re->{text};
     }
-    my @re = ($re);
-    push @re, $flags if $quote;
+    my $opts = {body => \@body};
     my @texts;
+    $re_str .= $flags if $quote;
+    my $type;
     if ($binop) {
 	if ($rhs_bound_to_defsv) {
-	    @texts = ($var, ' =~ ', "(", '$_', ' =~ ', @re, ')');
+	    @texts = ($var, ' =~ ', "(", '$_', ' =~ ', $re_str, ')');
 	} else {
-	    @texts = ($var, ' =~ ', $re);
+	    @texts = ($var, ' =~ ', $re_str);
 	}
-	$info->{text} = $self->maybe_parens(join('', @texts), $cx, 20);
-	$info->{type} = 'matchop_binop';
+	$opts->{maybe_parens} = [$self, $cx, 20];
+	$type = 'matchop_binop';
     } else {
-	@texts = ($re);
-	$info->{text} = $re;
-	$info->{type} = 'matchop_unop';
+	@texts = ($re_str);
+	$type = 'matchop_unnop';
     }
-    $info->{texts} = \@texts;
-    $info->{text} = join('', @texts);
-    return $info;
+    return info_from_list(\@texts, '', $type, $opts);
 }
 
 sub pp_match { matchop(@_, "m", "/") }
@@ -5326,9 +5333,9 @@ sub pp_qr { matchop(@_, "qr", "") }
 
 sub pp_runcv { unop(@_, "__SUB__"); }
 
-sub pp_split {
-    my $self = shift;
-    my($op, $cx) = @_;
+sub pp_split
+{
+    my($self, $op, $cx) = @_;
     my($kid, @exprs, $ary, $expr);
     $kid = $op->first;
 
@@ -5348,31 +5355,38 @@ sub pp_split {
     $ary = $self->stash_variable('@', $self->gv_name($gv), $cx) if $gv;
 
     for (; !null($kid); $kid = $kid->sibling) {
-	push @exprs, $self->deparse($kid, 6);
+	push @exprs, $self->deparse($kid, 6, $op);
     }
 
+    my $opts = {body => \@exprs};
+
+    my @args_texts = map $_->{text}, @exprs;
     # handle special case of split(), and split(' ') that compiles to /\s+/
     # Under 5.10, the reflags may be undef if the split regexp isn't a constant
     # Under 5.17.5-5.17.9, the special flag is on split itself.
     $kid = $op->first;
-    if ( $op->flags & OPf_SPECIAL
-         or (
-            $kid->flags & OPf_SPECIAL
-            and ( $] < 5.009 ? $kid->pmflags & PMf_SKIPWHITE()
-                             : ($kid->reflags || 0) & RXf_SKIPWHITE()
-            )
-         )
-    ) {
+    if ( $op->flags & OPf_SPECIAL ) {
 	$exprs[0] = "' '";
     }
 
-    $expr = "split(" . join(", ", @exprs) . ")";
+    my $sep = '';
+    my $type;
+    my @expr_texts;
     if ($ary) {
-	return $self->maybe_parens("$ary = $expr", $cx, 7);
+	@expr_texts = ("$ary", '=', join(', ', @args_texts));
+	$sep = ' ';
+	$type = 'split_array';
+	$opts->{maybe_parens} = [$self, $cx, 7];
     } else {
-	return $expr;
+	@expr_texts = ('split', '(', join(', ', @args_texts), ')');
+	$type = 'split';
+
     }
+    return info_from_list(\@expr_texts, $sep, $type, $opts);
 }
+
+# Kind of silly, but we prefer, subst regexp flags joined together to
+# make words. For example: s/a/b/xo => s/a/b/ox
 
 # oxime -- any of various compounds obtained chiefly by the action of
 # hydroxylamine on aldehydes and ketones and characterized by the
@@ -5494,7 +5508,7 @@ unless (caller) {
 	}
 	sub baz {
 	    no strict;
-	    map($a, $b, $c);
+	    CORE::split $a;
 	}
     };
 
