@@ -1014,7 +1014,7 @@ sub deparse($$$$)
     Carp::confess("Null op in deparse") if !defined($op)
 					|| class($op) eq "NULL";
     my $meth = "pp_" . $op->name;
-    # print "YYY $meth\n";
+    print "YYY $meth\n";
     my $info = $self->$meth($op, $cx);
     Carp::confess("nonref return for $meth deparse") if !ref($info);
     $info->{parent} = $$parent if $parent;
@@ -4303,36 +4303,48 @@ sub _method {
 	   $cx;
 }
 
-# compat function only
-sub method {
-    my $self = shift;
-    my $info = $self->_method(@_);
-    return $self->e_method( $self->_method(@_) );
-}
-
 sub e_method {
-    my ($self, $info, $cx) = @_;
-    my $obj = $self->deparse($info->{object}, 24);
+    my ($self, $op, $minfo, $cx) = @_;
+    my $obj = $self->deparse($minfo->{object}, 24, $op);
+    my @body = ($obj);
 
-    my $meth = $info->{method};
-    $meth = $self->deparse($meth, 1) if $info->{variable_method};
-    my $args = join(", ", map { $self->deparse($_, 6) } @{$info->{args}} );
-    if ($info->{object}->name eq 'scope' && want_list $info->{object}) {
+    my $meth = $minfo->{method};
+    my $meth_info = $self->deparse($meth, 1, $op) if $minfo->{variable_method};
+    push @body, $meth_info;
+    my @args = map { $self->deparse($_, 6, $op) } @{$minfo->{args}};
+    push @body, @args;
+    my @args_texts = map $_->{text}, @args;
+    my $args = join(", ", @args_texts);
+
+    my $opts = {body => \@body};
+    my @texts = ();
+    my $type;
+
+    if ($minfo->{object}->name eq 'scope' && want_list $minfo->{object}) {
 	# method { $object }
 	# This must be deparsed this way to preserve list context
 	# of $object.
 	my $need_paren = $cx >= 6;
-	return '(' x $need_paren
-	     . $meth . substr($obj,2) # chop off the "do"
-	     . " $args"
-	     . ')' x $need_paren;
+	if ($need_paren) {
+	    @texts = ('(', $meth,  substr($obj,2),
+		      $args, ')');
+	    $type = 'e_method_list_paren';
+	} else {
+	    @texts = ($meth,  substr($obj,2), $args);
+	    $type = 'e_method_list';
+	}
+	return info_from_list(\@texts, '', $type, $opts);
     }
-    my $kid = $obj . "->" . $meth;
     if (length $args) {
-	return $kid . "(" . $args . ")"; # parens mandatory
+	return info_from_list([$obj, '->', $meth],
+			      '', 'e_method_null', $opts);
+	@texts = ($obj, '->', $meth, '(', $args, ')');
+	$type = 'e_method_args';
     } else {
-	return $kid;
+	$type = 'e_method_null';
+	@texts = ($obj, '->', $meth);
     }
+    return info_from_list(\@texts, '', $type, $opts);
 }
 
 # returns "&" if the prototype doesn't match the args,
@@ -5027,7 +5039,28 @@ sub dquote
 }
 
 # OP_STRINGIFY is a listop, but it only ever has one arg
-sub pp_stringify { maybe_targmy(@_, \&dquote) }
+sub pp_stringify {
+    my ($self, $op, $cx) = @_;
+    my $kid = $op->first->sibling;
+    my @other_ops = ();
+    while ($kid->name eq 'null' && !null($kid->first)) {
+        push(@other_ops, '$kid');
+	$kid = $kid->first;
+    }
+    my $info;
+    if ($kid->name =~ /^(?:const|padsv|rv2sv|av2arylen|gvsv|multideref
+			  |aelemfast(?:_lex)?|[ah]elem|join|concat)\z/x) {
+	$info = maybe_targmy(@_, \&dquote);
+    }
+    else {
+	# Actually an optimised join.
+	my $info = listop(@_,"join");
+	$info->{text} =~ s/join([( ])/join$1$self->{'ex_const'}, /;
+    }
+    push @{$info->other_ops}, @other_ops;
+    return $info;
+}
+
 
 # tr/// and s/// (and tr[][], tr[]//, tr###, etc)
 # note that tr(from)/to/ is OK, but not tr/from/(to)
@@ -5550,7 +5583,10 @@ sub pp_runcv { unop(@_, "__SUB__"); }
 sub pp_split
 {
     my($self, $op, $cx) = @_;
-    my($kid, @exprs, $ary, $expr);
+    my($kid, @exprs, $ary_info, $expr);
+    my $ary = '';
+    my @body = ();
+    my @other_ops = ();
     $kid = $op->first;
 
     # For our kid (an OP_PUSHRE), pmreplroot is never actually the
@@ -5561,17 +5597,31 @@ sub pp_split
     # figures out for us which it is.
     my $replroot = $kid->pmreplroot;
     my $gv = 0;
+    my $stacked = $op->flags & OPf_STACKED;
     if (ref($replroot) eq "B::GV") {
 	$gv = $replroot;
     } elsif (!ref($replroot) and $replroot > 0) {
 	$gv = $self->padval($replroot);
+    } elsif ($kid->targ) {
+	$ary = $self->padname($kid->targ)
+    } elsif ($stacked) {
+	$ary_info = $self->deparse($op->last, 7, $op);
+	push @body, $ary_info;
+	$ary = $ary_info->{text};
     }
-    $ary = $self->stash_variable('@', $self->gv_name($gv), $cx) if $gv;
+    $ary_info = $self->maybe_local(@_,
+			      $self->stash_variable('@',
+						     $self->gv_name($gv),
+						     $cx))
+	if $gv;
 
-    for (; !null($kid); $kid = $kid->sibling) {
+    # Skip the last kid when OPf_STACKED is set, since it is the array
+    # on the left.
+    for (; !null($stacked ? $kid->sibling : $kid); $kid = $kid->sibling) {
 	push @exprs, $self->deparse($kid, 6, $op);
     }
 
+    push @body, @exprs;
     my $opts = {body => \@exprs};
 
     my @args_texts = map $_->{text}, @exprs;
@@ -5580,7 +5630,7 @@ sub pp_split
     # Under 5.17.5-5.17.9, the special flag is on split itself.
     $kid = $op->first;
     if ( $op->flags & OPf_SPECIAL ) {
-	$exprs[0] = "' '";
+	$exprs[0]->{text} = "' '";
     }
 
     my $sep = '';
@@ -5719,10 +5769,15 @@ unless (caller) {
 	}
 	sub baz {
 	    no strict;
-	    CORE::delete $h{'foo'};
+	    my($a, $b) = @_;
+	    split $a;
 	}
     };
 
+    # use B::Deparse;
+    # my $deparse_old = B::Deparse->new("-p", "-l", "-sC");
+    # print $deparse_old->coderef2text(\&baz);
+    # exit 1;
     my $deparse = __PACKAGE__->new("-p", "-l", "-c", "-sC");
     my $info = $deparse->coderef2list(\&baz);
     import Data::Printer colored => 0;
@@ -5742,9 +5797,6 @@ unless (caller) {
 	printf " ## line %s\n", $value->{cop} ? $value->{cop}->line : 'undef';
 	print '-' x 30, "\n";
     }
-    # use B::Deparse;
-    # my $deparse_old = B::Deparse->new("-p", "-l", "-sC");
-    # print $deparse_old->coderef2text(\&fib);
 }
 
 1;

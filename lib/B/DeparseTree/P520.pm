@@ -4140,36 +4140,48 @@ sub _method {
 	   $cx;
 }
 
-# compat function only
-sub method {
-    my $self = shift;
-    my $info = $self->_method(@_);
-    return $self->e_method( $self->_method(@_) );
-}
-
 sub e_method {
-    my ($self, $info, $cx) = @_;
-    my $obj = $self->deparse($info->{object}, 24);
+    my ($self, $op, $minfo, $cx) = @_;
+    my $obj = $self->deparse($minfo->{object}, 24, $op);
+    my @body = ($obj);
 
-    my $meth = $info->{method};
-    $meth = $self->deparse($meth, 1) if $info->{variable_method};
-    my $args = join(", ", map { $self->deparse($_, 6) } @{$info->{args}} );
-    if ($info->{object}->name eq 'scope' && want_list $info->{object}) {
+    my $meth = $minfo->{method};
+    my $meth_info = $self->deparse($meth, 1, $op) if $minfo->{variable_method};
+    push @body, $meth_info;
+    my @args = map { $self->deparse($_, 6, $op) } @{$minfo->{args}};
+    push @body, @args;
+    my @args_texts = map $_->{text}, @args;
+    my $args = join(", ", @args_texts);
+
+    my $opts = {body => \@body};
+    my @texts = ();
+    my $type;
+
+    if ($minfo->{object}->name eq 'scope' && want_list $minfo->{object}) {
 	# method { $object }
 	# This must be deparsed this way to preserve list context
 	# of $object.
 	my $need_paren = $cx >= 6;
-	return '(' x $need_paren
-	     . $meth . substr($obj,2) # chop off the "do"
-	     . " $args"
-	     . ')' x $need_paren;
+	if ($need_paren) {
+	    @texts = ('(', $meth,  substr($obj,2),
+		      $args, ')');
+	    $type = 'e_method_list_paren';
+	} else {
+	    @texts = ($meth,  substr($obj,2), $args);
+	    $type = 'e_method_list';
+	}
+	return info_from_list(\@texts, '', $type, $opts);
     }
-    my $kid = $obj . "->" . $meth;
     if (length $args) {
-	return $kid . "(" . $args . ")"; # parens mandatory
+	return info_from_list([$obj, '->', $meth],
+			      '', 'e_method_null', $opts);
+	@texts = ($obj, '->', $meth, '(', $args, ')');
+	$type = 'e_method_args';
     } else {
-	return $kid;
+	$type = 'e_method_null';
+	@texts = ($obj, '->', $meth);
     }
+    return info_from_list(\@texts, '', $type, $opts);
 }
 
 # returns "&" if the prototype doesn't match the args,
@@ -4256,7 +4268,7 @@ sub check_proto {
 sub pp_entersub
 {
     my($self, $op, $cx) = @_;
-    return $self->e_method($self->_method($op, $cx))
+    return $self->e_method($op, $self->_method($op, $cx))
         unless null $op->first->sibling;
     my $prefix = "";
     my $amper = "";
@@ -5417,7 +5429,7 @@ sub pp_split
     # Under 5.17.5-5.17.9, the special flag is on split itself.
     $kid = $op->first;
     if ( $op->flags & OPf_SPECIAL ) {
-	$exprs[0] = "' '";
+	$exprs[0]->{text} = "' '";
     }
 
     my $sep = '';
