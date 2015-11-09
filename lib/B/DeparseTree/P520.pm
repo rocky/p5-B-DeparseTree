@@ -2329,7 +2329,7 @@ sub pp_scalar
 	# XXX Was a here-doc
 	return $self->dquote($op);
     }
-    $self->unop(@_, "scalar");
+    $self->unop($op, $cx, "scalar");
 }
 
 
