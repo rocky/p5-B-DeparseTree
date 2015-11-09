@@ -59,6 +59,10 @@ use vars qw/$AUTOLOAD/;
 use warnings ();
 require feature;
 
+our($VERSION, @EXPORT_OK, @ISA);
+@ISA = qw(Exporter);
+@EXPORT_OK = qw(compile);
+
 BEGIN {
     # List version-specific constants here.
     # Easiest way to keep this code portable between version looks to
@@ -1014,7 +1018,7 @@ sub deparse($$$$)
     Carp::confess("Null op in deparse") if !defined($op)
 					|| class($op) eq "NULL";
     my $meth = "pp_" . $op->name;
-    print "YYY $meth\n";
+    # print "YYY $meth\n";
     my $info = $self->$meth($op, $cx);
     Carp::confess("nonref return for $meth deparse") if !ref($info);
     $info->{parent} = $$parent if $parent;
@@ -1023,6 +1027,9 @@ sub deparse($$$$)
     $self->{optree}{$$op} = $info;
     if ($info->{other_ops}) {
 	foreach my $other (@{$info->{other_ops}}) {
+	    if (!ref $other) {
+		Carp::confess "Invalid $other";
+	    }
 	    $self->{optree}{$$other} = $info;
 	}
     }
@@ -1347,7 +1354,6 @@ sub maybe_my {
 sub AUTOLOAD {
     if ($AUTOLOAD =~ s/^.*::pp_//) {
 	warn "unexpected OP_".uc $AUTOLOAD;
-	return "XXX";
     } else {
 	Carp::confess "Undefined subroutine $AUTOLOAD called";
     }
@@ -4457,15 +4463,37 @@ sub pp_entersub
 	$kid_info->{text} = join('', @$kid_info->{texts});
     } elsif ($kid->first->name eq "gv") {
 	my $gv = $self->gv_or_padgv($kid->first);
-	if (class($gv->CV) ne "SPECIAL") {
-	    $proto = $gv->CV->PV if $gv->CV->FLAGS & SVf_POK;
+	my $cv;
+	if (class($gv) eq 'GV' && class($cv = $gv->CV) ne "SPECIAL"
+	 || $gv->FLAGS & SVf_ROK && class($cv = $gv->RV) eq 'CV') {
+	    $proto = $cv->PV if $cv->FLAGS & SVf_POK;
 	}
 	$simple = 1; # only calls of named functions can be prototyped
 	$kid_info = $self->deparse($kid, 24, $op);
-	if (!$amper) {
+	my $fq;
+	# Fully qualify any sub name that conflicts with a lexical.
+	if ($self->lex_in_scope("&$kid")
+	 || $self->lex_in_scope("&$kid", 1))
+	{
+	    $fq++;
+	} elsif (!$amper) {
 	    if ($kid_info->{text} eq 'main::') {
 		$kid_info->{text} = '::';
-	    } elsif ($kid_info->{text} !~ /^(?:\w|::)(?:[\w\d]|::(?!\z))*\z/) {
+	    } else {
+	      if ($kid !~ /::/ && $kid ne 'x') {
+		# Fully qualify any sub name that is also a keyword.  While
+		# we could check the import flag, we cannot guarantee that
+		# the code deparsed so far would set that flag, so we qual-
+		# ify the names regardless of importation.
+		if (exists $feature_keywords{$kid}) {
+		    $fq++ if $self->feature_enabled($kid);
+		} elsif (do { local $@; local $SIG{__DIE__};
+			      eval { () = prototype "CORE::$kid"; 1 } }) {
+		    $fq++
+		}
+	      }
+	    }
+	    if ($kid_info->{text} !~ /^(?:\w|::)(?:[\w\d]|::(?!\z))*\z/) {
 		$kid_info->{text} = single_delim("q", "'", $kid) . '->';
 	    }
 	}
@@ -5044,7 +5072,7 @@ sub pp_stringify {
     my $kid = $op->first->sibling;
     my @other_ops = ();
     while ($kid->name eq 'null' && !null($kid->first)) {
-        push(@other_ops, '$kid');
+        push(@other_ops, $kid);
 	$kid = $kid->first;
     }
     my $info;
@@ -5057,7 +5085,7 @@ sub pp_stringify {
 	my $info = listop(@_,"join");
 	$info->{text} =~ s/join([( ])/join$1$self->{'ex_const'}, /;
     }
-    push @{$info->other_ops}, @other_ops;
+    push @{$info->{other_ops}}, @other_ops;
     return $info;
 }
 

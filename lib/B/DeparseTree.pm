@@ -8,16 +8,17 @@ $VERSION = '2.0.0';
 
 my $module;
 if ($] > 5.020 and $] < 5.022) {
-    $module  = "P520";
-    print "USING 20\n";
+    use B::DeparseTree::P520;
+    $module = "P520";
+    *compile = \&B::DeparseTree::P520::compile;
 } elsif ($] >= 5.022) {
-    print "USING 22\n";
-    $module  = "P522";
+    use B::DeparseTree::P522;
+    $module = "P522";
+    *compile = \&B::DeparseTree::P522::compile;
 } else {
     die "Can only handle Perl 5.20 and 5.22";
 }
 
-require "B/DeparseTree/${module}.pm";
 @ISA = ("B::DeparseTree::$module");
 
 1;
