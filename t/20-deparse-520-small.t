@@ -15,7 +15,8 @@ use warnings;
 use strict;
 use Test::More;
 
-if ($] < 5.020 || $] > 5.020) {
+print $], "\n";
+if ($] < 5.020 || $] > 5.0209) {
     plan skip_all => 'Customized to Perl 5.20 interpreter';
 }
 

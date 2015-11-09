@@ -1,32 +1,59 @@
-# B::DeparseTree.pm
+# B::DeparseTree::P522.pm
 # Copyright (c) 1998-2000, 2002, 2003, 2004, 2005, 2006 Stephen McCamant.
 # Copyright (c) 2015 Rocky Bernstein
 # All rights reserved.
 # This module is free software; you can redistribute and/or modify
 # it under the same terms as Perl itself.
 
-# This is based on the module B::Deparse by Stephen McCamant.
+# This is based on the module B::Deparse (for perl 5.22) by Stephen McCamant.
 # It has been extended save tree structure, and is addressible
 # by opcode address.
 
 # B::Parse in turn is based on the module of the same name by Malcolm Beattie,
 # but essentially none of his code remains.
 
-package B::DeparseTree;
+use v5.22;
+
+package B::DeparseTree::P522;
 use Carp;
 use B qw(class main_root main_start main_cv svref_2object opnumber perlstring
-	 OPf_WANT OPf_WANT_VOID OPf_WANT_SCALAR OPf_WANT_LIST
-	 OPf_KIDS OPf_REF OPf_STACKED OPf_SPECIAL OPf_MOD
-	 OPpLVAL_INTRO OPpOUR_INTRO OPpENTERSUB_AMPER OPpSLICE OPpCONST_BARE
-	 OPpTRANS_SQUASH OPpTRANS_DELETE OPpTRANS_COMPLEMENT OPpTARGET_MY
-	 OPpEXISTS_SUB OPpSORT_NUMERIC OPpSORT_INTEGER
-	 OPpSORT_REVERSE
-	 SVf_IOK SVf_NOK SVf_ROK SVf_POK SVpad_OUR SVf_FAKE SVs_RMG SVs_SMG
-         CVf_METHOD CVf_LVALUE
-	 PMf_KEEP PMf_GLOBAL PMf_CONTINUE PMf_EVAL PMf_ONCE
-	 PMf_MULTILINE PMf_SINGLELINE PMf_FOLD PMf_EXTENDED);
+    OPf_WANT OPf_WANT_VOID OPf_WANT_SCALAR OPf_WANT_LIST
+    OPf_KIDS OPf_REF OPf_STACKED OPf_SPECIAL OPf_MOD OPf_PARENS
+    OPpLVAL_INTRO OPpOUR_INTRO OPpENTERSUB_AMPER OPpSLICE OPpCONST_BARE
+    OPpTRANS_SQUASH OPpTRANS_DELETE OPpTRANS_COMPLEMENT OPpTARGET_MY
+    OPpEXISTS_SUB OPpSORT_NUMERIC OPpSORT_INTEGER OPpREPEAT_DOLIST
+    OPpSORT_REVERSE OPpMULTIDEREF_EXISTS OPpMULTIDEREF_DELETE
+    SVf_IOK SVf_NOK SVf_ROK SVf_POK SVpad_OUR SVf_FAKE SVs_RMG SVs_SMG
+    SVs_PADTMP SVpad_TYPED
+    CVf_METHOD CVf_LVALUE
+    PMf_KEEP PMf_GLOBAL PMf_CONTINUE PMf_EVAL PMf_ONCE
+    PMf_MULTILINE PMf_SINGLELINE PMf_FOLD PMf_EXTENDED PMf_EXTENDED_MORE
+    PADNAMEt_OUTER
+    MDEREF_reload
+    MDEREF_AV_pop_rv2av_aelem
+    MDEREF_AV_gvsv_vivify_rv2av_aelem
+    MDEREF_AV_padsv_vivify_rv2av_aelem
+    MDEREF_AV_vivify_rv2av_aelem
+    MDEREF_AV_padav_aelem
+    MDEREF_AV_gvav_aelem
+    MDEREF_HV_pop_rv2hv_helem
+    MDEREF_HV_gvsv_vivify_rv2hv_helem
+    MDEREF_HV_padsv_vivify_rv2hv_helem
+    MDEREF_HV_vivify_rv2hv_helem
+    MDEREF_HV_padhv_helem
+    MDEREF_HV_gvhv_helem
+    MDEREF_ACTION_MASK
+    MDEREF_INDEX_none
+    MDEREF_INDEX_const
+    MDEREF_INDEX_padsv
+    MDEREF_INDEX_gvsv
+    MDEREF_INDEX_MASK
+    MDEREF_FLAG_last
+    MDEREF_MASK
+    MDEREF_SHIFT
+);
 
-$VERSION = '2.0';
+our $VERSION = '2.0';
 use strict;
 use vars qw/$AUTOLOAD/;
 use warnings ();
@@ -211,7 +238,19 @@ BEGIN {
 # \f - flush left (no indent)
 # \cK - kill following semicolon, if any
 
-BEGIN { for (qw[ const stringify rv2sv list glob pushmark null]) {
+# Semicolon handling:
+#  - Individual statements are not deparsed with trailing semicolons.
+#    (If necessary, \cK is tacked on to the end.)
+#  - Whatever code joins statements together or emits them (lineseq,
+#    scopeop, deparse_root) is responsible for adding semicolons where
+#    necessary.
+#  - use statements are deparsed with trailing semicolons because they are
+#    immediately concatenated with the following statement.
+#  - indent() removes semicolons wherever it sees \cK.
+
+
+BEGIN { for (qw[ const stringify rv2sv list glob pushmark null aelem
+		 nextstate dbstate rv2av rv2hv helem custom ]) {
     eval "sub OP_\U$_ () { " . opnumber($_) . "}"
 }}
 
@@ -1706,8 +1745,7 @@ sub _features_from_bundle {
 # Notice how subs and formats are inserted between statements here;
 # also $[ assignments and pragmas.
 sub pp_nextstate {
-    my $self = shift;
-    my($op, $cx) = @_;
+    my($self, $op, $cx) = @_;
     $self->{'curcop'} = $op;
     my @text = map($_->{text}, $self->cop_subs($op));
     my $stash = $op->stashpv;
@@ -2371,36 +2409,34 @@ sub e_anoncode($$)
 
 sub pp_refgen
 {
-    my $self = shift;
-    my($op, $cx) = @_;
+    my($self, $op, $cx) = @_;
     my $kid = $op->first;
     if ($kid->name eq "null") {
-	$kid = $kid->first;
-	if (!null($kid->sibling) and
-		 $kid->sibling->name eq "anoncode") {
-            return $self->e_anoncode({ code => $self->padval($kid->sibling->targ) });
+	my $other_ops = [$kid];
+	my $anoncode = $kid = $kid->first;
+	if ($anoncode->name eq "anonconst") {
+	    $anoncode = $anoncode->first->first->sibling;
+	}
+	if ($anoncode->name eq "anoncode"
+	 or !null($anoncode = $kid->sibling) and
+		 $anoncode->name eq "anoncode") {
+            return $self->e_anoncode({ code => $self->padval($anoncode->targ) });
 	} elsif ($kid->name eq "pushmark") {
             my $sib_name = $kid->sibling->name;
-            if ($sib_name =~ /^(pad|rv2)[ah]v$/
-                and not $kid->sibling->flags & OPf_REF)
-            {
-                # The @a in \(@a) isn't in ref context, but only when the
-                # parens are there.
-		my $list_info  = $self->pp_list($op->first);
-		return info_from_list(['\(', $list_info->{text}, ')'], '',
-				      'refgen_pushmark', {body=>$list_info});
-            } elsif ($sib_name eq 'entersub') {
+            if ($sib_name eq 'entersub') {
                 my $kid_info = $self->deparse($kid->sibling, 1, $op);
                 # Always show parens for \(&func()), but only with -p otherwise
 		my @texts = ('\\', $kid_info->{text});
 		if ($self->{'parens'} or $kid->sibling->private & OPpENTERSUB_AMPER) {
-		    @texts = ('(', '\\', $kid_info->{text}, ')');
+		    @texts = ('(', "\\", $kid_info->{text}, ')');
 		}
 		return info_from_list(\@texts, '', 'refgen_entersub',
-		    {body => $kid_info});
+		    {body => $kid_info,
+		     other_ops => $other_ops});
             }
         }
     }
+    local $self->{'in_refgen'} = 1;
     $self->pfixop($op, $cx, "\\", 20);
 }
 
@@ -3621,9 +3657,9 @@ sub _op_is_or_was {
          || ($type == OP_NULL && $op->targ == $expect_type));
 }
 
-sub pp_null {
-    my $self = shift;
-    my($op, $cx) = @_;
+sub pp_null
+{
+    my($self, $op, $cx) = @_;
 
     my $info;
     if (class($op) eq "OP") {
@@ -3633,6 +3669,8 @@ sub pp_null {
 	} else {
 	    return info_from_text('', 'null_unknown', {});
 	}
+    } elsif (class ($op) eq "COP") {
+	    return $self->pp_nextstate($op, $cx);
     }
     my $kid = $op->first;
     if ($op->first->name eq 'pushmark'
@@ -3875,7 +3913,7 @@ sub pp_rv2av {
 
 sub is_subscriptable {
     my $op = shift;
-    if ($op->name =~ /^[ahg]elem/) {
+    if ($op->name =~ /^([ahg]elem|multideref$)/) {
 	return 1;
     } elsif ($op->name eq "entersub") {
 	my $kid = $op->first;
@@ -3992,6 +4030,144 @@ sub elem
 	return info_from_list(\@texts, '', 'elem_arrow', $opts);
     }
     Carp::confess("unhandled condition in elem");
+}
+
+# a simplified version of elem_or_slice_array_name()
+# for the use of pp_multideref
+
+sub multideref_var_name($$$)
+{
+    my ($self, $gv, $is_hash) = @_;
+
+    my ($name, $quoted) =
+        $self->stash_variable_name( $is_hash  ? '%' : '@', $gv);
+    return $quoted ? "$name->"
+                   : $name eq '#'
+                        ? '${#}'       # avoid ${#}[1] => $#[1]
+                        : '$' . $name;
+}
+
+sub pp_multideref
+{
+    my($self, $op, $cx) = @_;
+    my @texts = ();
+
+    if ($op->private & OPpMULTIDEREF_EXISTS) {
+        @texts = ($self->keyword("exists"), ' ');
+    }
+    elsif ($op->private & OPpMULTIDEREF_DELETE) {
+        @texts = ($self->keyword("delete"), ' ')
+    }
+    elsif ($op->private & OPpLVAL_INTRO) {
+        @texts = ($self->keyword("local"), ' ')
+    }
+
+    if ($op->first && ($op->first->flags & OPf_KIDS)) {
+        # arbitrary initial expression, e.g. f(1,2,3)->[...]
+	my $first = $self->deparse($op->first, 24, $op);
+	push @texts, $first->{text};
+    }
+
+    my @items = $op->aux_list($self->{curcv});
+    my $actions = shift @items;
+
+    my $is_hash;
+    my $derefs = 0;
+
+    while (1) {
+        if (($actions & MDEREF_ACTION_MASK) == MDEREF_reload) {
+            $actions = shift @items;
+            next;
+        }
+
+        $is_hash = (
+	    ($actions & MDEREF_ACTION_MASK) == MDEREF_HV_pop_rv2hv_helem
+	    || ($actions & MDEREF_ACTION_MASK) == MDEREF_HV_gvsv_vivify_rv2hv_helem
+	    || ($actions & MDEREF_ACTION_MASK) == MDEREF_HV_padsv_vivify_rv2hv_helem
+	    || ($actions & MDEREF_ACTION_MASK) == MDEREF_HV_vivify_rv2hv_helem
+	    || ($actions & MDEREF_ACTION_MASK) == MDEREF_HV_padhv_helem
+	    || ($actions & MDEREF_ACTION_MASK) == MDEREF_HV_gvhv_helem
+	    );
+
+        if (   ($actions & MDEREF_ACTION_MASK) == MDEREF_AV_padav_aelem
+	       || ($actions & MDEREF_ACTION_MASK) == MDEREF_HV_padhv_helem)
+        {
+            $derefs = 1;
+            push @texts, '$' . substr($self->padname(shift @items), 1);
+        }
+        elsif (   ($actions & MDEREF_ACTION_MASK) == MDEREF_AV_gvav_aelem
+		  || ($actions & MDEREF_ACTION_MASK) == MDEREF_HV_gvhv_helem)
+        {
+            $derefs = 1;
+            push @texts, $self->multideref_var_name(shift @items, $is_hash);
+        }
+        else {
+            if (   ($actions & MDEREF_ACTION_MASK) ==
+		   MDEREF_AV_padsv_vivify_rv2av_aelem
+		   || ($actions & MDEREF_ACTION_MASK) ==
+		   MDEREF_HV_padsv_vivify_rv2hv_helem)
+            {
+                push @texts, $self->padname(shift @items);
+            }
+            elsif (   ($actions & MDEREF_ACTION_MASK) ==
+		      MDEREF_AV_gvsv_vivify_rv2av_aelem
+		      || ($actions & MDEREF_ACTION_MASK) ==
+		      MDEREF_HV_gvsv_vivify_rv2hv_helem)
+            {
+                push @texts, $self->multideref_var_name(shift @items, $is_hash);
+            }
+            elsif (   ($actions & MDEREF_ACTION_MASK) ==
+		      MDEREF_AV_pop_rv2av_aelem
+		      || ($actions & MDEREF_ACTION_MASK) ==
+		      MDEREF_HV_pop_rv2hv_helem)
+            {
+                if (   ($op->flags & OPf_KIDS)
+		       && (   _op_is_or_was($op->first, OP_RV2AV)
+			      || _op_is_or_was($op->first, OP_RV2HV))
+		       && ($op->first->flags & OPf_KIDS)
+		       && (   _op_is_or_was($op->first->first, OP_AELEM)
+			      || _op_is_or_was($op->first->first, OP_HELEM))
+                    )
+                {
+                    $derefs++;
+                }
+            }
+
+            push(@texts, '->') if !$derefs++;
+        }
+
+
+        if (($actions & MDEREF_INDEX_MASK) == MDEREF_INDEX_none) {
+            last;
+        }
+
+        push(@texts, $is_hash ? '{' : '[');
+
+        if (($actions & MDEREF_INDEX_MASK) == MDEREF_INDEX_const) {
+            my $key = shift @items;
+            if ($is_hash) {
+                push @texts, $self->const($key, $cx)->{text};
+            }
+            else {
+                push @texts, $key;
+            }
+        }
+        elsif (($actions & MDEREF_INDEX_MASK) == MDEREF_INDEX_padsv) {
+            push @texts, $self->padname(shift @items);
+	}
+	elsif (($actions & MDEREF_INDEX_MASK) == MDEREF_INDEX_gvsv) {
+	    push @texts,('$' .  ($self->stash_variable_name('$', shift @items))[0]);
+	}
+
+	push(@texts, $is_hash ? '}' : ']');
+
+        if ($actions & MDEREF_FLAG_last) {
+            last;
+        }
+        $actions >>= MDEREF_SHIFT;
+    }
+
+    return info_from_list(\@texts, '', 'multideref', {});
 }
 
 sub pp_aelem { maybe_local(@_, elem(@_, "[", "]", "padav")) }
@@ -5532,8 +5708,6 @@ sub pp_padcv {
     return info_from_text($self->padany($op), 'padcv', {});
 }
 
-1;
-
 unless (caller) {
     eval "use Data::Printer;";
 
@@ -5545,7 +5719,7 @@ unless (caller) {
 	}
 	sub baz {
 	    no strict;
-	    /${(}${|}${)}/;
+	    CORE::delete $h{'foo'};
 	}
     };
 
@@ -5572,3 +5746,5 @@ unless (caller) {
     # my $deparse_old = B::Deparse->new("-p", "-l", "-sC");
     # print $deparse_old->coderef2text(\&fib);
 }
+
+1;

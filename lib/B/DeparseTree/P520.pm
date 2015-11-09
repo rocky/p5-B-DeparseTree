@@ -12,6 +12,8 @@
 # B::Parse in turn is based on the module of the same name by Malcolm Beattie,
 # but essentially none of his code remains.
 
+use v5.20;
+
 package B::DeparseTree::P520;
 use Carp;
 use B qw(class main_root main_start main_cv svref_2object opnumber perlstring
@@ -26,7 +28,7 @@ use B qw(class main_root main_start main_cv svref_2object opnumber perlstring
 	 PMf_KEEP PMf_GLOBAL PMf_CONTINUE PMf_EVAL PMf_ONCE
 	 PMf_MULTILINE PMf_SINGLELINE PMf_FOLD PMf_EXTENDED);
 
-$VERSION = '2.0';
+our $VERSION = '2.0';
 use strict;
 use vars qw/$AUTOLOAD/;
 use warnings ();
@@ -210,6 +212,17 @@ BEGIN {
 # \b - decrease indent ('outdent')
 # \f - flush left (no indent)
 # \cK - kill following semicolon, if any
+
+# Semicolon handling:
+#  - Individual statements are not deparsed with trailing semicolons.
+#    (If necessary, \cK is tacked on to the end.)
+#  - Whatever code joins statements together or emits them (lineseq,
+#    scopeop, deparse_root) is responsible for adding semicolons where
+#    necessary.
+#  - use statements are deparsed with trailing semicolons because they are
+#    immediately concatenated with the following statement.
+#  - indent() removes semicolons wherever it sees \cK.
+
 
 BEGIN { for (qw[ const stringify rv2sv list glob pushmark null]) {
     eval "sub OP_\U$_ () { " . opnumber($_) . "}"
@@ -5543,7 +5556,7 @@ unless (caller) {
 	}
 	sub baz {
 	    no strict;
-	    /${(}${|}${)}/;
+	    CORE::delete $h{'foo'};
 	}
     };
 
