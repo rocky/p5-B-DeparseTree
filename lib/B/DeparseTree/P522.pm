@@ -1558,9 +1558,14 @@ sub gv_name {
     my $self = shift;
     my $gv = shift;
     my $raw = shift;
-    Carp::confess() unless ref($gv) eq "B::GV";
-    my $stash = $gv->STASH->NAME;
-    my $name = $raw ? $gv->NAME : $gv->SAFENAME;
+    # Carp::confess() unless ref($gv) eq "B::GV";
+    my $cv = $gv->FLAGS & SVf_ROK ? $gv->RV : 0;
+    my $stash = ($cv || $gv)->STASH->NAME;
+    my $name = $raw
+	? $cv ? $cv->NAME_HEK || $cv->GV->NAME : $gv->NAME
+	: $cv
+	    ? B::safename($cv->NAME_HEK || $cv->GV->NAME)
+	    : $gv->SAFENAME;
     if ($stash eq 'main' && $name =~ /^::/) {
 	$stash = '::';
     }
@@ -1589,12 +1594,12 @@ sub stash_variable {
 
     return "$prefix$name" if $name =~ /::/;
 
-    unless ($prefix eq '$' || $prefix eq '@' || #'
+    unless ($prefix eq '$' || $prefix eq '@' || $prefix eq '&' || #'
 	    $prefix eq '%' || $prefix eq '$#') {
 	return "$prefix$name";
     }
 
-    if ($name =~ /^[^\w+-]$/) {
+    if ($name =~ /^[^[:alpha:]_+-]$/) {
       if (defined $cx && $cx == 26) {
 	if ($prefix eq '@') {
 	    return "$prefix\{$name}";
@@ -1609,6 +1614,41 @@ sub stash_variable {
     return $prefix . $self->maybe_qualify($prefix, $name);
 }
 
+my %unctrl = # portable to EBCDIC
+    (
+     "\c@" => '@',	# unused
+     "\cA" => 'A',
+     "\cB" => 'B',
+     "\cC" => 'C',
+     "\cD" => 'D',
+     "\cE" => 'E',
+     "\cF" => 'F',
+     "\cG" => 'G',
+     "\cH" => 'H',
+     "\cI" => 'I',
+     "\cJ" => 'J',
+     "\cK" => 'K',
+     "\cL" => 'L',
+     "\cM" => 'M',
+     "\cN" => 'N',
+     "\cO" => 'O',
+     "\cP" => 'P',
+     "\cQ" => 'Q',
+     "\cR" => 'R',
+     "\cS" => 'S',
+     "\cT" => 'T',
+     "\cU" => 'U',
+     "\cV" => 'V',
+     "\cW" => 'W',
+     "\cX" => 'X',
+     "\cY" => 'Y',
+     "\cZ" => 'Z',
+     "\c[" => '[',	# unused
+     "\c\\" => '\\',	# unused
+     "\c]" => ']',	# unused
+     "\c_" => '_',	# unused
+    );
+
 # Return just the name, without the prefix.  It may be returned as a quoted
 # string.  The second return value is a boolean indicating that.
 sub stash_variable_name {
@@ -1616,12 +1656,12 @@ sub stash_variable_name {
     my $name = $self->gv_name($gv, 1);
     $name = $self->maybe_qualify($prefix,$name);
     if ($name =~ /^(?:\S|(?!\d)[\ca-\cz]?(?:\w|::)*|\d+)\z/) {
-	$name =~ s/^([\ca-\cz])/'^'.($1|'@')/e;
+	$name =~ s/^([\ca-\cz])/'^' . $unctrl{$1}/e;
 	$name =~ /^(\^..|{)/ and $name = "{$name}";
 	return $name, 0; # not quoted
     }
     else {
-	single_delim("q", "'", $name), 1;
+	single_delim("q", "'", $name, $self), 1;
     }
 }
 
@@ -1671,6 +1711,7 @@ sub populate_curcvlex {
 		next;
 	    }
             my $name = $ns[$i]->PVX;
+	    next unless defined $name;
 	    my ($seq_st, $seq_en) =
 		($ns[$i]->FLAGS & SVf_FAKE)
 		    ? (0, 999999)
@@ -1678,7 +1719,7 @@ sub populate_curcvlex {
 
 	    push @{$self->{'curcvlex'}{
 			($ns[$i]->FLAGS & SVpad_OUR ? 'o' : 'm') . $name
-		  }}, [$seq_st, $seq_en];
+		  }}, [$seq_st, $seq_en, $ns[$i]];
 	}
     }
 }
@@ -1734,13 +1775,27 @@ sub cop_subs {
 sub seq_subs {
     my ($self, $seq) = @_;
     my @text;
-    # push @text, "# ($seq)\n";
+    #push @text, "# ($seq)\n";
 
     return "" if !defined $seq;
+    my @pending;
     while (scalar(@{$self->{'subs_todo'}})
 	   and $seq > $self->{'subs_todo'}[0][0]) {
+	my $cv = $self->{'subs_todo'}[0][1];
+	# Skip the OUTSIDE check for lexical subs.  We may be deparsing a
+	# cloned anon sub with lexical subs declared in it, in which case
+	# the OUTSIDE pointer points to the anon protosub.
+	my $lexical = ref $self->{'subs_todo'}[0][3];
+	my $outside = !$lexical && $cv && $cv->OUTSIDE;
+	if (!$lexical and $cv
+	 and ${$cv->OUTSIDE || \0} != ${$self->{'curcv'}})
+	{
+	    push @pending, shift @{$self->{'subs_todo'}};
+	    next;
+	}
 	push @text, $self->next_todo;
     }
+    unshift @{$self->{'subs_todo'}}, @pending;
     return @text;
 }
 
@@ -3177,40 +3232,40 @@ sub indirop
     my($expr, @exprs);
     my $firstkid = my $kid = $op->first->sibling;
     my $indir_info;
-    my @texts = ();
     my @body = ();
     my $type = 'indirop';
+    my $other_ops;
+    my @indir = ();
 
     if ($op->flags & OPf_STACKED) {
+	$other_ops = [$kid];
 	my $indir_op = $kid->first; # skip rv2gv
-	my $indir;
 	if (is_scope($indir_op)) {
 	    $indir_info = $self->deparse($indir_op, 0, $op);
-	    @texts = $indir_info->{text} eq '' ?
+	    @indir = $indir_info->{text} eq '' ?
 		("{", ';', "}") : ("{", $indir_info->{texts}, "}");
+
 	} elsif ($indir_op->name eq "const" && $indir_op->private & OPpCONST_BARE) {
-	    @texts = ($self->const_sv($indir_op)->PV);
+	    @indir = ($self->const_sv($indir_op)->PV);
 	} else {
 	    $indir_info = $self->deparse($indir_op, 24, $op);
-	    @texts = @{$indir_info->{texts}};
+	    @indir = @{$indir_info->{texts}};
 	}
 	push @body, $indir_info if $indir_info;
 	$kid = $kid->sibling;
     }
     if ($name eq "sort" && $op->private & (OPpSORT_NUMERIC | OPpSORT_INTEGER)) {
 	$type = 'sort_num_int';
-	@texts = ($op->private & OPpSORT_DESCEND) ?
+	@indir = ($op->private & OPpSORT_DESCEND) ?
 	    ('{', '$b', ' <=> ', '$a', '}' ) : ('{', '$a', ' <=> ', '$b', '}' );
     }
     elsif ($name eq "sort" && $op->private & OPpSORT_DESCEND) {
 	$type = 'sort_descend';
-	@texts =  ('{', '$b', ' cmp ', '$a', '}' );
+	@indir =  ('{', '$b', ' cmp ', '$a', '}' );
     }
 
-    my $indir = join('', @texts);
-
     for (; !null($kid); $kid = $kid->sibling) {
-	my $cx = (!$indir &&
+	my $cx = (!scalar(@indir) &&
 		  $kid == $firstkid && $name eq "sort" &&
 		  $firstkid->name eq "entersub")
 	    ? 16 : 6;
@@ -3218,50 +3273,55 @@ sub indirop
 	push @exprs, $expr;
     }
 
-    my $args = $indir .  join(', ', map($_->{text},  @exprs));
-
-    push @texts, map $_->{text}, @exprs;
-
+    push @body, @exprs;
     my $opts = {body => \@body};
-    my @texts2;
+    $opts->{other_ops} = $other_ops if $other_ops;
+
+    my $name2;
     if ($name eq "sort" && $op->private & OPpSORT_REVERSE) {
 	$type = 'sort_reverse';
-	@texts2 = ($self->keyword('reverse'), $self->keyword('sort'));
+	$name2 = $self->keyword('reverse') . ' ' . $self->keyword('sort');
     }  else {
-	@texts2 = ( $self->keyword($name) );
+	$name2 = $self->keyword($name);
     }
+    my $indir = scalar @indir ? (join('', @indir) . ' ') : '';
     if ($name eq "sort" && ($op->private & OPpSORT_INPLACE)) {
-	@texts = ($exprs[0]->{text}, '=', @texts2, @texts, $exprs[0]->{text});
+	my @texts = ($exprs[0]->{text}, '=', $name2, $indir, $exprs[0]->{text});
 	return info_from_list(\@texts, '', 'sort_inplace', $opts);
     }
 
-    push @body, @exprs;
-
-    if ($indir ne '' && $name eq "sort") {
+    my @texts;
+    my $args = $indir . join(', ', map($_->{text},  @exprs));
+    if ($indir ne "" && $name eq "sort") {
 	# We don't want to say "sort(f 1, 2, 3)", since perl -w will
 	# give bareword warnings in that case. Therefore if context
 	# requires, we'll put parens around the outside "(sort f 1, 2,
 	# 3)". Unfortunately, we'll currently think the parens are
 	# necessary more often that they really are, because we don't
 	# distinguish which side of an assignment we're on.
-	my $sort_name = join(' ', @texts2);
 	if ($cx >= 5) {
-	    @texts = ('(', $sort_name, $args, ')');
+	    @texts = ('(', $name2, $args, ')');
 	} else {
-	    @texts = ($sort_name, $args);
+	    @texts = ($name2, $args);
 	}
 	$type='sort1';
-    } elsif (0 != scalar @texts
-	     && $name eq "sort"
+    } elsif (!$indir && $name eq "sort"
 	     && !null($op->first->sibling)
 	     && $op->first->sibling->name eq 'entersub' ) {
 	# We cannot say sort foo(bar), as foo will be interpreted as a
 	# comparison routine.  We have to say sort(...) in that case.
-	@texts = (join(' ', @texts2), '(', $args, ')');
+	@texts = ($name2, '(', $args, ')');
 	$type='sort2';
     } else {
-	$type='indirop';
-	@texts = $self->maybe_parens_func(join(' ', @texts2), $args, $cx, 5);
+	# indir
+	if (length $args) {
+	    $type='indirop';
+	    @texts = ($self->maybe_parens_func($name2, $args, $cx, 5))
+	} else {
+	    $type='indirop_noargs';
+	    @texts = ($name2);
+	    push(@texts, '(', ')') if (7 < $cx);
+	}
     }
     return info_from_list(\@texts, '', $type, $opts);
 }
@@ -5848,8 +5908,7 @@ unless (caller) {
 	}
 	sub baz {
 	    no strict;
-	    my($a, $b) = @_;
-	    split $a;
+	    print($a)
 	}
     };
 

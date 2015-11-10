@@ -3155,40 +3155,40 @@ sub indirop
     my($expr, @exprs);
     my $firstkid = my $kid = $op->first->sibling;
     my $indir_info;
-    my @texts = ();
     my @body = ();
     my $type = 'indirop';
+    my $other_ops;
+    my @indir = ();
 
     if ($op->flags & OPf_STACKED) {
+	$other_ops = [$kid];
 	my $indir_op = $kid->first; # skip rv2gv
-	my $indir;
 	if (is_scope($indir_op)) {
 	    $indir_info = $self->deparse($indir_op, 0, $op);
-	    @texts = $indir_info->{text} eq '' ?
+	    @indir = $indir_info->{text} eq '' ?
 		("{", ';', "}") : ("{", $indir_info->{texts}, "}");
+
 	} elsif ($indir_op->name eq "const" && $indir_op->private & OPpCONST_BARE) {
-	    @texts = ($self->const_sv($indir_op)->PV);
+	    @indir = ($self->const_sv($indir_op)->PV);
 	} else {
 	    $indir_info = $self->deparse($indir_op, 24, $op);
-	    @texts = @{$indir_info->{texts}};
+	    @indir = @{$indir_info->{texts}};
 	}
 	push @body, $indir_info if $indir_info;
 	$kid = $kid->sibling;
     }
     if ($name eq "sort" && $op->private & (OPpSORT_NUMERIC | OPpSORT_INTEGER)) {
 	$type = 'sort_num_int';
-	@texts = ($op->private & OPpSORT_DESCEND) ?
+	@indir = ($op->private & OPpSORT_DESCEND) ?
 	    ('{', '$b', ' <=> ', '$a', '}' ) : ('{', '$a', ' <=> ', '$b', '}' );
     }
     elsif ($name eq "sort" && $op->private & OPpSORT_DESCEND) {
 	$type = 'sort_descend';
-	@texts =  ('{', '$b', ' cmp ', '$a', '}' );
+	@indir =  ('{', '$b', ' cmp ', '$a', '}' );
     }
 
-    my $indir = join('', @texts);
-
     for (; !null($kid); $kid = $kid->sibling) {
-	my $cx = (!$indir &&
+	my $cx = (!scalar(@indir) &&
 		  $kid == $firstkid && $name eq "sort" &&
 		  $firstkid->name eq "entersub")
 	    ? 16 : 6;
@@ -3196,50 +3196,55 @@ sub indirop
 	push @exprs, $expr;
     }
 
-    my $args = $indir .  join(', ', map($_->{text},  @exprs));
-
-    push @texts, map $_->{text}, @exprs;
-
+    push @body, @exprs;
     my $opts = {body => \@body};
-    my @texts2;
+    $opts->{other_ops} = $other_ops if $other_ops;
+
+    my $name2;
     if ($name eq "sort" && $op->private & OPpSORT_REVERSE) {
 	$type = 'sort_reverse';
-	@texts2 = ($self->keyword('reverse'), $self->keyword('sort'));
+	$name2 = $self->keyword('reverse') . ' ' . $self->keyword('sort');
     }  else {
-	@texts2 = ( $self->keyword($name) );
+	$name2 = $self->keyword($name);
     }
+    my $indir = scalar @indir ? (join('', @indir) . ' ') : '';
     if ($name eq "sort" && ($op->private & OPpSORT_INPLACE)) {
-	@texts = ($exprs[0]->{text}, '=', @texts2, @texts, $exprs[0]->{text});
+	my @texts = ($exprs[0]->{text}, '=', $name2, $indir, $exprs[0]->{text});
 	return info_from_list(\@texts, '', 'sort_inplace', $opts);
     }
 
-    push @body, @exprs;
-
-    if ($indir ne '' && $name eq "sort") {
+    my @texts;
+    my $args = $indir . join(', ', map($_->{text},  @exprs));
+    if ($indir ne "" && $name eq "sort") {
 	# We don't want to say "sort(f 1, 2, 3)", since perl -w will
 	# give bareword warnings in that case. Therefore if context
 	# requires, we'll put parens around the outside "(sort f 1, 2,
 	# 3)". Unfortunately, we'll currently think the parens are
 	# necessary more often that they really are, because we don't
 	# distinguish which side of an assignment we're on.
-	my $sort_name = join(' ', @texts2);
 	if ($cx >= 5) {
-	    @texts = ('(', $sort_name, $args, ')');
+	    @texts = ('(', $name2, $args, ')');
 	} else {
-	    @texts = ($sort_name, $args);
+	    @texts = ($name2, $args);
 	}
 	$type='sort1';
-    } elsif (0 != scalar @texts
-	     && $name eq "sort"
+    } elsif (!$indir && $name eq "sort"
 	     && !null($op->first->sibling)
 	     && $op->first->sibling->name eq 'entersub' ) {
 	# We cannot say sort foo(bar), as foo will be interpreted as a
 	# comparison routine.  We have to say sort(...) in that case.
-	@texts = (join(' ', @texts2), '(', $args, ')');
+	@texts = ($name2, '(', $args, ')');
 	$type='sort2';
     } else {
-	$type='indirop';
-	@texts = $self->maybe_parens_func(join(' ', @texts2), $args, $cx, 5);
+	# indir
+	if (length $args) {
+	    $type='indirop';
+	    @texts = ($self->maybe_parens_func($name2, $args, $cx, 5))
+	} else {
+	    $type='indirop_noargs';
+	    @texts = ($name2);
+	    push(@texts, '(', ')') if (7 < $cx);
+	}
     }
     return info_from_list(\@texts, '', $type, $opts);
 }
@@ -3652,9 +3657,9 @@ sub _op_is_or_was {
          || ($type == OP_NULL && $op->targ == $expect_type));
 }
 
-sub pp_null {
-    my $self = shift;
-    my($op, $cx) = @_;
+sub pp_null
+{
+    my($self, $op, $cx) = @_;
 
     my $info;
     if (class($op) eq "OP") {
@@ -3664,6 +3669,8 @@ sub pp_null {
 	} else {
 	    return info_from_text('', 'null_unknown', {});
 	}
+    } elsif (class ($op) eq "COP") {
+	    return $self->pp_nextstate($op, $cx);
     }
     my $kid = $op->first;
     if ($op->first->name eq 'pushmark'
@@ -4106,17 +4113,20 @@ sub pp_lslice
 	'', 'lslice', {body=>[$list_info, $idx_info]});
 }
 
-sub want_scalar {
+sub want_scalar
+{
     my $op = shift;
     return ($op->flags & OPf_WANT) == OPf_WANT_SCALAR;
 }
 
-sub want_list {
+sub want_list
+{
     my $op = shift;
     return ($op->flags & OPf_WANT) == OPf_WANT_LIST;
 }
 
-sub _method {
+sub _method
+{
     my $self = shift;
     my($op, $cx) = @_;
     my $kid = $op->first->sibling; # skip pushmark
@@ -5595,7 +5605,7 @@ unless (caller) {
 	}
 	sub baz {
 	    no strict;
-	    print CREATEFILE '$ DEFINE/USER SYS$INPUT NL:', "\n";
+	    print sort(foo('bar'));
 	}
     };
 
