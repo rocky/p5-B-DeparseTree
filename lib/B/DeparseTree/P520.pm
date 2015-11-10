@@ -387,11 +387,14 @@ sub deparse_format($$$)
 	return $info;
     }
 
+    $op->{other_ops} = [$op->first];
     $op = $op->first->first; # skip leavewrite, lineseq
     my $kid;
     while (not null $op) {
+	push @{$op->{other_ops}}, $op;
 	$op = $op->sibling; # skip nextstate
 	my @body;
+	push @{$op->{other_ops}}, $op->first;
 	$kid = $op->first->sibling; # skip a pushmark
 	push @texts, "\f".$self->const_sv($kid)->PV;
 	$kid = $kid->sibling;
@@ -406,6 +409,111 @@ sub deparse_format($$$)
     $info->{text} = join("", @texts) . "\f.";
     $info->{texts} = \@texts;
     return $info;
+}
+
+# Create an info structure from a list of strings
+sub info_from_list($$$$) {
+    my ($texts, $sep, $type, $opts) = @_;
+    my $text = join($sep, @$texts);
+    my $info = {
+	text => $text,
+	texts => $texts,
+	type => $type,
+	sep => $sep,
+    };
+    foreach my $optname (qw(body other_ops)) {
+	$info->{$optname} = $opts->{$optname} if $opts->{$optname};
+    }
+    if ($opts->{maybe_parens}) {
+	my ($self, $cx, $prec) = @{$opts->{maybe_parens}};
+	$info->{text} = $self->maybe_parens($info->{text}, $cx, $prec);
+	$info->{maybe_parens} = {cx => $cx , prec => $prec};
+    }
+    return $info
+}
+
+# Create an info structure from a single string
+sub info_from_text($$$) {
+    my ($text, $type, $opts) = @_;
+    return info_from_list([$text], '', $type, $opts)
+}
+
+# Deparse a subroutine
+sub deparse_sub($$$)
+{
+    my ($self, $cv, $parent) = @_;
+    Carp::confess("NULL in deparse_sub") if !defined($cv) || $cv->isa("B::NULL");
+    Carp::confess("SPECIAL in deparse_sub") if $cv->isa("B::SPECIAL");
+    local $self->{'curcop'} = $self->{'curcop'};
+    my $proto = '';
+    if ($cv->FLAGS & SVf_POK) {
+	$proto .= "(". $cv->PV . ") ";
+    }
+    if ($cv->CvFLAGS & (CVf_METHOD|CVf_LOCKED|CVf_LVALUE)) {
+        $proto .= ": ";
+        $proto .= "lvalue " if $cv->CvFLAGS & CVf_LVALUE;
+        $proto .= "locked " if $cv->CvFLAGS & CVf_LOCKED;
+        $proto .= "method " if $cv->CvFLAGS & CVf_METHOD;
+    }
+
+    local($self->{'curcv'}) = $cv;
+    local($self->{'curcvlex'});
+    local(@$self{qw'curstash warnings hints hinthash'})
+		= @$self{qw'curstash warnings hints hinthash'};
+
+    my $root = $cv->ROOT;
+    my $body;
+
+    my $info = {};
+
+    local $B::overlay = {};
+    if (not null $root) {
+	$self->pessimise($root, $cv->START);
+	my $lineseq = $root->first;
+	if ($lineseq->name eq "lineseq") {
+	    my @ops;
+	    for(my $o=$lineseq->first; $$o; $o=$o->sibling) {
+		push @ops, $o;
+	    }
+	    $body = $self->lineseq($root, 0, @ops);
+	    my $scope_en = $self->find_scope_en($lineseq);
+	}
+	else {
+	    $body = $self->deparse($root->first, 0, $root);
+	}
+	my @texts = ("{\n\t", $body->{text}, "\n\b}");
+	unshift @texts, $proto if $proto;
+	$info = info_from_list(\@texts, '', 'sub',
+			       {body =>[$body]});
+    } else {
+	my $sv = $cv->const_sv;
+	if ($$sv) {
+	    # uh-oh. inlinable sub... format it differently
+	    my @texts = ("{", $self->const($sv, 0)->{text}, "}");
+	    unshift @texts, $proto if $proto;
+	    $info = info_from_list \@texts, '', 'sub_const', {};
+	} else { # XSUB? (or just a declaration)
+	    my @texts = ();
+	    @texts = push @texts, $proto if $proto;
+	    $info = info_from_list \@texts, ' ', 'sub_decl', {};
+	}
+    }
+
+    $info->{op} = $root;
+    $info->{cop} = undef;
+    $info->{parent}  = $parent if $parent;
+    $self->{optree}{$$root} = $info;
+    return $info;
+}
+
+# Deparse a subroutine by name
+sub deparse_subname($$$)
+{
+    my ($self, $funcname, $parent) = @_;
+    my $cv = svref_2object(\&$funcname);
+    my $info = $self->deparse_sub($cv, $parent);
+    return info_from_list(['sub', $funcname, $info->{text}], ' ',
+			  'deparse_subname', {body=>[$info]})
 }
 
 sub next_todo {
@@ -439,23 +547,20 @@ sub next_todo {
 	    $l = "\n# line $line \"$file\"\n";
 	}
 	my $p = '';
+	my @texts = ();
 	if (class($cv->STASH) ne "SPECIAL") {
 	    my $stash = $cv->STASH->NAME;
 	    if ($stash ne $self->{'curstash'}) {
-		$p = "package $stash;\n";
+		push @texts, 'package', $stash, ';\n';
 		$name = "$self->{'curstash'}::$name" unless $name =~ /::/;
 		$self->{'curstash'} = $stash;
 	    }
 	    $name =~ s/^\Q$stash\E::(?!\z|.*::)//;
+	    push @texts, $name;
 	}
 	my $info = $self->deparse_sub($cv, $parent);
-	my $texts = ["${p}${l}sub $name ", $info->{text}];
-        return {
-	    text => join('', @$texts),
-	    texts => $texts,
-	    type => 'sub_todo',
-	    body => [$info]
-	};
+	push @texts, $info->{text};
+	return info_from_list(\@texts, ' ', 'sub_todo', {body=>[$info]})
     }
 }
 
@@ -732,7 +837,6 @@ sub init {
 				? $self->{'ambient_warnings'} & WARN_MASK
 				: undef;
     $self->{'hints'}    = $self->{'ambient_hints'};
-    $self->{'hints'} &= 0xFF if $] < 5.009;
     $self->{'hinthash'} = $self->{'ambient_hinthash'};
 
     # also a convenient place to clear out subs_declared
@@ -838,33 +942,6 @@ sub maybe_parens($$$$)
     } else {
 	return $text;
     }
-}
-
-# Create an info structure from a list of strings
-sub info_from_list($$$$) {
-    my ($texts, $sep, $type, $opts) = @_;
-    my $text = join($sep, @$texts);
-    my $info = {
-	text => $text,
-	texts => $texts,
-	type => $type,
-	sep => $sep,
-    };
-    foreach my $optname (qw(body other_ops)) {
-	$info->{$optname} = $opts->{$optname} if $opts->{$optname};
-    }
-    if ($opts->{maybe_parens}) {
-	my ($self, $cx, $prec) = @{$opts->{maybe_parens}};
-	$info->{text} = $self->maybe_parens($info->{text}, $cx, $prec);
-	$info->{maybe_parens} = {cx => $cx , prec => $prec};
-    }
-    return $info
-}
-
-# Create an info structure from a single string
-sub info_from_text($$$) {
-    my ($text, $type, $opts) = @_;
-    return info_from_list([$text], '', $type, $opts)
 }
 
 my %strict_bits = do {
@@ -1060,79 +1137,6 @@ sub indent_info($$)
     return $self->indent($text);
 }
 
-
-# Deparse a subroutine
-sub deparse_sub
-{
-    my ($self, $cv, $parent) = @_;
-    my $proto = "";
-    Carp::confess("NULL in deparse_sub") if !defined($cv) || $cv->isa("B::NULL");
-    Carp::confess("SPECIAL in deparse_sub") if $cv->isa("B::SPECIAL");
-    local $self->{'curcop'} = $self->{'curcop'};
-    if ($cv->FLAGS & SVf_POK) {
-	$proto = "(". $cv->PV . ") ";
-    }
-    if ($cv->CvFLAGS & (CVf_METHOD|CVf_LOCKED|CVf_LVALUE)) {
-        $proto .= ": ";
-        $proto .= "lvalue " if $cv->CvFLAGS & CVf_LVALUE;
-        $proto .= "locked " if $cv->CvFLAGS & CVf_LOCKED;
-        $proto .= "method " if $cv->CvFLAGS & CVf_METHOD;
-    }
-
-    local($self->{'curcv'}) = $cv;
-    local($self->{'curcvlex'});
-    local(@$self{qw'curstash warnings hints hinthash'})
-		= @$self{qw'curstash warnings hints hinthash'};
-
-    my $root = $cv->ROOT;
-    my $body;
-
-    my $info = {
-	op => $root,
-	cop => undef,
-	parent => $parent,
-	type => 'sub',
-    };
-
-    local $B::overlay = {};
-    if (not null $root) {
-	$self->pessimise($root, $cv->START);
-	my $lineseq = $root->first;
-	if ($lineseq->name eq "lineseq") {
-	    my @ops;
-	    for(my $o=$lineseq->first; $$o; $o=$o->sibling) {
-		push @ops, $o;
-	    }
-	    $body = $self->lineseq($root, 0, @ops);
-	    my $scope_en = $self->find_scope_en($lineseq);
-	}
-	else {
-	    $body = $self->deparse($root->first, 0, $root);
-	}
-	my @texts = ("{\n\t", $body->{text}, "\n\b}");
-	unshift @texts, $proto if $proto;
-	$info->{body} = [$body];
-	$info->{texts} = \@texts;
-	$info->{sep} = '';
-	$info->{text} = join('', @texts);
-    }
-    else {
-	my $sv = $cv->const_sv;
-	if ($$sv) {
-	    # uh-oh. inlinable sub... format it differently
-	    my @texts = ("{", $self->const($sv, 0)->{text}, "}");
-	    unshift @texts, $proto if $proto;
-	    $info = info_from_list \@texts, '', 'sub_const', {};
-	} else { # XSUB? (or just a declaration)
-	    my @texts = ();
-	    @texts = push @texts, $proto if $proto;
-	    $info = info_from_list \@texts, ' ', 'sub_decl', {};
-	}
-    }
-
-    $self->{optree}{$$root} = $info;
-    return $info;
-}
 
 sub is_scope {
     my $op = shift;
@@ -1764,49 +1768,42 @@ sub pp_nextstate {
 	$self->{'warnings'} = $warning_bits;
     }
 
-    my $hints = $] < 5.008009 ? $op->private : $op->hints;
+    my $hints = $op->hints;
     my $old_hints = $self->{'hints'};
     if ($self->{'hints'} != $hints) {
 	push @text, declare_hints($self->{'hints'}, $hints);
 	$self->{'hints'} = $hints;
     }
 
-    my $newhh;
-    if ($] > 5.009) {
-	$newhh = $op->hints_hash->HASH;
-    }
+    my $newhh = $op->hints_hash->HASH;
 
-    if ($] >= 5.015006) {
-	# feature bundle hints
-	my $from = $old_hints & $feature::hint_mask;
-	my $to   = $    hints & $feature::hint_mask;
-	if ($from != $to) {
-	    if ($to == $feature::hint_mask) {
-		if ($self->{'hinthash'}) {
-		    delete $self->{'hinthash'}{$_}
-			for grep /^feature_/, keys %{$self->{'hinthash'}};
-		}
-		else { $self->{'hinthash'} = {} }
-		$self->{'hinthash'}
-		    = _features_from_bundle($from, $self->{'hinthash'});
+    # feature bundle hints
+    my $from = $old_hints & $feature::hint_mask;
+    my $to   = $    hints & $feature::hint_mask;
+    if ($from != $to) {
+	if ($to == $feature::hint_mask) {
+	    if ($self->{'hinthash'}) {
+		delete $self->{'hinthash'}{$_}
+		for grep /^feature_/, keys %{$self->{'hinthash'}};
 	    }
-	    else {
-		my $bundle =
-		    $feature::hint_bundles[$to >> $feature::hint_shift];
-		$bundle =~ s/(\d[13579])\z/$1+1/e; # 5.11 => 5.12
-		push @text, "no feature;\n",
-			    "use feature ':$bundle';\n";
-	    }
+	    else { $self->{'hinthash'} = {} }
+	    $self->{'hinthash'}
+	    = _features_from_bundle($from, $self->{'hinthash'});
+	}
+	else {
+	    my $bundle =
+		$feature::hint_bundles[$to >> $feature::hint_shift];
+	    $bundle =~ s/(\d[13579])\z/$1+1/e; # 5.11 => 5.12
+	    push @text, "no feature;\n",
+		"use feature ':$bundle';\n";
 	}
     }
 
-    if ($] > 5.009) {
-	push @text, declare_hinthash(
-	    $self->{'hinthash'}, $newhh,
-	    $self->{indent_size}, $self->{hints},
+    push @text, declare_hinthash(
+	$self->{'hinthash'}, $newhh,
+	$self->{indent_size}, $self->{hints},
 	);
-	$self->{'hinthash'} = $newhh;
-    }
+    $self->{'hinthash'} = $newhh;
 
     # This should go after of any branches that add statements, to
     # increase the chances that it refers to the same line it did in
@@ -5614,7 +5611,8 @@ unless (caller) {
     import Data::Printer colored => 0;
     Data::Printer::p($info);
     print "\n", '=' x 30, "\n";
-    # print $deparse->coderef2text(\&bar);
+    # print $deparse->indent($deparse->deparse_subname('fib')->{text});
+    # print "\n", '=' x 30, "\n";
     # print "\n", '-' x 30, "\n";
     while (my($key, $value) = each %{$deparse->{optree}}) {
 	my $parent_op_name = 'undef';
