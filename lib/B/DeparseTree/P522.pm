@@ -443,7 +443,7 @@ sub next_todo {
 	my $info = $self->deparse_format($ent->[1], $cv);
 	my $texts = ["format $name", "=", $info->{text} + "\n"];
 	return {
-	    body => $info,
+	    body => [$info],
 	    texts => $texts,
 	    type => 'format_todo',
 	    text => join(" ", @$texts),
@@ -479,7 +479,7 @@ sub next_todo {
 	    text => join('', @$texts),
 	    texts => $texts,
 	    type => 'sub_todo',
-	    body => $info
+	    body => [$info]
 	};
     }
 }
@@ -1139,7 +1139,7 @@ sub deparse_sub
 	}
 	my @texts = ("{\n\t", $body->{text}, "\n\b}");
 	unshift @texts, $proto if $proto;
-	$info->{body} = $body;
+	$info->{body} = [$body];
 	$info->{texts} = \@texts;
 	$info->{sep} = '';
 	$info->{text} = join('', @texts);
@@ -1398,7 +1398,11 @@ sub lineseq {
 	}
 	if ($info->{body}) {
 	    foreach my $bod (@{$info->{body}}) {
-		$bod->{parent} = $$op;
+		if (!ref($bod)) {
+		    Carp::carp(sprintf "nonref body: %s, op: %s", $bod, $op->name)
+		} else {
+		    $bod->{parent} = $$op;
+		}
 	    }
 	}
 	$self->{optree}{$$op} = $info;
@@ -1453,7 +1457,7 @@ sub scopeop
 	my @texts = ($body->{text});
 	my $text;
 	unless (is_lexical_subs(@kids)) {
-	    @texts = ('do ', '{\n\t', @texts, "\n\b");
+	    @texts = ('do ', "{\n\t", @texts, "\n\b");
 	};
 	return {
 	    type => 'scope_expr',
@@ -2437,8 +2441,8 @@ sub pp_refgen
 		    @texts = ('(', "\\", $kid_info->{text}, ')');
 		}
 		return info_from_list(\@texts, '', 'refgen_entersub',
-		    {body => $kid_info,
-		     other_ops => $other_ops});
+				      {body => [$kid_info],
+				       other_ops => $other_ops});
             }
         }
     }
@@ -2896,13 +2900,16 @@ sub pp_dor { logop(@_, "//", 10) }
 sub pp_xor { logop(@_, "xor", 2, "",   0,  "") }
 
 sub logassignop {
-    my $self = shift;
-    my ($op, $cx, $opname) = @_;
+    my ($self, $op, $cx, $opname) = @_;
     my $left = $op->first;
     my $right = $op->first->sibling->first; # skip sassign
-    $left = $self->deparse($left, 7);
-    $right = $self->deparse($right, 7);
-    return $self->maybe_parens("$left $opname $right", $cx, 7);
+    $left = $self->deparse($left, 7, $op);
+    $right = $self->deparse($right, 7, $op);
+    return info_from_list([$left->{text}, $opname, $right->{text}], ' ',
+			  'logassignop',
+			  {other_ops => [$op->first->sibling],
+			   body => [$left, $right],
+			   maybe_parens => [$self, $cx, 7]});
 }
 
 sub pp_andassign { logassignop(@_, "&&=") }
@@ -3455,7 +3462,11 @@ sub pp_cond_expr
 	my $newtrue_info = $self->deparse($newtrue, 0, $op);
 	push @body, $newcond_info;
 	push @body, $newtrue_info;
-	push @elsifs, "elsif ($newcond_info->{text}) {\n\t$newtrue_info->{text}\n\b}";
+	push @elsifs, ('', "elsif",
+		       "(", "$newcond_info->{text}", ")",
+		       "{\n\t",
+		       $newtrue_info->{text},
+		       "\n\b}");
     }
     my $false_info;
     if (!null($false)) {
@@ -4030,10 +4041,18 @@ sub elem
 	return info_from_list(\@texts, '', 'elem', $opts)
     } else {
 	# $x[20][3]{hi} or expr->[20]
-	my $arrow = is_subscriptable($array) ? "" : "->";
-	my $info = $self->deparse($array, 24, $op);
-	@texts = ($array_name , $arrow, $left, $idx, $right);
-	return info_from_list(\@texts, '', 'elem_arrow', $opts);
+	my $type;
+	my $array_info = $self->deparse($array, 24, $op);
+	push @{$info->{body}}, $array_info;
+	@texts = ($array_info->{text});
+	if (is_subscriptable($array)) {
+	    push @texts, $left, $idx_info->{text}, $right;
+	    $type = 'elem_no_arrow';
+	} else {
+	    push @texts, '->', $left, $idx_info->{text}, $right;
+	    $type = 'elem_arrow';
+	}
+	return info_from_list(\@texts, '', $type, $opts);
     }
     Carp::confess("unhandled condition in elem");
 }
@@ -4249,17 +4268,20 @@ sub pp_lslice
 	'', 'lslice', {body=>[$list_info, $idx_info]});
 }
 
-sub want_scalar {
+sub want_scalar
+{
     my $op = shift;
     return ($op->flags & OPf_WANT) == OPf_WANT_SCALAR;
 }
 
-sub want_list {
+sub want_list
+{
     my $op = shift;
     return ($op->flags & OPf_WANT) == OPf_WANT_LIST;
 }
 
-sub _method {
+sub _method
+{
     my $self = shift;
     my($op, $cx) = @_;
     my $kid = $op->first->sibling; # skip pushmark
@@ -4294,7 +4316,14 @@ sub _method {
     }
 
     if ($meth->name eq "method_named") {
-	$meth = $self->const_sv($meth)->PV;
+	$meth = $self->meth_sv($meth)->PV;
+    } elsif ($meth->name eq "method_super") {
+	$meth = "SUPER::".$self->meth_sv($meth)->PV;
+    } elsif ($meth->name eq "method_redir") {
+        $meth = $self->meth_rclass_sv($meth)->PV.'::'.$self->meth_sv($meth)->PV;
+    } elsif ($meth->name eq "method_redir_super") {
+        $meth = $self->meth_rclass_sv($meth)->PV.'::SUPER::'.
+                $self->meth_sv($meth)->PV;
     } else {
 	$meth = $meth->first;
 	if ($meth->name eq "const") {
@@ -4315,8 +4344,11 @@ sub e_method {
     my @body = ($obj);
 
     my $meth = $minfo->{method};
-    my $meth_info = $self->deparse($meth, 1, $op) if $minfo->{variable_method};
-    push @body, $meth_info;
+    my $meth_info;
+    if ($minfo->{variable_method}) {
+	$meth_info = $self->deparse($meth, 1, $op);
+	push @body, $meth_info;
+    }
     my @args = map { $self->deparse($_, 6, $op) } @{$minfo->{args}};
     push @body, @args;
     my @args_texts = map $_->{text}, @args;
@@ -4342,23 +4374,21 @@ sub e_method {
 	return info_from_list(\@texts, '', $type, $opts);
     }
     if (length $args) {
-	return info_from_list([$obj, '->', $meth],
-			      '', 'e_method_null', $opts);
-	@texts = ($obj, '->', $meth, '(', $args, ')');
+	@texts = ($obj->{text}, '->', $meth, '(', $args, ')');
 	$type = 'e_method_args';
     } else {
+	@texts = ($obj->{text}, '->', $meth);
 	$type = 'e_method_null';
-	@texts = ($obj, '->', $meth);
     }
     return info_from_list(\@texts, '', $type, $opts);
 }
 
-# returns "&" if the prototype doesn't match the args,
+# returns "&"  and the argument bodies if the prototype doesn't match the args,
 # or ("", $args_after_prototype_demunging) if it does.
 sub check_proto {
     my $self = shift;
     my $op = shift;
-    return "&" if $self->{'noproto'};
+    return ('&', []) if $self->{'noproto'};
     my($proto, @args) = @_;
     my($arg, $real);
     my $doneok = 0;
@@ -4370,7 +4400,7 @@ sub check_proto {
 	$proto =~ s/^(\\?[\$\@&%*_]|\\\[[\$\@&%*]+\]|;)\s*//;
 	my $chr = $1;
 	if ($chr eq "") {
-	    return "&" if @args;
+	    return ('&', []) if @args;
 	} elsif ($chr eq ";") {
 	    $doneok = 1;
 	} elsif ($chr eq "@" or $chr eq "%") {
@@ -4383,13 +4413,13 @@ sub check_proto {
 		if (want_scalar $arg) {
 		    push @reals, $self->deparse($arg, 6, $op);
 		} else {
-		    return "&";
+		    return ('&', []);
 		}
 	    } elsif ($chr eq "&") {
 		if ($arg->name =~ /^(s?refgen|undef)$/) {
 		    push @reals, $self->deparse($arg, 6, $op);
 		} else {
-		    return "&";
+		    return ('&', []);
 		}
 	    } elsif ($chr eq "*") {
 		if ($arg->name =~ /^s?refgen$/
@@ -4402,7 +4432,7 @@ sub check_proto {
 			  push @reals, $self->deparse($real->first, 6, $op);
 		      }
 		  } else {
-		      return "&";
+		      return ('&', []);
 		  }
 	    } elsif (substr($chr, 0, 1) eq "\\") {
 		$chr =~ tr/\\[]//d;
@@ -4424,7 +4454,7 @@ sub check_proto {
 		  {
 		      push @reals, $self->deparse($real, 6, $op);
 		  } else {
-		      return "&";
+		      return ('&', []);
 		  }
 	    }
        }
@@ -4437,7 +4467,7 @@ sub check_proto {
 sub pp_entersub
 {
     my($self, $op, $cx) = @_;
-    return $self->e_method($self->_method($op, $cx))
+    return $self->e_method($op, $self->_method($op, $cx))
         unless null $op->first->sibling;
     my $prefix = "";
     my $amper = "";
@@ -4535,7 +4565,7 @@ sub pp_entersub
 	if ($amper eq "&") {
 	    @body = map($self->deparse($_, 6, $op), @exprs);
 	} else {
-	    @body = @$args;
+	    @body = @$args if @$args;
 	}
     } else {
 	@body  = map($self->deparse($_, 6, $op), @exprs);
@@ -4907,7 +4937,7 @@ sub const {
 	if (class($ref) eq "AV") {
 	    my $list_info = $self->list_const(2, $ref->ARRAY);
 	    return info_from_list(['[', $list_info->{text}, ']'], '', 'const_av',
-		{body => $list_info});
+		{body => [$list_info]});
 	} elsif (class($ref) eq "HV") {
 	    my %hash = $ref->ARRAY;
 	    my @elts;
@@ -4978,12 +5008,33 @@ sub const_dumper {
     }
 }
 
-sub const_sv {
+sub const_sv
+{
     my $self = shift;
     my $op = shift;
     my $sv = $op->sv;
     # the constant could be in the pad (under useithreads)
     $sv = $self->padval($op->targ) unless $$sv;
+    return $sv;
+}
+
+sub meth_sv
+{
+    my $self = shift;
+    my $op = shift;
+    my $sv = $op->meth_sv;
+    # the constant could be in the pad (under useithreads)
+    $sv = $self->padval($op->targ) unless $$sv;
+    return $sv;
+}
+
+sub meth_rclass_sv
+{
+    my $self = shift;
+    my $op = shift;
+    my $sv = $op->rclass;
+    # the constant could be in the pad (under useithreads)
+    $sv = $self->padval($sv) unless ref $sv;
     return $sv;
 }
 
@@ -5589,9 +5640,9 @@ sub matchop
     my $type;
     if ($binop) {
 	if ($rhs_bound_to_defsv) {
-	    @texts = ($var, ' =~ ', "(", '$_', ' =~ ', $re_str, ')');
+	    @texts = ($var->{text}, ' =~ ', "(", '$_', ' =~ ', $re_str, ')');
 	} else {
-	    @texts = ($var, ' =~ ', $re_str);
+	    @texts = ($var->{text}, ' =~ ', $re_str);
 	}
 	$opts->{maybe_parens} = [$self, $cx, 20];
 	$type = 'matchop_binop';
