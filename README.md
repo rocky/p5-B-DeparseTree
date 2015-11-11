@@ -6,7 +6,7 @@ that with Perl text fragments.  These are fragments accessible by OP
 address. With this, in Perl you can determine get exactly where you in
 a program with granularity finer that at a line number boundary.
 
-See [Exact Perl location with B::Deparse (and Devel::Callsite](http://blogs.perl.org/users/rockyb/2015/11/exact-perl-location-with-bdeparse-and-develcallsite.html).
+See [Exact Perl location with B::Deparse (and Devel::Callsite)](http://blogs.perl.org/users/rockyb/2015/11/exact-perl-location-with-bdeparse-and-develcallsite.html).
 
 INSTALLATION
 ------------
