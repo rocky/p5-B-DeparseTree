@@ -14,6 +14,8 @@
 
 use v5.22;
 
+use rlib '../..';
+
 package B::DeparseTree::P522;
 use Carp;
 use B qw(class main_root main_start main_cv svref_2object opnumber perlstring
@@ -53,15 +55,18 @@ use B qw(class main_root main_start main_cv svref_2object opnumber perlstring
     MDEREF_SHIFT
 );
 
+use B::DeparseTree::Common;
+
 our $VERSION = '2.0';
 use strict;
 use vars qw/$AUTOLOAD/;
 use warnings ();
 require feature;
 
-our($VERSION, @EXPORT_OK, @ISA);
-@ISA = qw(Exporter);
-@EXPORT_OK = qw(compile);
+our($VERSION, @EXPORT, @ISA);
+
+@ISA = qw(Exporter B::DeparseTree::Common);
+@EXPORT = qw(compile);
 
 BEGIN {
     # List version-specific constants here.
@@ -258,136 +263,6 @@ BEGIN { for (qw[ const stringify rv2sv list glob pushmark null aelem
     eval "sub OP_\U$_ () { " . opnumber($_) . "}"
 }}
 
-# _pessimise_walk(): recursively walk the optree of a sub,
-# possibly undoing optimisations along the way.
-
-sub _pessimise_walk {
-    my ($self, $startop) = @_;
-
-    return unless $$startop;
-    my ($op, $prevop);
-    for ($op = $startop; $$op; $prevop = $op, $op = $op->sibling) {
-	my $ppname = $op->name;
-
-	# pessimisations start here
-
-	if ($ppname eq "padrange") {
-	    # remove PADRANGE:
-	    # the original optimisation either (1) changed this:
-	    #    pushmark -> (various pad and list and null ops) -> the_rest
-	    # or (2), for the = @_ case, changed this:
-	    #    pushmark -> gv[_] -> rv2av -> (pad stuff)       -> the_rest
-	    # into this:
-	    #    padrange ----------------------------------------> the_rest
-	    # so we just need to convert the padrange back into a
-	    # pushmark, and in case (1), set its op_next to op_sibling,
-	    # which is the head of the original chain of optimised-away
-	    # pad ops, or for (2), set it to sibling->first, which is
-	    # the original gv[_].
-
-	    $B::overlay->{$$op} = {
-		    type => OP_PUSHMARK,
-		    name => 'pushmark',
-		    private => ($op->private & OPpLVAL_INTRO),
-		    next    => ($op->flags & OPf_SPECIAL)
-				    ? $op->sibling->first
-				    : $op->sibling,
-	    };
-	}
-
-	# pessimisations end here
-
-	if (class($op) eq 'PMOP'
-	    && ref($op->pmreplroot)
-	    && ${$op->pmreplroot}
-	    && $op->pmreplroot->isa( 'B::OP' ))
-	{
-	    $self-> _pessimise_walk($op->pmreplroot);
-	}
-
-	if ($op->flags & OPf_KIDS) {
-	    $self-> _pessimise_walk($op->first);
-	}
-
-    }
-}
-
-
-# _pessimise_walk_exe(): recursively walk the op_next chain of a sub,
-# possibly undoing optimisations along the way.
-
-sub _pessimise_walk_exe {
-    my ($self, $startop, $visited) = @_;
-
-    return unless $$startop;
-    return if $visited->{$$startop};
-    my ($op, $prevop);
-    for ($op = $startop; $$op; $prevop = $op, $op = $op->next) {
-	last if $visited->{$$op};
-	$visited->{$$op} = 1;
-	my $ppname = $op->name;
-	if ($ppname =~
-	    /^((and|d?or)(assign)?|(map|grep)while|range|cond_expr|once)$/
-	    # entertry is also a logop, but its op_other invariably points
-	    # into the same chain as the main execution path, so we skip it
-	) {
-	    $self->_pessimise_walk_exe($op->other, $visited);
-	}
-	elsif ($ppname eq "subst") {
-	    $self->_pessimise_walk_exe($op->pmreplstart, $visited);
-	}
-	elsif ($ppname =~ /^(enter(loop|iter))$/) {
-	    # redoop and nextop will already be covered by the main block
-	    # of the loop
-	    $self->_pessimise_walk_exe($op->lastop, $visited);
-	}
-
-	# pessimisations start here
-    }
-}
-
-# Go through an optree and "remove" some optimisations by using an
-# overlay to selectively modify or un-null some ops. Deparsing in the
-# absence of those optimisations is then easier.
-#
-# Note that older optimisations are not removed, as Deparse was already
-# written to recognise them before the pessimise/overlay system was added.
-
-sub pessimise {
-    my ($self, $root, $start) = @_;
-
-    # walk tree in root-to-branch order
-    $self->_pessimise_walk($root);
-
-    my %visited;
-    # walk tree in execution order
-    $self->_pessimise_walk_exe($start, \%visited);
-}
-
-
-sub null {
-    my $op = shift;
-    return class($op) eq "NULL";
-}
-
-sub todo {
-    my $self = shift;
-    my($cv, $is_form) = @_;
-    return unless ($cv->FILE eq $0 || exists $self->{files}{$cv->FILE});
-    my $seq;
-    if ($cv->OUTSIDE_SEQ) {
-	$seq = $cv->OUTSIDE_SEQ;
-    } elsif (!null($cv->START) and is_state($cv->START)) {
-	$seq = $cv->START->cop_seq;
-    } else {
-	$seq = 0;
-    }
-    push @{$self->{'subs_todo'}}, [$seq, $cv, $is_form];
-    unless ($is_form || class($cv->STASH) eq 'SPECIAL') {
-	$self->{'subs_deparsed'}{$cv->STASH->NAME."::".$cv->GV->NAME} = 1;
-    }
-}
-
 sub deparse_format($$$)
 {
     my ($self, $form, $parent) = @_;
@@ -399,7 +274,7 @@ sub deparse_format($$$)
 		= @$self{qw'curstash warnings hints hinthash'};
     my $op = $form->ROOT;
     local $B::overlay = {};
-    $self->pessimise($op, $form->START);
+    $self->pessimize($op, $form->START);
     my $info = {
 	op  => $op,
 	parent => $parent,
@@ -436,33 +311,6 @@ sub deparse_format($$$)
     return $info;
 }
 
-# Create an info structure from a list of strings
-sub info_from_list($$$$) {
-    my ($texts, $sep, $type, $opts) = @_;
-    my $text = join($sep, @$texts);
-    my $info = {
-	text => $text,
-	texts => $texts,
-	type => $type,
-	sep => $sep,
-    };
-    foreach my $optname (qw(body other_ops)) {
-	$info->{$optname} = $opts->{$optname} if $opts->{$optname};
-    }
-    if ($opts->{maybe_parens}) {
-	my ($self, $cx, $prec) = @{$opts->{maybe_parens}};
-	$info->{text} = $self->maybe_parens($info->{text}, $cx, $prec);
-	$info->{maybe_parens} = {cx => $cx , prec => $prec};
-    }
-    return $info
-}
-
-# Create an info structure from a single string
-sub info_from_text($$$) {
-    my ($text, $type, $opts) = @_;
-    return info_from_list([$text], '', $type, $opts)
-}
-
 # Deparse a subroutine
 sub deparse_sub($$$)
 {
@@ -493,7 +341,7 @@ sub deparse_sub($$$)
 
     local $B::overlay = {};
     if (not null $root) {
-	$self->pessimise($root, $cv->START);
+	$self->pessimize($root, $cv->START);
 	my $lineseq = $root->first;
 	if ($lineseq->name eq "lineseq") {
 	    my @ops;
@@ -596,7 +444,7 @@ sub begin_is_use
     my $root = $cv->ROOT;
     local @$self{qw'curcv curcvlex'} = ($cv);
     local $B::overlay = {};
-    $self->pessimise($root, $cv->START);
+    $self->pessimize($root, $cv->START);
     # require B::Debug;
     # B::walkoptree($cv->ROOT, "debug");
     my $lineseq = $root->first;
@@ -785,89 +633,6 @@ sub style_opts {
     }
 }
 
-sub new {
-    my $class = shift;
-    my $self = bless {}, $class;
-    $self->{'cuddle'} = "\n";
-    $self->{'curcop'} = undef;
-    $self->{'curstash'} = "main";
-    $self->{'ex_const'} = "'???'";
-    $self->{'expand'} = 0;
-    $self->{'files'} = {};
-    $self->{'indent_size'} = 4;
-    $self->{'copaddr'} = 0;
-    $self->{'linenums'} = 0;
-    $self->{'parens'} = 0;
-    $self->{'subs_todo'} = [];
-    $self->{'unquote'} = 0;
-    $self->{'use_dumper'} = 0;
-    $self->{'use_tabs'} = 0;
-
-    $self->{'ambient_arybase'} = 0;
-    $self->{'ambient_warnings'} = undef; # Assume no lexical warnings
-    $self->{'ambient_hints'} = 0;
-    $self->{'ambient_hinthash'} = undef;
-
-    # Given an opcode address, get the accumulated OP tree
-    # OP for that.
-    $self->{optree} = {};
-
-    $self->init();
-
-    while (my $arg = shift @_) {
-	if ($arg eq "-d") {
-	    $self->{'use_dumper'} = 1;
-	    require Data::Dumper;
-	} elsif ($arg =~ /^-f(.*)/) {
-	    $self->{'files'}{$1} = 1;
-	} elsif ($arg eq "-l") {
-	    $self->{'linenums'} = 1;
-	} elsif ($arg eq "-c") {
-	    $self->{'linenums'} = 1;
-	    $self->{'copaddr'} = 1;
-	} elsif ($arg eq "-p") {
-	    $self->{'parens'} = 1;
-	} elsif ($arg eq "-P") {
-	    $self->{'noproto'} = 1;
-	} elsif ($arg eq "-q") {
-	    $self->{'unquote'} = 1;
-	} elsif (substr($arg, 0, 2) eq "-s") {
-	    $self->style_opts(substr $arg, 2);
-	} elsif ($arg =~ /^-x(\d)$/) {
-	    $self->{'expand'} = $1;
-	}
-    }
-    return $self;
-}
-
-{
-    # Mask out the bits that L<warnings::register> uses
-    my $WARN_MASK;
-    BEGIN {
-	$WARN_MASK = $warnings::Bits{all} | $warnings::DeadBits{all};
-    }
-    sub WARN_MASK () {
-	return $WARN_MASK;
-    }
-}
-
-# Initialise the contextual information, either from
-# defaults provided with the ambient_pragmas method,
-# or from perl's own defaults otherwise.
-sub init {
-    my $self = shift;
-
-    $self->{'arybase'}  = $self->{'ambient_arybase'};
-    $self->{'warnings'} = defined ($self->{'ambient_warnings'})
-				? $self->{'ambient_warnings'} & WARN_MASK
-				: undef;
-    $self->{'hints'}    = $self->{'ambient_hints'};
-    $self->{'hinthash'} = $self->{'ambient_hinthash'};
-
-    # also a convenient place to clear out subs_declared
-    delete $self->{'subs_declared'};
-}
-
 sub compile {
     my(@args) = @_;
     return sub {
@@ -911,7 +676,7 @@ sub compile {
 	my $root = main_root;
 	local $B::overlay = {};
 	unless (null $root) {
-	    $self->pessimise($root, main_start);
+	    $self->pessimize($root, main_start);
 	    my $deparsed = $self->deparse_root($root);
 	    print $self->indent_info($deparsed), "\n";
 	}
@@ -950,25 +715,6 @@ sub coderef2list {
     $self->init();
     return $self->deparse_sub(svref_2object($coderef));
 }
-
-# Possibly add () around $text depending on precidence $prec and
-# context $cx. We return a string.
-sub maybe_parens($$$$)
-{
-    my($self, $text, $cx, $prec) = @_;
-    if ($prec < $cx
-	# unary ops nest just fine
-	or $prec == $cx and $cx != 4 and $cx != 16 and $cx != 21
-	or $self->{'parens'}) {
-	$text = "($text)";
-	# In a unop, let parent reuse our parens; see maybe_parens_unop
-	$text = "\cS" . $text if $cx == 16;
-	return $text;
-    } else {
-	return $text;
-    }
-}
-
 my %strict_bits = do {
     local $^H;
     map +($_ => strict::bits($_)), qw/refs subs vars/
@@ -1086,85 +832,6 @@ sub ambient_pragmas {
     $self->{'ambient_hints'} = $hint_bits;
     $self->{'ambient_hinthash'} = $hinthash;
 }
-
-# This method is the inner loop, so try to keep it simple
-sub deparse($$$$)
-{
-    my($self, $op, $cx, $parent) = @_;
-
-    Carp::confess("Null op in deparse") if !defined($op)
-					|| class($op) eq "NULL";
-    my $meth = "pp_" . $op->name;
-    # print "YYY $meth\n";
-    my $info = $self->$meth($op, $cx);
-    Carp::confess("nonref return for $meth deparse") if !ref($info);
-    $info->{parent} = $$parent if $parent;
-    $info->{cop} = $self->{'curcop'};
-    $info->{op} = $op;
-    $self->{optree}{$$op} = $info;
-    if ($info->{other_ops}) {
-	foreach my $other (@{$info->{other_ops}}) {
-	    if (!ref $other) {
-		Carp::confess "Invalid $other";
-	    }
-	    $self->{optree}{$$other} = $info;
-	}
-    }
-    return $info;
-}
-
-sub indent_list($$)
-{
-    my ($self, $lines_ref) = @_;
-    my $leader = "";
-    my $level = 0;
-    for my $line (@{$lines_ref}) {
-	my $cmd = substr($line, 0, 1);
-	if ($cmd eq "\t" or $cmd eq "\b") {
-	    $level += ($cmd eq "\t" ? 1 : -1) * $self->{'indent_size'};
-	    if ($self->{'use_tabs'}) {
-		$leader = "\t" x ($level / 8) . " " x ($level % 8);
-	    } else {
-		$leader = " " x $level;
-	    }
-	    $line = substr($line, 1);
-	}
-	if (index($line, "\f") > 0) {
-		$line =~ s/\f/\n/;
-	}
-	if (substr($line, 0, 1) eq "\f") {
-	    $line = substr($line, 1); # no indent
-	} else {
-	    $line = $leader . $line;
-	}
-	$line =~ s/\cK;?//g;
-    }
-
-    my @lines = grep $_ !~ /^\s*$/, @$lines_ref;
-    return join("\n", @lines)
-}
-
-sub indent($$)
-{
-    my ($self, $text) = @_;
-    my @lines = split(/\n/, $text);
-    return $self->indent_list(\@lines);
-}
-
-# Like indent, but takes an info object and removes leading
-# parenthesis.
-sub indent_info($$)
-{
-    my ($self, $info) = @_;
-    my $text = $info->{text};
-    if ($info->{maybe_parens} and
-	substr($text, 0, 1) == '(' and
-	substr($text, -1) == ')' ) {
-	$text = substr($text, 1, length($text) -2)
-    }
-    return $self->indent($text);
-}
-
 
 sub is_scope {
     my $op = shift;
@@ -1501,9 +1168,9 @@ sub deparse_root {
 	$text =~ s/^\((.+)\)$/$1/;
 	$info->{type} = $op->name;
 	$info->{op} = $op;
-	$info->{parent} = $$parent unless $info->{parent};
 	$self->{optree}{$$op} = $info;
 	$info->{text} = $text;
+	$info->{parent} = $$parent if $parent;
 	push @$exprs, $info;
     };
     return $self->walk_lineseq($op, \@ops, $fn);
@@ -2436,6 +2103,7 @@ sub anon_hash_or_list
     my($pre, $post) = @{{"anonlist" => ["[","]"],
 			 "anonhash" => ["{","}"]}->{$name}};
     my($expr, @exprs);
+    my $other_ops => [$op->first];
     $op = $op->first->sibling; # skip pushmark
     for (; !null($op); $op = $op->sibling) {
 	$expr = $self->deparse($op, 6, $op);
@@ -2446,7 +2114,10 @@ sub anon_hash_or_list
 	$pre = "+{";
     }
     my $texts = [$pre, join(", ", map($_->{text}, @exprs), $post)];
-    return info_from_list($texts, '', $name, {body => \@exprs});
+    return info_from_list($texts, '', $name,
+			  {body => \@exprs,
+			   other_ops => $other_ops
+			  });
 }
 
 sub pp_anonlist {
@@ -2853,13 +2524,16 @@ sub pp_repeat {
     my $right = $op->last;
     my $eq = "";
     my $prec = 19;
+    my $other_ops = undef;
     if ($op->flags & OPf_STACKED) {
 	$eq = "=";
 	$prec = 7;
     }
     my @exprs = ();
     my ($left_info, @body);
-    if (null($right)) { # list repeat; count is inside left-side ex-list
+    if (null($right)) {
+	# list repeat; count is inside left-side ex-list
+	$other_ops = [$left->first];
 	my $kid = $left->first->sibling; # skip pushmark
 	for (; !null($kid->sibling); $kid = $kid->sibling) {
 	    push @exprs, $self->deparse($kid, 6, $op);
@@ -2873,9 +2547,11 @@ sub pp_repeat {
     }
     my $right_info  = $self->deparse_binop_right($op, $right, $prec);
     my $texts = [$left_info->{text}, "x$eq", $right_info->{text}];
-    return info_from_list($texts, ' ', 'repeat',
-			  {body => [$left_info, $right_info],
-			   maybe_parens => [$self, $cx, $prec]});
+    my $info = info_from_list($texts, ' ', 'repeat',
+			      {body => [$left_info, $right_info],
+			       maybe_parens => [$self, $cx, $prec]});
+    $info->{other_ops} = $other_ops if $other_ops;
+    return $info
 }
 
 sub range {
