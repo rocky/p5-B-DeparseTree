@@ -23,6 +23,16 @@ foreach my $dir (glob '*') {
 	    unlink $outfile;
 	}
     }
+    foreach my $test_prog (glob(File::Spec->catfile('tmp', '*/*.t'))) {
+	my $cmd = "$EXECUTABLE_NAME -c $test_prog";
+	system($cmd);
+	if ($? >> 8 != 0) {
+	    my $new_bad;
+	    ($new_bad=$test_prog) =~ s/t$/t-bad/;
+	    system("mv $test_prog $new_bad");
+	}
+    }
     # There is probably a fancier test-runner way to do this.
     system("prove " . File::Spec->catfile('tmp', $dir));
+
 }
