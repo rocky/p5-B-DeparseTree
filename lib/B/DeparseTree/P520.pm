@@ -161,7 +161,7 @@ BEGIN {
 #
 # parens: -p
 # linenums: -l
-# copaddr: -c
+# opaddr: -a
 # unquote: -q
 # cuddle: ' ' or '\n', depending on -sC
 # indent_size: -si
@@ -331,7 +331,10 @@ sub deparse_sub($$$)
 	my @texts = ("{\n\t", $body->{text}, "\n\b}");
 	unshift @texts, $proto if $proto;
 	$info = info_from_list(\@texts, '', 'sub',
-			       {body =>[$body]});
+			       {body =>[$body],
+			        other_ops =>[$lineseq]});
+	$self->{optree}{$$lineseq} = $info;
+
     } else {
 	my $sv = $cv->const_sv;
 	if ($$sv) {
@@ -570,39 +573,6 @@ sub stash_subs {
 	    if (class($val->HV) ne "SPECIAL" && $key =~ /::$/) {
 		$self->stash_subs($pack . $key, $seen);
 	    }
-	}
-    }
-}
-
-sub print_protos {
-    my $self = shift;
-    my $ar;
-    my @ret;
-    foreach $ar (@{$self->{'protos_todo'}}) {
-	my $proto = (defined $ar->[1] ? " (". $ar->[1] . ")" : "");
-	push @ret, "sub " . $ar->[0] .  "$proto;\n";
-    }
-    delete $self->{'protos_todo'};
-    return @ret;
-}
-
-sub style_opts {
-    my $self = shift;
-    my $opts = shift;
-    my $opt;
-    while (length($opt = substr($opts, 0, 1))) {
-	if ($opt eq "C") {
-	    $self->{'cuddle'} = " ";
-	    $opts = substr($opts, 1);
-	} elsif ($opt eq "i") {
-	    $opts =~ s/^i(\d+)//;
-	    $self->{'indent_size'} = $1;
-	} elsif ($opt eq "T") {
-	    $self->{'use_tabs'} = 1;
-	    $opts = substr($opts, 1);
-	} elsif ($opt eq "v") {
-	    $opts =~ s/^v([^.]*)(.|$)//;
-	    $self->{'ex_const'} = $1;
 	}
     }
 }
@@ -1479,7 +1449,7 @@ sub pp_nextstate {
     # the original program.
     if ($self->{'linenums'}) {
 	my $line = sprintf("\n# line %s '%s'", $op->line, $op->file);
-	$line .= sprintf(" 0x%x", $$op) if $self->{'copaddr'};
+	$line .= sprintf(" 0x%x", $$op) if $self->{'opaddr'};
 	push @text, $line . "\cK\n";
     }
 
@@ -3992,7 +3962,7 @@ sub pp_entersub
     }
     $kid = $op->first;
 
-    my $other_ops = [$kid->first];
+    my $other_ops = [$kid, $kid->first];
     $kid = $kid->first->sibling; # skip ex-list, pushmark
 
     for (; not null $kid->sibling; $kid = $kid->sibling) {
@@ -5285,7 +5255,7 @@ unless (caller) {
     };
 
     my $deparse = __PACKAGE__->new("-p", "-l", "-c", "-sC");
-    my $info = $deparse->coderef2list(\&baz);
+    my $info = $deparse->coderef2list(\&fib);
     import Data::Printer colored => 0;
     Data::Printer::p($info);
     print "\n", '=' x 30, "\n";

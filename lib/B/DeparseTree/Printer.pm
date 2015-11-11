@@ -5,6 +5,12 @@ use B::DeparseTree::Common;
 
 package B::DeparseTree::Printer;
 
+our($VERSION, @EXPORT, @ISA);
+$VERSION = '1.0.0';
+@ISA = qw(Exporter);
+@EXPORT = qw(format_info format_info_walk);
+
+
 use constant sep_string => ('=' x 40) . "\n";
 
 # Elide string with ... if it is too long, and
@@ -85,23 +91,32 @@ EOF
 	$text .= "text[$j]: \"$line\"\n";
 
     }
-    $text .= sep_string;
     if ($i{body}) {
+	$text .= sep_string;
 	my @body = @{$i{body}};
 	for (my $j=0; $j < scalar @body; $j++) {
 	    $text .= sprintf("body[$j]: %s\n", format_info_short($body[$j], 1));
 	}
     }
-    if ($i{maybe_parens}) {
+    if (exists $i{other_ops}) {
 	$text .= sep_string;
-	my @fields = ('parent context', 'op precidence');
-	my @maybe_parens = @{$i{maybe_parens}};
-	for (my $j=0; $j < scalar @fields; $j++) {
-	    $text .= sprintf "%s: %d\n", $fields[$j], $maybe_parens[$j];
+	my @other_ops = @{$i{other_ops}};
+	for (my $j=0; $j < scalar @other_ops; $j++) {
+	    my $op = $other_ops[$j];
+	    $text .= sprintf("other_ops[$j]: 0x%x %s\n", $$op, $op->name);
 	}
-	$text .= sprintf "need parens: %s\n", parens_test(@maybe_parens) ? 'yes' : 'no';
     }
-    # FIXME: other ops
+    if (exists $i{maybe_parens}) {
+	$text .= sep_string;
+	my %maybe_parens = %{$i{maybe_parens}};
+	foreach my $key (sort keys %maybe_parens) {
+	    $text .= sprintf "%s: %g\n", $key, $maybe_parens{$key};
+	}
+	$text .= sprintf("need parens: %s\n",
+			 B::DeparseTree::Common::parens_test($maybe_parens{context},
+							     $maybe_parens{precidence}) ?
+			 'yes' : 'no');
+    }
     return $text;
 }
 

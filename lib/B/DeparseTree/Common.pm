@@ -7,9 +7,10 @@ use strict;
 use warnings ();
 
 our($VERSION, @EXPORT, @ISA);
+$VERSION = '1.0.0';
 @ISA = qw(Exporter);
 @EXPORT = qw(maybe_parens info_from_list info_from_text null new WARN_MASK
-            indent_list indent indent_info parens_test);
+            indent_list indent indent_info parens_test print_protos style_opts);
 
 BEGIN { for (qw[ pushmark ]) {
     eval "sub OP_\U$_ () { " . opnumber($_) . "}"
@@ -25,7 +26,7 @@ sub new {
     $self->{'expand'} = 0;
     $self->{'files'} = {};
     $self->{'indent_size'} = 4;
-    $self->{'copaddr'} = 0;
+    $self->{'opaddr'} = 0;
     $self->{'linenums'} = 0;
     $self->{'parens'} = 0;
     $self->{'subs_todo'} = [];
@@ -52,9 +53,9 @@ sub new {
 	    $self->{'files'}{$1} = 1;
 	} elsif ($arg eq "-l") {
 	    $self->{'linenums'} = 1;
-	} elsif ($arg eq "-c") {
+	} elsif ($arg eq "-a") {
 	    $self->{'linenums'} = 1;
-	    $self->{'copaddr'} = 1;
+	    $self->{'opaddr'} = 1;
 	} elsif ($arg eq "-p") {
 	    $self->{'parens'} = 1;
 	} elsif ($arg eq "-P") {
@@ -84,7 +85,7 @@ sub new {
 # Initialise the contextual information, either from
 # defaults provided with the ambient_pragmas method,
 # or from perl's own defaults otherwise.
-sub init
+sub init($)
 {
     my $self = shift;
 
@@ -97,6 +98,40 @@ sub init
 
     # also a convenient place to clear out subs_declared
     delete $self->{'subs_declared'};
+}
+
+sub print_protos($)
+{
+    my $self = shift;
+    my $ar;
+    my @ret;
+    foreach $ar (@{$self->{'protos_todo'}}) {
+	my $proto = (defined $ar->[1] ? " (". $ar->[1] . ")" : "");
+	push @ret, "sub " . $ar->[0] .  "$proto;\n";
+    }
+    delete $self->{'protos_todo'};
+    return @ret;
+}
+
+sub style_opts($$)
+{
+    my ($self, $opts) = shift;
+    my $opt;
+    while (length($opt = substr($opts, 0, 1))) {
+	if ($opt eq "C") {
+	    $self->{'cuddle'} = " ";
+	    $opts = substr($opts, 1);
+	} elsif ($opt eq "i") {
+	    $opts =~ s/^i(\d+)//;
+	    $self->{'indent_size'} = $1;
+	} elsif ($opt eq "T") {
+	    $self->{'use_tabs'} = 1;
+	    $opts = substr($opts, 1);
+	} elsif ($opt eq "v") {
+	    $opts =~ s/^v([^.]*)(.|$)//;
+	    $self->{'ex_const'} = $1;
+	}
+    }
 }
 
 sub parens_test($$) {
@@ -138,7 +173,7 @@ sub info_from_list($$$$)
     if ($opts->{maybe_parens}) {
 	my ($self, $cx, $prec) = @{$opts->{maybe_parens}};
 	$info->{text} = $self->maybe_parens($info->{text}, $cx, $prec);
-	$info->{maybe_parens} = {cx => $cx , prec => $prec};
+	$info->{maybe_parens} = {context => $cx , precidence => $prec};
     }
     return $info
 }
