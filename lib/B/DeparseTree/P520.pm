@@ -4925,25 +4925,40 @@ sub pure_string {
 sub regcomp
 {
     my($self, $op, $cx, $extended) = @_;
+    my @other_ops = ();
     my $kid = $op->first;
-    $kid = $kid->first if $kid->name eq "regcmaybe";
-    $kid = $kid->first if $kid->name eq "regcreset";
+    if ($kid->name eq "regcmaybe") {
+	push @other_ops, $kid;
+	$kid = $kid->first;
+    }
+    if ($kid->name eq "regcreset") {
+	push @other_ops, $kid;
+	$kid = $kid->first;
+    }
     if ($kid->name eq "null" and !null($kid->first)
-	and $kid->first->name eq 'pushmark')
-    {
+	and $kid->first->name eq 'pushmark') {
 	my $str = '';
+	push(@other_ops, $kid);
 	$kid = $kid->first->sibling;
 	while (!null($kid)) {
 	    my $first = $str;
 	    my $last = $self->re_dq($kid, $extended);
+	    push(@other_ops, $kid);
 	    $str = re_dq_disambiguate($first, $last->{text});
 	    $kid = $kid->sibling;
 	}
-	return info_from_text($str, 'regcomp', {});
+	return (info_from_text($str, 'regcomp',
+			       {other_ops=>\@other_ops}), 1);
     }
 
-    return ($self->re_dq($kid, $extended), 1) if $self->pure_string($kid);
-    return ($self->deparse($kid, $cx), 0, $op);
+    if ($self->pure_string($kid)) {
+	my $info = $self->re_dq($kid, $extended);
+	my @kid_ops = $info->{other_ops} ? @{$info->{other_ops}} : ();
+	push @other_ops, @kid_ops;
+	$info->{other_ops} = \@other_ops;
+	return ($info, 1);
+    }
+    return ($self->deparse($kid, $cx, $op), 0, $op);
 }
 
 sub pp_regcomp
@@ -5146,7 +5161,7 @@ sub pp_subst
     my ($repl, $repl_info);
     if ($op->flags & OPf_STACKED) {
 	$binop = 1;
-	$var = $self->deparse($kid, 20);
+	$var = $self->deparse($kid, 20, $op);
 	$kid = $kid->sibling;
     }
     my $flags = "";
@@ -5193,7 +5208,7 @@ sub pp_subst
     my $opts = {body => [$repl_info]};
     $opts->{other_ops} = \@other_ops if @other_ops;
     if ($binop) {
-	my @texts = ("$var", " ", "=~", " ", "s", double_delim($re, $repl_text), $flags);
+	my @texts = ($var->{text}, " ", "=~", " ", "s", double_delim($re, $repl_text), $flags);
 	$opts->{maybe_parens} = [$self, $cx, 20];
 	return info_from_list(\@texts, '', 'subst_binop', $opts);
     } else {
@@ -5243,8 +5258,10 @@ unless (caller) {
 	    return(fib($x-1) + fib($x-2))
 	}
 	sub baz {
-	    # no strict;
-	    my($type) = $Fileparse_fstype;
+	    no strict;
+	    $foo =~ s/^not /substr(<<EOF, 0, 0)/e;
+  Ignored
+EOF
 	}
     };
 
