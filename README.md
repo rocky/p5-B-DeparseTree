@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/rocky/p5-B-DeparseTree.png)](https://travis-ci.org/rocky/p5-B-DeparseTree)
+
 SYNOPSIS
 --------
 
