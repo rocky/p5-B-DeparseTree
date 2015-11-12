@@ -11,5 +11,18 @@
 \bbuild.com$
 ^MANIFEST\.SKIP
 
+# Git stuff
+\B\.git\b
+\B\.gitignore\b
+
+# Skip Travis Continuous Integration configuration
+^\.travis\.yml$
+
+
 # Avoid archives of this distribution
 \bB-DeparseTree-[\d\.\_]+
+
+# Nothing in tmp
+\btmp/
+
+how-to-make-a-release\.txt
