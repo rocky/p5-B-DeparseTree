@@ -31,7 +31,7 @@ my $builder = Module::Build->new(
     needs_compiler      => 0,
     release_status      => 'stable',
     configure_requires  => {
-	'Module::Build' => '0.32',
+	'Module::Build' => '0.4214',
 
     },
     test_requires  => {

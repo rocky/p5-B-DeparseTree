@@ -15,10 +15,13 @@ use constant sep_string => ('=' x 40) . "\n";
 
 # Elide string with ... if it is too long, and
 # show control characters in string.
-sub short_str($) {
-    my $str = shift;
-    if (length($str) > 20) {
-	$str = substr($str, 0, 7) . '...' . substr($str, -7);
+sub short_str($;$) {
+    my ($str, $maxwidth) = @_;
+    $maxwidth ||= 20;
+
+    if (length($str) > $maxwidth) {
+	my $chop = $maxwidth - 3;
+	$str = substr($str, 0, $chop) . '...' . substr($str, -$chop);
     }
     $str =~ s/\cK/\\cK/g;
     $str =~ s/\f/\\f/g;

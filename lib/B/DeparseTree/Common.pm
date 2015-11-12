@@ -1,10 +1,11 @@
 # Copyright (c) 2015 Rocky Bernstein
 package B::DeparseTree::Common;
 
-use B qw(class opnumber OPpLVAL_INTRO OPf_SPECIAL OPf_KIDS);
-
 use strict;
 use warnings ();
+
+use B qw(class opnumber OPpLVAL_INTRO OPf_SPECIAL OPf_KIDS  svref_2object);
+use Carp;
 
 our($VERSION, @EXPORT, @ISA);
 $VERSION = '1.0.0';
@@ -82,7 +83,7 @@ sub new {
     }
 }
 
-# Initialise the contextual information, either from
+# Initialize the contextual information, either from
 # defaults provided with the ambient_pragmas method,
 # or from perl's own defaults otherwise.
 sub init($)
@@ -98,6 +99,23 @@ sub init($)
 
     # also a convenient place to clear out subs_declared
     delete $self->{'subs_declared'};
+}
+
+sub coderef2text {
+    my $self = shift;
+    my $func = shift;
+    croak "Usage: ->coderef2text(CODEREF)" unless UNIVERSAL::isa($func, "CODE");
+
+    $self->init();
+    my $info = $self->coderef2list($func);
+    return $self->indent($info->{text});
+}
+
+sub coderef2list {
+    my ($self, $coderef) = @_;
+    croak "Usage: ->coderef2list(CODEREF)" unless UNIVERSAL::isa($coderef, "CODE");
+    $self->init();
+    return $self->deparse_sub(svref_2object($coderef));
 }
 
 sub print_protos($)
@@ -330,7 +348,16 @@ sub deparse($$$$)
     Carp::confess("nonref return for $meth deparse") if !ref($info);
     $info->{parent} = $$parent if $parent;
     $info->{cop} = $self->{'curcop'};
-    $info->{op} = $op;
+    my $got_op = $info->{op};
+    if ($got_op) {
+	if ($got_op != $op) {
+	    # Do something here?
+	    # printf("XX final op 0x%x is not requested 0x%x\n",
+	    # 	   $$op, $$got_op);
+	}
+    } else {
+	$info->{op} = $op;
+    }
     $self->{optree}{$$op} = $info;
     if ($info->{other_ops}) {
 	foreach my $other (@{$info->{other_ops}}) {

@@ -271,6 +271,7 @@ sub deparse_format($$$)
 	push @{$op->{other_ops}}, $op->first;
 	$kid = $op->first->sibling; # skip a pushmark
 	push @texts, "\f".$self->const_sv($kid)->PV;
+	push @{$op->{other_ops}}, $kid;
 	$kid = $kid->sibling;
 	for (; not null $kid; $kid = $kid->sibling) {
 	    push @body, $self->deparse($kid, -1, $op);
@@ -643,22 +644,6 @@ sub compile {
     }
 }
 
-sub coderef2text {
-    my $self = shift;
-    my $func = shift;
-    croak "Usage: ->coderef2text(CODEREF)" unless UNIVERSAL::isa($func, "CODE");
-
-    $self->init();
-    my $info = $self->coderef2list($func);
-    return $self->indent($info->{text});
-}
-
-sub coderef2list {
-    my ($self, $coderef) = @_;
-    croak "Usage: ->coderef2list(CODEREF)" unless UNIVERSAL::isa($coderef, "CODE");
-    $self->init();
-    return $self->deparse_sub(svref_2object($coderef));
-}
 my %strict_bits = do {
     local $^H;
     map +($_ => strict::bits($_)), qw/refs subs vars/
@@ -2950,12 +2935,12 @@ sub pp_list
     my($self, $op, $cx) = @_;
     my($expr, @exprs);
 
-    my $other_ops = [$op->first];
+    my $other_op = $op->first;
     my $kid = $op->first->sibling; # skip a pushmark
 
     if (class($kid) eq 'NULL') {
 	return info_from_text('', 'list_null',
-			      {other_ops => $other_ops});
+			      {other_ops => [$other_op]});
     }
     my $lop;
     my $local = "either"; # could be local(...), my(...), state(...) or our(...)
@@ -3001,7 +2986,13 @@ sub pp_list
 	}
     }
     $local = "" if $local eq "either"; # no point if it's all undefs
-    return $self->deparse($kid, $cx, $op) if null $kid->sibling and not $local;
+    if (null $kid->sibling and not $local) {
+	my $info = $self->deparse($kid, $cx, $op);
+	my @other_ops = $info->{other_ops} ? @{$info->{other_ops}} : ();
+	push @other_ops, $other_op;
+	$info->{other_ops} = \@other_ops;
+	return $info;
+    }
 
     my @body = ();
     for (; !null($kid); $kid = $kid->sibling) {
@@ -3023,7 +3014,7 @@ sub pp_list
     my @args = map $_->{text}, @exprs;
     my $opts = {
 	body => \@body,
-	other_ops => $other_ops,
+	other_ops => [$other_op],
     };
 
     my @texts = ($local, '(', join(", ", @args), ')');
@@ -3305,7 +3296,6 @@ sub _op_is_or_was {
 sub pp_null
 {
     my($self, $op, $cx) = @_;
-
     my $info;
     if (class($op) eq "OP") {
 	# old value is lost
@@ -5246,19 +5236,20 @@ unless (caller) {
     eval "use Data::Printer;";
 
     eval {
+	our($Fileparse_fstype);
 	sub fib($) {
 	    my $x = shift;
 	    return 1 if $x <= 1;
 	    return(fib($x-1) + fib($x-2))
 	}
 	sub baz {
-	    no strict;
-	    print sort(foo('bar'));
+	    # no strict;
+	    my($type) = $Fileparse_fstype;
 	}
     };
 
     my $deparse = __PACKAGE__->new("-p", "-l", "-c", "-sC");
-    my $info = $deparse->coderef2list(\&fib);
+    my $info = $deparse->coderef2list(\&baz);
     import Data::Printer colored => 0;
     Data::Printer::p($info);
     print "\n", '=' x 30, "\n";
