@@ -559,8 +559,7 @@ rewinddir        1     -
 rindex           23    p
 rmdir            01    $
 say              @     p$+
-## FIXME
-## scalar           1     +
+scalar           1     +
 seek             3     p
 seekdir          2     p
 select           014   p1
@@ -623,8 +622,7 @@ untie            1     -
 utime            @     p1
 values           1     - # also tested specially
 vec              3     p
-## FIXME
-## wait             0     -
+wait             0     -
 waitpid          2     p
 wantarray        0     -
 warn             @     p1

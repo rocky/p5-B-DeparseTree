@@ -1631,7 +1631,7 @@ sub pp_stub {
 }
 sub pp_wantarray { baseop(@_, "wantarray") }
 sub pp_fork { baseop(@_, "fork") }
-sub pp_wait { maybe_my(@_, \&baseop, "wait") }
+sub pp_wait { maybe_targmy(@_, \&baseop, "wait") }
 sub pp_getppid { maybe_targmy(@_, \&baseop, "getppid") }
 sub pp_time { maybe_targmy(@_, \&baseop, "time") }
 sub pp_tms { baseop(@_, "times") }
@@ -5259,9 +5259,7 @@ unless (caller) {
 	}
 	sub baz {
 	    no strict;
-	    $foo =~ s/^not /substr(<<EOF, 0, 0)/e;
-  Ignored
-EOF
+	    CORE::wait;
 	}
     };
 

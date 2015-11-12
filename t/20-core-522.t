@@ -258,14 +258,13 @@ testit reverse  => 'CORE::reverse sort(@foo);';
 
 testit split    => 'split;',                     q{split(/ /, $_, 1);};
 testit split    => 'CORE::split;',               q{split(/ /, $_, 1);};
-
-# FIXME
-# testit split    => 'split $a;',                  q{split(/$a/u, $_, 1);};
-# testit split    => 'CORE::split $a;',            q{split(/$a/u, $_, 1);};
-# testit split    => 'split $a, $b;',              q{split(/$a/u, $b, 1);};
-# testit split    => 'CORE::split $a, $b;',        q{split(/$a/u, $b, 1);};
-# testit split    => 'split $a, $b, $c;',          q{split(/$a/u, $b, $c);};
-# testit split    => 'CORE::split $a, $b, $c;',    q{split(/$a/u, $b, $c);};
+testit split    => 'split $a;',                  q{split(/$a/, $_, 1);};
+testit split    => 'CORE::split $a;',            q{split(/$a/, $_, 1);};
+## FIXME
+#testit split    => 'split $a, $b;',              q{split(/$a/u, $b, 1);};
+#testit split    => 'CORE::split $a, $b;',        q{split(/$a/u, $b, 1);};
+#testit split    => 'split $a, $b, $c;',          q{split(/$a/u, $b, $c);};
+#testit split    => 'CORE::split $a, $b, $c;',    q{split(/$a/u, $b, $c);};
 
 testit sub      => 'CORE::sub { $a, $b }',
 			"sub {\n        \$a, \$b;\n    };";
@@ -562,8 +561,7 @@ rewinddir        1     -
 rindex           23    p
 rmdir            01    $
 say              @     p$+
-## FIXME
-## scalar           1     +
+scalar           1     +
 seek             3     p
 seekdir          2     p
 select           014   p1
@@ -626,8 +624,7 @@ untie            1     -
 utime            @     p1
 values           1     - # also tested specially
 vec              3     p
-## FIXME
-## wait             0     -
+wait             0     -
 waitpid          2     p
 wantarray        0     -
 warn             @     p1
