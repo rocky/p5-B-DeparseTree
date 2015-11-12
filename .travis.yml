@@ -1,0 +1,16 @@
+language: perl
+
+sudo: false
+
+env:
+  - AUTOMATED_TESTING=1 PREREQS="rlib"
+
+after_failure:
+  - cat /home/travis/.cpanm/work/*/build.log
+
+install:
+  # Prerequisites
+  - "cpanm $PREREQS"
+
+perl:
+  - "5.20"
