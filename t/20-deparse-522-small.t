@@ -286,12 +286,12 @@ x(); z()
 .
 EOCODH
 
-# # literal big chars under 'use utf8'
-# is($deparse->coderef2text(sub{ use utf8; /€/; }),
-# '{
-#     /\x{20ac}/;
-# }',
-# "qr/euro/");
+# literal big chars under 'use utf8'
+is($deparse->coderef2text(sub{ use utf8; /€/; }),
+'{
+    /\x{20ac}/;
+}',
+"qr/euro/");
 
 
 done_testing();
