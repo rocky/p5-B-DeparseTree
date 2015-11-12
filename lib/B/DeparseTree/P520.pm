@@ -4868,7 +4868,7 @@ sub re_dq {
     } elsif ($type eq "join") {
 	return $self->deparse($op->last, 26, $op); # was join($", @ary)
     } else {
-	my $info = $self->deparse($op, 26);
+	my $info = $self->deparse($op, 26, $op);
 	$info->{type} = 're_dq';
 	$info->{text} =~ s/^\$([(|)])\z/\${$1}/; # $( $| $) need braces
 	return $info;
@@ -4940,15 +4940,18 @@ sub regcomp
 	my $str = '';
 	push(@other_ops, $kid);
 	$kid = $kid->first->sibling;
+	my @body = ();
 	while (!null($kid)) {
 	    my $first = $str;
 	    my $last = $self->re_dq($kid, $extended);
+	    push @body, $last;
 	    push(@other_ops, $kid);
 	    $str = re_dq_disambiguate($first, $last->{text});
 	    $kid = $kid->sibling;
 	}
 	return (info_from_text($str, 'regcomp',
-			       {other_ops=>\@other_ops}), 1);
+			       {other_ops => \@other_ops,
+				body => \@body}), 1);
     }
 
     if ($self->pure_string($kid)) {
@@ -5158,6 +5161,7 @@ sub pp_subst
     my($self, $op, $cx) = @_;
     my $kid = $op->first;
     my($binop, $var, $re, @other_ops) = ("", "", "", ());
+    my @body = ();
     my ($repl, $repl_info);
     if ($op->flags & OPf_STACKED) {
 	$binop = 1;
@@ -5196,7 +5200,9 @@ sub pp_subst
 	    $re = re_uninterp(escape_str($unbacked));
 	}
     } else {
-	($re) = $self->regcomp($kid, 1, $extended);
+	my ($re_info, $junk) = $self->regcomp($kid, 1, $extended);
+	push @body, $re_info;
+	$re = $re_info->{text};
     }
     $flags .= "r" if $pmflags & PMf_NONDESTRUCT;
     $flags .= "e" if $pmflags & PMf_EVAL;
@@ -5204,8 +5210,9 @@ sub pp_subst
     $flags = join '', sort split //, $flags;
     $flags = $substwords{$flags} if $substwords{$flags};
     my $info;
+    push @body, $repl_info;
     my $repl_text = $repl_info->{text};
-    my $opts = {body => [$repl_info]};
+    my $opts = {body => \@body};
     $opts->{other_ops} = \@other_ops if @other_ops;
     if ($binop) {
 	my @texts = ($var->{text}, " ", "=~", " ", "s", double_delim($re, $repl_text), $flags);
@@ -5257,13 +5264,36 @@ unless (caller) {
 	    return 1 if $x <= 1;
 	    return(fib($x-1) + fib($x-2))
 	}
+	sub fileparse {
+	    no strict;
+  # my($fullname,@suffices) = @_;
+
+  my $tail   = '';
+  my $suffix = '';
+  if (@suffices) {
+    foreach $suffix (@suffices) {
+      my $pat = ($igncase ? '(?i)' : '') . "($suffix)\$";
+      if ($basename =~ s/$pat//s) {
+        $taint .= substr($suffix,0,0);
+        $tail = $1 . $tail;
+      }
+    }
+  }
+
+  # Ensure taint is propagated from the path to its pieces.
+  $tail .= $taint;
+  wantarray ? ($basename .= $taint, $dirpath .= $taint, $tail)
+            : ($basename .= $taint);
+}
 	sub baz {
 	    no strict;
-	    CORE::wait;
+	    if ($basename =~ s/$pat//s) {
+	    }
 	}
     };
 
     my $deparse = __PACKAGE__->new("-p", "-l", "-c", "-sC");
+    # my $info = $deparse->coderef2list(\&fileparse);
     my $info = $deparse->coderef2list(\&baz);
     import Data::Printer colored => 0;
     Data::Printer::p($info);
