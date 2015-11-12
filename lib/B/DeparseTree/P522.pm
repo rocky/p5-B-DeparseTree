@@ -3407,13 +3407,16 @@ sub pp_null
     } elsif ($op->targ == OP_STRINGIFY) {
 	return $self->dquote($op, $cx);
     } elsif ($op->targ == OP_GLOB) {
-	return $self->pp_glob(
-	         $kid    # entersub
-	            ->first    # ex-list
-	            ->first    # pushmark
-	            ->sibling, # glob
-	         $cx
-	       );
+	my @other_ops = ($kid, $kid->first, $kid->first->first);
+	my $info = $self->pp_glob(
+	    $kid    # entersub
+	    ->first    # ex-list
+	    ->first    # pushmark
+	    ->sibling, # glob
+	    $cx
+	    );
+	push @{$info->{other_ops}}, @other_ops;
+	return $info;
     } elsif (!null($kid->sibling) and
     	     $kid->sibling->name eq "readline" and
     	     $kid->sibling->flags & OPf_STACKED) {
