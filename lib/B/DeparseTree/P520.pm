@@ -3765,8 +3765,8 @@ sub want_list
 
 sub _method
 {
-    my $self = shift;
-    my($op, $cx) = @_;
+    my($self, $op, $cx) = @_;
+    my @other_ops = ($op->first);
     my $kid = $op->first->sibling; # skip pushmark
     my($meth, $obj, @exprs);
     if ($kid->name eq "list" and want_list $kid) {
@@ -3782,6 +3782,7 @@ sub _method
 	# the list is in list context as method arguments always are.
 	# (Good thing there aren't method prototypes!)
 	$meth = $kid->sibling;
+	push  @other_ops, $kid->first;
 	$kid = $kid->first->sibling; # skip pushmark
 	$obj = $kid;
 	$kid = $kid->sibling;
@@ -3792,7 +3793,7 @@ sub _method
 	$obj = $kid;
 	$kid = $kid->sibling;
 	for (; !null ($kid->sibling) && $kid->name!~/^method(?:_named)?\z/;
-	      $kid = $kid->sibling) {
+	     $kid = $kid->sibling) {
 	    push @exprs, $kid
 	}
 	$meth = $kid;
@@ -3809,15 +3810,20 @@ sub _method
 	}
     }
 
-    return { method => $meth, variable_method => ref($meth),
-             object => $obj, args => \@exprs  },
-	   $cx;
+    return {
+	method => $meth,
+	variable_method => ref($meth),
+	object => $obj,
+	args => \@exprs,
+	other_ops => \@other_ops
+    }, $cx;
 }
 
 sub e_method {
     my ($self, $op, $minfo, $cx) = @_;
     my $obj = $self->deparse($minfo->{object}, 24, $op);
     my @body = ($obj);
+    my $other_ops = $minfo->{other_ops};
 
     my $meth = $minfo->{method};
     my $meth_info;
@@ -3830,7 +3836,7 @@ sub e_method {
     my @args_texts = map $_->{text}, @args;
     my $args = join(", ", @args_texts);
 
-    my $opts = {body => \@body};
+    my $opts = {body => \@body, other_ops => $other_ops};
     my @texts = ();
     my $type;
 
