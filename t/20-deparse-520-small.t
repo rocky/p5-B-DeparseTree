@@ -525,8 +525,23 @@ $a x= $b;
 # @_ with padrange
 my($a, $b, $c) = @_;
 ####
+# SKIP ?$] < 5.017004 && "lexical subs not implemented on this Perl version"
+# TODO unimplemented in B::Deparse; RT #116553
+# lexical subroutine
+use feature 'lexical_subs';
+no warnings "experimental::lexical_subs";
+my sub f {}
+print f();
 # Elements of %# should not be confused with $#{ array }
 () = ${#}{'foo'};
+####
+# SKIP ?$] < 5.017004 && "lexical subs not implemented on this Perl version"
+# TODO unimplemented in B::Deparse; RT #116553
+# lexical "state" subroutine
+use feature 'state', 'lexical_subs';
+no warnings 'experimental::lexical_subs';
+state sub f {}
+print f();
 ####
 # [perl #121050] Prototypes with whitespace
 sub _121050(\$ \$) { }
