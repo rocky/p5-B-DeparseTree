@@ -5292,7 +5292,7 @@ unless (caller) {
 	}
     };
 
-    my $deparse = __PACKAGE__->new("-p", "-l", "-c", "-sC");
+    my $deparse = __PACKAGE__->new("-l", "-c", "-sC");
     # my $info = $deparse->coderef2list(\&fileparse);
     my $info = $deparse->coderef2list(\&baz);
     import Data::Printer colored => 0;
@@ -5314,7 +5314,7 @@ unless (caller) {
 	print '-' x 30, "\n";
     }
     # use B::Deparse;
-    # my $deparse_old = B::Deparse->new("-p", "-l", "-sC");
+    # my $deparse_old = B::Deparse->new("-l", "-sC");
     # print $deparse_old->coderef2text(\&baz);
 }
 
