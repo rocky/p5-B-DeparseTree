@@ -4,6 +4,7 @@ Build.PL
 lib/B/DeparseTree.pm
 lib/B/DeparseTree/P520.pm
 lib/B/DeparseTree/P522.pm
+lib/B/DeparseTree/PP.pm
 lib/B/DeparseTree/Common.pm
 MANIFEST			This list of files
 t/10subclass.t

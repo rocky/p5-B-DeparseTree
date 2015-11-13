@@ -56,14 +56,15 @@ use B qw(class main_root main_start main_cv svref_2object opnumber perlstring
 );
 
 use B::DeparseTree::Common;
+use B::DeparseTree::PP;
 
-our $VERSION = '2.0';
 use strict;
 use vars qw/$AUTOLOAD/;
 use warnings ();
 require feature;
 
 our($VERSION, @EXPORT, @ISA);
+our $VERSION = '2.0';
 
 @ISA = qw(Exporter B::DeparseTree::Common);
 @EXPORT = qw(compile);
@@ -801,18 +802,6 @@ sub is_state {
     return $name eq "nextstate" || $name eq "dbstate" || $name eq "setstate";
 }
 
-sub is_miniwhile { # check for one-line loop ('foo() while $y--')
-    my $op = shift;
-    return (!null($op) and null($op->sibling)
-	    and $op->name eq "null" and class($op) eq "UNOP"
-	    and (($op->first->name =~ /^(and|or)$/
-		  and $op->first->first->sibling->name eq "lineseq")
-		 or ($op->first->name eq "lineseq"
-		     and not null $op->first->first->sibling
-		     and $op->first->first->sibling->name eq "unstack")
-		 ));
-}
-
 # Check if the op and its sibling are the initialization and the rest of a
 # for (..;..;..) { ... } loop
 sub is_for_loop {
@@ -1037,69 +1026,6 @@ sub lineseq {
     };
     return $self->walk_lineseq($root, \@ops, $fn);
 }
-
-sub scopeop
-{
-    my($real_block, $self, $op, $cx) = @_;
-    my $kid;
-    my @kids;
-
-    local(@$self{qw'curstash warnings hints hinthash'})
-		= @$self{qw'curstash warnings hints hinthash'} if $real_block;
-    if ($real_block) {
-	$kid = $op->first->sibling; # skip enter
-	if (is_miniwhile($kid)) {
-	    my $top = $kid->first;
-	    my $name = $top->name;
-	    if ($name eq "and") {
-		$name = "while";
-	    } elsif ($name eq "or") {
-		$name = "until";
-	    } else { # no conditional -> while 1 or until 0
-		return $self->deparse($top->first, 1, $top) . " while 1";
-	    }
-	    my $cond = $top->first;
-	    my $body = $cond->sibling->first; # skip lineseq
-	    my $cond_info = $self->deparse($cond, 1, $top);
-	    my $body_info = $self->deparse($body, 1, $top);
-	    my @texts = ($body_info->{text}, $name, $cond_info->{text});
-	    my $text = join(' ', @texts);
-	    return {
-		type => 'scopeop_block',
-		body => [$cond_info, $body_info],
-		texts => \@texts,
-		text => $text,
-	    };
-	}
-    } else {
-	$kid = $op->first;
-    }
-    for (; !null($kid); $kid = $kid->sibling) {
-	push @kids, $kid;
-    }
-    if ($cx > 0) {
-	# inside an expression, (a do {} while for lineseq)
-	my $body = $self->lineseq($op, 0, @kids);
-	my @texts = ($body->{text});
-	my $text;
-	unless (is_lexical_subs(@kids)) {
-	    @texts = ('do ', "{\n\t", @texts, "\n\b");
-	};
-	return {
-	    type => 'scope_expr',
-	    text => join('', @texts),
-	    texts => \@texts,
-	};
-    } else {
-	my $ls = $self->lineseq($op, $cx, @kids);
-	my $text = $ls->{text};
-	return info_from_text($text, 'scopeop', {});
-    }
-}
-
-sub pp_scope { scopeop(0, @_); }
-sub pp_lineseq { scopeop(0, @_); }
-sub pp_leave { scopeop(1, @_); }
 
 # This is a special case of scopeop and lineseq, for the case of the
 # main_root.
@@ -5530,14 +5456,6 @@ sub pp_subst
 			      $opts);
     }
     Carp::confess("unhandled condition in pp_subst");
-}
-
-sub is_lexical_subs {
-    my (@ops) = shift;
-    for my $op (@ops) {
-        return 0 if $op->name !~ /\A(?:introcv|clonecv)\z/;
-    }
-    return 1;
 }
 
 sub pp_introcv

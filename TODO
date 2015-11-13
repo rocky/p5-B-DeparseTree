@@ -7,3 +7,4 @@
 - Better tree structure. Bodies could have subparts tagged
 - texts could have more structure: nested lists with different
   separators per list.
+- make indentation less hacky using tagging outside of text.
