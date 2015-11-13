@@ -30,3 +30,6 @@ testdata/opbasic/arith.t
 testdata/opbasic/magic_phase.t
 testdata/opbasic/qq.t
 testdata/runtests.pl
+Makefile.PL
+META.yml
+META.json
