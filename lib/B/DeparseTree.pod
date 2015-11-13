@@ -1,6 +1,6 @@
 =head1 NAME
 
-B::Deparse - Perl compiler backend to produce perl code
+B::DeparseTree - Perl compiler backend to produce perl code and save fragments as an abstract tree
 
 =head1 SYNOPSIS
 
@@ -54,9 +54,13 @@ include more than one secondary file.  (Most of the time you don't want to
 use it at all.)  You can also use this option to include subs which are
 defined in the scope of a B<#line> directive with two parameters.
 
+=item B<-c>
+
+Add COP address locations to the '# line' declarations
+
 =item B<-l>
 
-Add '#line' declarations to the output based on the line and file
+Add '# line' declarations to the output based on the line and file
 locations of the original code.
 
 =item B<-p>
@@ -247,9 +251,19 @@ B::DeparseTree doesn't know how to indent nicely.
 =head2 Synopsis
 
     use B::DeparseTree;
-    $deparse = B::DeparseTree->new("-p", "-sC");
+    use B::DeparseTree::Printer qw(format_info);
+
+
+    $deparse = B::DeparseTree->new("-sC");
     $body = $deparse->coderef2text(\&func);
     eval "sub func $body"; # the inverse operation
+
+    # $deparse->{optree} is a hash indexed by opcode address
+    while (my($key, $value) = each %{$deparse->{optree}}) {
+	printf "Opcode 0x%x\n", $key;
+	print format_info($value);
+    }
+
 
 =head2 Description
 
@@ -512,5 +526,7 @@ by Malcolm Beattie <mbeattie@sable.ox.ac.uk>, with contributions from
 Gisle Aas, James Duncan, Albert Dvornik, Robin Houston, Dave Mitchell,
 Hugo van der Sanden, Gurusamy Sarathy, Nick Ing-Simmons, and Rafael
 Garcia-Suarez.
+
+Rocky Bernstein reworked this to save tree information.
 
 =cut
