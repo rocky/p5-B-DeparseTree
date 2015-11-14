@@ -4,17 +4,24 @@ package B::DeparseTree::Common;
 use strict;
 use warnings ();
 
-use B qw(class opnumber OPpLVAL_INTRO OPf_SPECIAL OPf_KIDS  svref_2object);
+use B qw(class opnumber OPpLVAL_INTRO OPf_SPECIAL OPf_KIDS  svref_2object perlstring);
 use Carp;
 
 our($VERSION, @EXPORT, @ISA);
-$VERSION = '1.0.0';
+$VERSION = '1.1.0';
 @ISA = qw(Exporter);
 @EXPORT = qw(maybe_parens info_from_list info_from_text null new WARN_MASK
             indent_list indent indent_info parens_test print_protos
-            style_opts scopeop
-            is_miniwhile is_lexical_subs
+            style_opts scopeop declare_hints hint_pragmas
+            is_miniwhile is_lexical_subs %strict_bits
+            %rev_feature declare_hinthash declare_warnings %ignored_hints
+            _features_from_bundle
             );
+
+my %strict_bits = do {
+    local $^H;
+    map +($_ => strict::bits($_)), qw/refs subs vars/
+};
 
 BEGIN { for (qw[ pushmark ]) {
     eval "sub OP_\U$_ () { " . opnumber($_) . "}"
@@ -502,6 +509,121 @@ sub scopeop
 	my $text = $ls->{text};
 	return info_from_text($text, 'scopeop', {});
     }
+}
+
+sub hint_pragmas($) {
+    my ($bits) = @_;
+    my (@pragmas, @strict);
+    push @pragmas, "integer" if $bits & 0x1;
+    for (sort keys %strict_bits) {
+	push @strict, "'$_'" if $bits & $strict_bits{$_};
+    }
+    if (@strict == keys %strict_bits) {
+	push @pragmas, "strict";
+    }
+    elsif (@strict) {
+	push @pragmas, "strict " . join ', ', @strict;
+    }
+    push @pragmas, "bytes" if $bits & 0x8;
+    return @pragmas;
+}
+
+sub declare_hints($$)
+{
+    my ($from, $to) = @_;
+    my $use = $to   & ~$from;
+    my $no  = $from & ~$to;
+    my $decls = "";
+    for my $pragma (hint_pragmas($use)) {
+	$decls .= "use $pragma;\n";
+    }
+    for my $pragma (hint_pragmas($no)) {
+        $decls .= "no $pragma;\n";
+    }
+    return $decls;
+}
+
+# Internal implementation hints that the core sets automatically, so don't need
+# (or want) to be passed back to the user
+my %ignored_hints = (
+    'open<' => 1,
+    'open>' => 1,
+    ':'     => 1,
+    'strict/refs' => 1,
+    'strict/subs' => 1,
+    'strict/vars' => 1,
+);
+
+my %rev_feature;
+
+sub declare_hinthash {
+    my ($from, $to, $indent, $hints) = @_;
+    my $doing_features =
+	($hints & $feature::hint_mask) == $feature::hint_mask;
+    my @decls;
+    my @features;
+    my @unfeatures; # bugs?
+    for my $key (sort keys %$to) {
+	next if $ignored_hints{$key};
+	my $is_feature = $key =~ /^feature_/ && $^V ge 5.15.6;
+	next if $is_feature and not $doing_features;
+	if (!exists $from->{$key} or $from->{$key} ne $to->{$key}) {
+	    push(@features, $key), next if $is_feature;
+	    push @decls,
+		qq(\$^H{) . single_delim("q", "'", $key) . qq(} = )
+	      . (
+		   defined $to->{$key}
+			? single_delim("q", "'", $to->{$key})
+			: 'undef'
+		)
+	      . qq(;);
+	}
+    }
+    for my $key (sort keys %$from) {
+	next if $ignored_hints{$key};
+	my $is_feature = $key =~ /^feature_/ && $^V ge 5.15.6;
+	next if $is_feature and not $doing_features;
+	if (!exists $to->{$key}) {
+	    push(@unfeatures, $key), next if $is_feature;
+	    push @decls, qq(delete \$^H{'$key'};);
+	}
+    }
+    my @ret;
+    if (@features || @unfeatures) {
+	if (!%rev_feature) { %rev_feature = reverse %feature::feature }
+    }
+    if (@features) {
+	push @ret, "use feature "
+		 . join(", ", map "'$rev_feature{$_}'", @features) . ";\n";
+    }
+    if (@unfeatures) {
+	push @ret, "no feature "
+		 . join(", ", map "'$rev_feature{$_}'", @unfeatures)
+		 . ";\n";
+    }
+    @decls and
+	push @ret,
+	     join("\n" . (" " x $indent), "BEGIN {", @decls) . "\n}\n";
+    return @ret;
+}
+
+sub _features_from_bundle {
+    my ($hints, $hh) = @_;
+    foreach (@{$feature::feature_bundle{@feature::hint_bundles[$hints >> $feature::hint_shift]}}) {
+	$hh->{$feature::feature{$_}} = 1;
+    }
+    return $hh;
+}
+
+sub declare_warnings {
+    my ($from, $to) = @_;
+    if (($to & WARN_MASK) eq (warnings::bits("all") & WARN_MASK)) {
+	return "use warnings;\n";
+    }
+    elsif (($to & WARN_MASK) eq ("\0"x length($to) & WARN_MASK)) {
+	return "no warnings;\n";
+    }
+    return "BEGIN {\${^WARNING_BITS} = ".perlstring($to)."}\n";
 }
 
 1;

@@ -39,7 +39,8 @@ my $builder = Module::Build->new(
 	'Text::Diff' => 0,
     },
     requires => {
-	'perl'                              => '5.018000',
+	'perl'                              => '5.020000',
+        'rlib'                              => '0.02',
         'version'                           => 0,
     },
     sign                => ($ENV{PERL_MB_NOSIGN} ? 0 : 1),

@@ -369,8 +369,9 @@ print reverse sort(@x);
 my @s;
 print /$s[1]/;
 ####
+# SKIP ROCKY fixme
 # /$#a/
-print /$#main::a/;
+print /$main::a/;
 ####
 # y///r
 tr/a/b/r;
