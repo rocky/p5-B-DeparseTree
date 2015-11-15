@@ -390,8 +390,8 @@ sub deparse_subname($$$)
     my ($self, $funcname, $parent) = @_;
     my $cv = svref_2object(\&$funcname);
     my $info = $self->deparse_sub($cv, $parent);
-    return info_from_list(['sub', $funcname, $info->{text}], ' ',
-			  'deparse_subname', {body=>[$info]})
+    return info_from_list(['sub', $funcname, $info], ' ',
+			  'deparse_subname', {});
 }
 
 sub next_todo {
@@ -1658,9 +1658,9 @@ sub pp_refgen
             if ($sib_name eq 'entersub') {
                 my $kid_info = $self->deparse($kid->sibling, 1, $op);
                 # Always show parens for \(&func()), but only with -p otherwise
-		my @texts = ('\\', $kid_info->{text});
+		my @texts = ('\\', $kid_info);
 		if ($self->{'parens'} or $kid->sibling->private & OPpENTERSUB_AMPER) {
-		    @texts = ('(', "\\", $kid_info->{text}, ')');
+		    @texts = ('(', "\\", $kid_info, ')');
 		}
 		return info_from_list(\@texts, '', 'refgen_entersub',
 				      {body => [$kid_info],
@@ -3735,7 +3735,7 @@ sub pp_entersub
     if (is_scope($kid)) {
 	$amper = "&";
 	$kid_info = $self->deparse($kid, 0, $op);
-	$kid_info->{texts} = ['{', $kid_info->texts, '}'];
+	$kid_info->{texts} = ['{', $kid_info->{texts}, '}'];
 	$kid_info->{text} = join('', @$kid_info->{texts});
     } elsif ($kid->first->name eq "gv") {
 	my $gv = $self->gv_or_padgv($kid->first);
