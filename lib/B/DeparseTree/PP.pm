@@ -31,6 +31,14 @@ BEGIN {
     }
 }
 
+sub _features_from_bundle {
+    my ($hints, $hh) = @_;
+    foreach (@{$feature::feature_bundle{@feature::hint_bundles[$hints >> $feature::hint_shift]}}) {
+	$hh->{$feature::feature{$_}} = 1;
+    }
+    return $hh;
+}
+
 sub pp_scope { scopeop(0, @_); }
 sub pp_lineseq { scopeop(0, @_); }
 sub pp_leave { scopeop(1, @_); }

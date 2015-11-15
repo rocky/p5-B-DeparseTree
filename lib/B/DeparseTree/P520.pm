@@ -645,119 +645,6 @@ sub compile {
     }
 }
 
-sub ambient_pragmas {
-    my $self = shift;
-    my ($arybase, $hint_bits, $warning_bits, $hinthash) = (0, 0);
-
-    while (@_ > 1) {
-	my $name = shift();
-	my $val  = shift();
-
-	if ($name eq 'strict') {
-	    require strict;
-
-	    if ($val eq 'none') {
-		$hint_bits &= $strict_bits{$_} for qw/refs subs vars/;
-		next();
-	    }
-
-	    my @names;
-	    if ($val eq "all") {
-		@names = qw/refs subs vars/;
-	    }
-	    elsif (ref $val) {
-		@names = @$val;
-	    }
-	    else {
-		@names = split' ', $val;
-	    }
-	    $hint_bits |= $strict_bits{$_} for @names;
-	}
-
-	elsif ($name eq '$[') {
-	    if (OPpCONST_ARYBASE) {
-		$arybase = $val;
-	    } else {
-		croak "\$[ can't be non-zero on this perl" unless $val == 0;
-	    }
-	}
-
-	elsif ($name eq 'integer'
-	    || $name eq 'bytes'
-	    || $name eq 'utf8') {
-	    require "$name.pm";
-	    if ($val) {
-		$hint_bits |= ${$::{"${name}::"}{"hint_bits"}};
-	    }
-	    else {
-		$hint_bits &= ~${$::{"${name}::"}{"hint_bits"}};
-	    }
-	}
-
-	elsif ($name eq 're') {
-	    require re;
-	    if ($val eq 'none') {
-		$hint_bits &= ~re::bits(qw/taint eval/);
-		next();
-	    }
-
-	    my @names;
-	    if ($val eq 'all') {
-		@names = qw/taint eval/;
-	    }
-	    elsif (ref $val) {
-		@names = @$val;
-	    }
-	    else {
-		@names = split' ',$val;
-	    }
-	    $hint_bits |= re::bits(@names);
-	}
-
-	elsif ($name eq 'warnings') {
-	    if ($val eq 'none') {
-		$warning_bits = $warnings::NONE;
-		next();
-	    }
-
-	    my @names;
-	    if (ref $val) {
-		@names = @$val;
-	    }
-	    else {
-		@names = split/\s+/, $val;
-	    }
-
-	    $warning_bits = $warnings::NONE if !defined ($warning_bits);
-	    $warning_bits |= warnings::bits(@names);
-	}
-
-	elsif ($name eq 'warning_bits') {
-	    $warning_bits = $val;
-	}
-
-	elsif ($name eq 'hint_bits') {
-	    $hint_bits = $val;
-	}
-
-	elsif ($name eq '%^H') {
-	    $hinthash = $val;
-	}
-
-	else {
-	    croak "Unknown pragma type: $name";
-	}
-    }
-    if (@_) {
-	croak "The ambient_pragmas method expects an even number of args";
-    }
-
-    $self->{'ambient_arybase'} = $arybase;
-    $self->{'ambient_warnings'} = $warning_bits;
-    $self->{'ambient_hints'} = $hint_bits;
-    $self->{'ambient_hinthash'} = $hinthash;
-}
-
 sub is_scope {
     my $op = shift;
     return $op->name eq "leave" || $op->name eq "scope"
@@ -982,10 +869,8 @@ sub lineseq {
 	    $info->{parent} = $$parent ;
 	}
 	if ($info->{body}) {
-	    foreach my $bod (@{$info->{body}}) {
-		if (!ref($bod)) {
-		    Carp::carp(sprintf "nonref body: %s, op: %s", $bod, $op->name)
-		} else {
+	    foreach my $bod (@{$info->{body}{body}}) {
+		if (ref($bod)) {
 		    $bod->{parent} = $$op;
 		}
 	    }
@@ -1070,38 +955,6 @@ sub walk_lineseq {
     return $info;
 }
 
-# The BEGIN {} is used here because otherwise this code isn't executed
-# when you run B::Deparse on itself.
-my %globalnames;
-BEGIN { map($globalnames{$_}++, "SIG", "STDIN", "STDOUT", "STDERR", "INC",
-	    "ENV", "ARGV", "ARGVOUT", "_"); }
-
-sub gv_name {
-    my $self = shift;
-    my $gv = shift;
-    my $raw = shift;
-    Carp::confess() unless ref($gv) eq "B::GV";
-    my $stash = $gv->STASH->NAME;
-    my $name = $raw ? $gv->NAME : $gv->SAFENAME;
-    if ($stash eq 'main' && $name =~ /^::/) {
-	$stash = '::';
-    }
-    elsif (($stash eq 'main'
-	    && ($globalnames{$name} || $name =~ /^[^A-Za-z_:]/))
-	or ($stash eq $self->{'curstash'} && !$globalnames{$name}
-	    && ($stash eq 'main' || $name !~ /::/))
-	  )
-    {
-	$stash = "";
-    } else {
-	$stash = $stash . "::";
-    }
-    if (!$raw and $name =~ /^(\^..|{)/) {
-        $name = "{$name}";       # ${^WARNING_BITS}, etc and ${
-    }
-    return $stash . $name;
-}
-
 # Return the name to use for a stash variable.
 # If a lexical with the same name is in scope, or
 # if strictures are enabled, it may need to be
@@ -1145,21 +998,6 @@ sub stash_variable_name {
     else {
 	single_delim("q", "'", $name), 1;
     }
-}
-
-sub maybe_qualify {
-    my ($self,$prefix,$name) = @_;
-    my $v = ($prefix eq '$#' ? '@' : $prefix) . $name;
-    return $name if !$prefix || $name =~ /::/;
-    return $self->{'curstash'}.'::'. $name
-	if
-	    $name =~ /^(?!\d)\w/         # alphabetic
-	 && $v    !~ /^\$[ab]\z/	 # not $a or $b
-	 && !$globalnames{$name}         # not a global name
-	 && $self->{hints} & $strict_bits{vars}  # strict vars
-	 && !$self->lex_in_scope($v,1)   # no "our"
-      or $self->lex_in_scope($v);        # conflicts with "my" variable
-    return $name;
 }
 
 sub lex_in_scope {
@@ -2079,7 +1917,7 @@ sub bin_info_join($$$$$) {
 sub bin_info_join_maybe_parens($$$$$$) {
     my ($self, $lhs, $rhs, $mid, $sep, $cx, $prec, $type) = @_;
     my $info = bin_info_join($lhs, $rhs, $mid, $sep, $type);
-    $info->{text} = $self->maybe_parens($info->{text}, $cx, $prec);
+    $info->{text} = $self->maybe_parens($info, $cx, $prec);
     return $info;
 }
 
@@ -2264,7 +2102,7 @@ sub listop
     # precedence of 6 (< comma), as "return, 1" does not need parentheses.
     if (null $kid) {
 	my $text = $nollafr
-	    ? $self->maybe_parens($self->keyword($name), $cx, 7)
+	    ? $self->maybe_parens_str($self->keyword($name), $cx, 7)
 	    : $self->keyword($name) . '()' x (7 < $cx);
 	return {text => $text};
     }
@@ -3186,8 +3024,8 @@ sub rv2x
 			      {body => [$kid_info]});
     } else {
 	my $kid_info = $self->deparse($kid, 0, $op);
-	return info_from_list([$type, "{", "}"], '', 'rv2x',
-			      {body => [$kid_info]});
+	return info_from_list([$type, "{", $kid_info, "}"], '',
+			      'rv2x', {});
     }
     Carp::confess("unhandled condition in rv2x");
 }
@@ -4027,13 +3865,14 @@ sub split_float {
 sub const {
     my $self = shift;
     my($sv, $cx) = @_;
+    my $opts = {};
     if ($self->{'use_dumper'}) {
 	return $self->const_dumper($sv, $cx);
     }
     if (class($sv) eq "SPECIAL") {
 	# sv_undef, sv_yes, sv_no
-	my $text = ('undef', '1', $self->maybe_parens("!1", $cx, 21))[$$sv-1];
-	return info_from_text $text, 'const_special', {};
+	my $text = ('undef', '1', $self->maybe_parens_str("!1", $cx, 21))[$$sv-1];
+	return info_from_text($text, 'const_special', {});
     }
     if (class($sv) eq "NULL") {
 	return info_from_text 'undef', 'const_NULL', {};
@@ -4047,8 +3886,8 @@ sub const {
 
     if ($sv->FLAGS & SVf_IOK) {
 	my $str = $sv->int_value;
-	$str = $self->maybe_parens($str, $cx, 21) if $str < 0;
-	return info_from_text $str, 'const_INT', {};
+	$opts->{maybe_parens} = [$self, $cx, 21] if $str < 0;
+	return info_from_text($str, 'const_INT', $opts);
     } elsif ($sv->FLAGS & SVf_NOK) {
 	my $nv = $sv->NV;
 	if ($nv == 0) {
@@ -4057,18 +3896,18 @@ sub const {
 		return info_from_text "0", 'const_plus_zero', {};
 	    } else {
 		# negative zero
-		return info_from_text($self->maybe_parens("-.0", $cx, 21),
-				 'const_minus_zero', {});
+		$opts->{maybe_parens} = [$self, $cx, 21];
+		return info_from_text("-.0", 'const_minus_zero', $opts);
 	    }
 	} elsif (1/$nv == 0) {
 	    if ($nv > 0) {
 		# positive infinity
-		return info_from_text($self->maybe_parens("9**9**9", $cx, 22),
-				 'const_plus_inf', {});
+		$opts->{maybe_parens} = [$self, $cx, 22];
+		return info_from_text("9**9**9", 'const_plus_inf', $opts);
 	    } else {
 		# negative infinity
-		return info_from_text($self->maybe_parens("-9**9**9", $cx, 21),
-				 'const_minus_inf', {});
+		$opts->{maybe_parens} = [$self, $cx, 21];
+		return info_from_text("-9**9**9", 'const_minus_inf', $opts);
 	    }
 	} elsif ($nv != $nv) {
 	    # NaN
@@ -4077,8 +3916,8 @@ sub const {
 		return info_from_text "sin(9**9**9)", 'const_Nan', {};
 	    } elsif (pack("F", $nv) eq pack("F", -sin(9**9**9))) {
 		# the inverted kind
-		return info_from_text($self->maybe_parens("-sin(9**9**9)", $cx, 21),
-				 'const_Nan_invert', {});
+		$opts->{maybe_parens} = [$self, $cx, 21];
+		return info_from_text("-sin(9**9**9)", 'const_Nan_invert', $opts);
 	    } else {
 		# some other kind
 		my $hex = unpack("h*", pack("F", $nv));
@@ -4096,11 +3935,11 @@ sub const {
 		# not representable in decimal with whatever sprintf()
 		# and atof() Perl is using here.
 		my($mant, $exp) = split_float($nv);
-		return info_from_text($self->maybe_parens("$mant * 2**$exp", $cx, 19),
-				 'const_not_nv', {});
+		$opts->{maybe_parens} = [$self, $cx, 21];
+		return info_from_text("$mant * 2**$exp", 'const_not_nv', $opts);
 	    }
 	}
-	$str = $self->maybe_parens($str, $cx, 21) if $nv < 0;
+	$opts->{maybe_parens} = [$str, $cx, 21] if $nv < 0;
 	return info_from_text $str, 'const_nv', {};
     } elsif ($sv->FLAGS & SVf_ROK && $sv->can("RV")) {
 	my $ref = $sv->RV;
@@ -4144,10 +3983,8 @@ sub const {
 	    $const = "($const)";
 	}
 	my @texts = ("\\", $const);
-	return {
-	    text => $self->maybe_parens(join('', @texts), $cx, 20),
-	    texts => \@texts,
-	    type => 'const_rv' };
+	$opts->{maybe_parens} = [$self, $cx, 20];
+	return info_from_list(\@texts, '', 'const_rv', $opts);
     } elsif ($sv->FLAGS & SVf_POK) {
 	my $str = $sv->PV;
 	if ($str =~ /[[:^print:]]/) {
@@ -4972,37 +4809,16 @@ unless (caller) {
 	    return 1 if $x <= 1;
 	    return(fib($x-1) + fib($x-2))
 	}
-	sub fileparse {
-	    no strict;
-  # my($fullname,@suffices) = @_;
-
-  my $tail   = '';
-  my $suffix = '';
-  if (@suffices) {
-    foreach $suffix (@suffices) {
-      my $pat = ($igncase ? '(?i)' : '') . "($suffix)\$";
-      if ($basename =~ s/$pat//s) {
-        $taint .= substr($suffix,0,0);
-        $tail = $1 . $tail;
-      }
-    }
-  }
-
-  # Ensure taint is propagated from the path to its pieces.
-  $tail .= $taint;
-  wantarray ? ($basename .= $taint, $dirpath .= $taint, $tail)
-            : ($basename .= $taint);
-}
 	sub baz {
 	    no strict;
-	    if ($basename =~ s/$pat//s) {
-	    }
+
+	    # print $node->new(@{$thing})->text, "\n";
 	}
     };
 
     my $deparse = __PACKAGE__->new("-l", "-c", "-sC");
     # my $info = $deparse->coderef2list(\&fileparse);
-    my $info = $deparse->coderef2list(\&baz);
+    my $info = $deparse->coderef2list(\&fib);
     import Data::Printer colored => 0;
     Data::Printer::p($info);
     print "\n", '=' x 30, "\n";

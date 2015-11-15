@@ -1,10 +1,13 @@
 # Copyright (c) 2015 Rocky Bernstein
+use strict; use warnings;
+
+use rlib '../..';
 package B::DeparseTree::Common;
 
-use strict;
-use warnings ();
+use B::DeparseTree::Node;
 
-use B qw(class opnumber OPpLVAL_INTRO OPf_SPECIAL OPf_KIDS  svref_2object perlstring);
+use B qw(class opnumber OPpLVAL_INTRO OPf_SPECIAL OPf_KIDS SVf_ROK
+         svref_2object perlstring);
 use Carp;
 
 our($VERSION, @EXPORT, @ISA);
@@ -15,13 +18,29 @@ $VERSION = '1.1.0';
             style_opts scopeop declare_hints hint_pragmas
             is_miniwhile is_lexical_subs %strict_bits
             %rev_feature declare_hinthash declare_warnings %ignored_hints
-            _features_from_bundle
+            _features_from_bundle ambiant_pragmas maybe_qualify
+            %globalnames gv_name
             );
 
-my %strict_bits = do {
+our %strict_bits = do {
     local $^H;
     map +($_ => strict::bits($_)), qw/refs subs vars/
 };
+
+BEGIN {
+    # List version-specific constants here.
+    # Easiest way to keep this code portable between version looks to
+    # be to fake up a dummy constant that will never actually be true.
+    foreach (qw(OPpSORT_INPLACE OPpSORT_DESCEND OPpITER_REVERSED OPpCONST_NOVER
+		OPpPAD_STATE PMf_SKIPWHITE RXf_SKIPWHITE
+		RXf_PMf_CHARSET RXf_PMf_KEEPCOPY
+		CVf_LOCKED OPpREVERSE_INPLACE OPpSUBSTR_REPL_FIRST
+		PMf_NONDESTRUCT OPpCONST_ARYBASE OPpEVAL_BYTES)) {
+	eval { import B $_ };
+	no strict 'refs';
+	*{$_} = sub () {0} unless *{$_}{CODE};
+    }
+}
 
 BEGIN { for (qw[ pushmark ]) {
     eval "sub OP_\U$_ () { " . opnumber($_) . "}"
@@ -143,7 +162,7 @@ sub print_protos($)
 
 sub style_opts($$)
 {
-    my ($self, $opts) = shift;
+    my ($self, $opts) = @_;
     my $opt;
     while (length($opt = substr($opts, 0, 1))) {
 	if ($opt eq "C") {
@@ -162,16 +181,42 @@ sub style_opts($$)
     }
 }
 
-sub parens_test($$) {
-    my ($cx, $prec) = @_;
-    return ($prec < $cx
-	    # unary ops nest just fine
-	    or $prec == $cx and $cx != 4 and $cx != 16 and $cx != 21)
-}
-
 # Possibly add () around $text depending on precidence $prec and
 # context $cx. We return a string.
 sub maybe_parens($$$$)
+{
+    my($self, $info, $cx, $prec) = @_;
+    if (parens_test($cx, $prec) or $self->{'parens'}) {
+	$info->{text} = "($info->{text})";
+	# In a unop, let parent reuse our parens; see maybe_parens_unop
+	if ($cx == 16) {
+	    $info->{text} = "\cS" . $info->{text};
+	    $info->{parens} = 'reuse';
+	}  else {
+	    $info->{parens} = 'true';
+	}
+	return $info->{text};
+    } else {
+	$info->{parens} = '';
+	return $info->{text};
+    }
+}
+
+# FIXME: remove
+sub parens_test($$)
+{
+    my ($cx, $prec) = @_;
+    return ($prec < $cx or
+	    # unary ops nest just fine
+	    $prec == $cx and $cx != 4 and $cx != 16 and $cx != 21)
+}
+
+# FIXME: remove
+# Possibly add () around $text depending on precidence $prec and
+# context $cx. We return a string.
+# Possibly add () around $text depending on precidence $prec and
+# context $cx. We return a string.
+sub maybe_parens_str($$$$)
 {
     my($self, $text, $cx, $prec) = @_;
     if (parens_test($cx, $prec) or $self->{'parens'}) {
@@ -184,34 +229,9 @@ sub maybe_parens($$$$)
     }
 }
 
-# Create an info structure from a list of strings
-sub info_from_list($$$$)
-{
-    my ($texts, $sep, $type, $opts) = @_;
-    my $text = join($sep, @$texts);
-    my $info = {
-	text => $text,
-	texts => $texts,
-	type => $type,
-	sep => $sep,
-    };
-    foreach my $optname (qw(body other_ops)) {
-	$info->{$optname} = $opts->{$optname} if $opts->{$optname};
-    }
-    if ($opts->{maybe_parens}) {
-	my ($self, $cx, $prec) = @{$opts->{maybe_parens}};
-	$info->{text} = $self->maybe_parens($info->{text}, $cx, $prec);
-	$info->{maybe_parens} = {context => $cx , precidence => $prec};
-    }
-    return $info
-}
-
-# Create an info structure from a single string
-sub info_from_text($$$)
-{
-    my ($text, $type, $opts) = @_;
-    return info_from_list([$text], '', $type, $opts)
-}
+# FIXME: remove
+*info_from_text = \&B::DeparseTree::Node::from_str;
+*info_from_list = \&B::DeparseTree::Node::from_list;
 
 sub null
 {
@@ -607,14 +627,6 @@ sub declare_hinthash {
     return @ret;
 }
 
-sub _features_from_bundle {
-    my ($hints, $hh) = @_;
-    foreach (@{$feature::feature_bundle{@feature::hint_bundles[$hints >> $feature::hint_shift]}}) {
-	$hh->{$feature::feature{$_}} = 1;
-    }
-    return $hh;
-}
-
 sub declare_warnings {
     my ($from, $to) = @_;
     if (($to & WARN_MASK) eq (warnings::bits("all") & WARN_MASK)) {
@@ -624,6 +636,171 @@ sub declare_warnings {
 	return "no warnings;\n";
     }
     return "BEGIN {\${^WARNING_BITS} = ".perlstring($to)."}\n";
+}
+
+sub ambient_pragmas {
+    my $self = shift;
+    my ($arybase, $hint_bits, $warning_bits, $hinthash) = (0, 0);
+
+    while (@_ > 1) {
+	my $name = shift();
+	my $val  = shift();
+
+	if ($name eq 'strict') {
+	    require strict;
+
+	    if ($val eq 'none') {
+		$hint_bits &= $strict_bits{$_} for qw/refs subs vars/;
+		next();
+	    }
+
+	    my @names;
+	    if ($val eq "all") {
+		@names = qw/refs subs vars/;
+	    }
+	    elsif (ref $val) {
+		@names = @$val;
+	    }
+	    else {
+		@names = split' ', $val;
+	    }
+	    $hint_bits |= $strict_bits{$_} for @names;
+	}
+
+	elsif ($name eq '$[') {
+	    if (OPpCONST_ARYBASE) {
+		$arybase = $val;
+	    } else {
+		croak "\$[ can't be non-zero on this perl" unless $val == 0;
+	    }
+	}
+
+	elsif ($name eq 'integer'
+	    || $name eq 'bytes'
+	    || $name eq 'utf8') {
+	    require "$name.pm";
+	    if ($val) {
+		$hint_bits |= ${$::{"${name}::"}{"hint_bits"}};
+	    }
+	    else {
+		$hint_bits &= ~${$::{"${name}::"}{"hint_bits"}};
+	    }
+	}
+
+	elsif ($name eq 're') {
+	    require re;
+	    if ($val eq 'none') {
+		$hint_bits &= ~re::bits(qw/taint eval/);
+		next();
+	    }
+
+	    my @names;
+	    if ($val eq 'all') {
+		@names = qw/taint eval/;
+	    }
+	    elsif (ref $val) {
+		@names = @$val;
+	    }
+	    else {
+		@names = split' ',$val;
+	    }
+	    $hint_bits |= re::bits(@names);
+	}
+
+	elsif ($name eq 'warnings') {
+	    if ($val eq 'none') {
+		$warning_bits = $warnings::NONE;
+		next();
+	    }
+
+	    my @names;
+	    if (ref $val) {
+		@names = @$val;
+	    }
+	    else {
+		@names = split/\s+/, $val;
+	    }
+
+	    $warning_bits = $warnings::NONE if !defined ($warning_bits);
+	    $warning_bits |= warnings::bits(@names);
+	}
+
+	elsif ($name eq 'warning_bits') {
+	    $warning_bits = $val;
+	}
+
+	elsif ($name eq 'hint_bits') {
+	    $hint_bits = $val;
+	}
+
+	elsif ($name eq '%^H') {
+	    $hinthash = $val;
+	}
+
+	else {
+	    croak "Unknown pragma type: $name";
+	}
+    }
+    if (@_) {
+	croak "The ambient_pragmas method expects an even number of args";
+    }
+
+    $self->{'ambient_arybase'} = $arybase;
+    $self->{'ambient_warnings'} = $warning_bits;
+    $self->{'ambient_hints'} = $hint_bits;
+    $self->{'ambient_hinthash'} = $hinthash;
+}
+
+# The BEGIN {} is used here because otherwise this code isn't executed
+# when you run B::Deparse on itself.
+my %globalnames;
+BEGIN { map($globalnames{$_}++, "SIG", "STDIN", "STDOUT", "STDERR", "INC",
+	    "ENV", "ARGV", "ARGVOUT", "_"); }
+
+sub maybe_qualify {
+    my ($self,$prefix,$name) = @_;
+    my $v = ($prefix eq '$#' ? '@' : $prefix) . $name;
+    return $name if !$prefix || $name =~ /::/;
+    return $self->{'curstash'}.'::'. $name
+	if
+	    $name =~ /^(?!\d)\w/         # alphabetic
+	 && $v    !~ /^\$[ab]\z/	 # not $a or $b
+	 && !$globalnames{$name}         # not a global name
+	 && $self->{hints} & $strict_bits{vars}  # strict vars
+	 && !$self->lex_in_scope($v,1)   # no "our"
+      or $self->lex_in_scope($v);        # conflicts with "my" variable
+    return $name;
+}
+
+sub gv_name {
+    my $self = shift;
+    my $gv = shift;
+    my $raw = shift;
+    Carp::confess() unless ref($gv) eq "B::GV";
+    my $cv = $gv->FLAGS & SVf_ROK ? $gv->RV : 0;
+    my $stash = ($cv || $gv)->STASH->NAME;
+    my $name = $raw
+	? $cv ? $cv->NAME_HEK || $cv->GV->NAME : $gv->NAME
+	: $cv
+	    ? B::safename($cv->NAME_HEK || $cv->GV->NAME)
+	    : $gv->SAFENAME;
+    if ($stash eq 'main' && $name =~ /^::/) {
+	$stash = '::';
+    }
+    elsif (($stash eq 'main'
+	    && ($globalnames{$name} || $name =~ /^[^A-Za-z_:]/))
+	or ($stash eq $self->{'curstash'} && !$globalnames{$name}
+	    && ($stash eq 'main' || $name !~ /::/))
+	  )
+    {
+	$stash = "";
+    } else {
+	$stash = $stash . "::";
+    }
+    if (!$raw and $name =~ /^(\^..|{)/) {
+        $name = "{$name}";       # ${^WARNING_BITS}, etc and ${
+    }
+    return $stash . $name;
 }
 
 1;

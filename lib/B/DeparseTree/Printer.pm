@@ -1,7 +1,7 @@
 # Copyright (c) 2015 Rocky Bernstein
 use strict; use warnings;
 use rlib '../..';
-use B::DeparseTree::Common;
+use B::DeparseTree::Node;
 
 package B::DeparseTree::Printer;
 
@@ -50,12 +50,7 @@ sub format_info_short($$)
 	    $i{type},
 	    short_str($i{text}));
     }
-    if (exists $i{maybe_parens}) {
-	my %mp = %{$i{maybe_parens}};
-	if (B::DeparseTree::Common::parens_test($mp{cx}, $mp{prec})) {
-	    $text .= ' - parens';
-	}
-    }
+    $text .= ' - parens' if $i{parens};
     if (exists $i{body} and $show_body) {
 	$text .= ("\n\t" .
 		  join(",\n\t",
@@ -109,17 +104,7 @@ EOF
 	    $text .= sprintf("other_ops[$j]: 0x%x %s\n", $$op, $op->name);
 	}
     }
-    if (exists $i{maybe_parens}) {
-	$text .= sep_string;
-	my %maybe_parens = %{$i{maybe_parens}};
-	foreach my $key (sort keys %maybe_parens) {
-	    $text .= sprintf "%s: %g\n", $key, $maybe_parens{$key};
-	}
-	$text .= sprintf("need parens: %s\n",
-			 B::DeparseTree::Common::parens_test($maybe_parens{context},
-							     $maybe_parens{precidence}) ?
-			 'yes' : 'no');
-    }
+    $text .= sprintf("need parens: %s\n") if $i{parens};
     return $text;
 }
 
