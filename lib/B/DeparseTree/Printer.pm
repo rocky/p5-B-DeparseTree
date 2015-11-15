@@ -8,7 +8,7 @@ package B::DeparseTree::Printer;
 our($VERSION, @EXPORT, @ISA);
 $VERSION = '1.0.0';
 @ISA = qw(Exporter);
-@EXPORT = qw(format_info format_info_walk);
+@EXPORT = qw(format_info format_info_walk short_str);
 
 
 use constant sep_string => ('=' x 40) . "\n";
