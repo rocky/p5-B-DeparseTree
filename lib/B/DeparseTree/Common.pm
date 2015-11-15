@@ -470,9 +470,12 @@ sub scopeop
 	    } elsif ($name eq "or") {
 		$name = "until";
 	    } else { # no conditional -> while 1 or until 0
-		return $self->deparse($top->first, 1, $top) . " while 1";
+		my $body = [$self->deparse($top->first, 1, $top)];
+		return info_from_list([$body->{text}, 'while', '1'],
+				      ' ', 'while_1', {body =>$body});
 	    }
 	    my $cond = $top->first;
+	    my $other_ops = [$cond->sibling];
 	    my $body = $cond->sibling->first; # skip lineseq
 	    my $cond_info = $self->deparse($cond, 1, $top);
 	    my $body_info = $self->deparse($body, 1, $top);
@@ -483,6 +486,7 @@ sub scopeop
 		body => [$cond_info, $body_info],
 		texts => \@texts,
 		text => $text,
+		other_ops => $other_ops,
 	    };
 	}
     } else {
@@ -497,7 +501,7 @@ sub scopeop
 	my @texts = ($body->{text});
 	my $text;
 	unless (is_lexical_subs(@kids)) {
-	    @texts = ('do ', "{\n\t", @texts, "\n\b");
+	    @texts = ('do ', "{\n\t", @texts, "\n\b}");
 	};
 	return {
 	    type => 'scope_expr',
