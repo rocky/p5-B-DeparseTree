@@ -671,14 +671,6 @@ sub compile {
     }
 }
 
-sub is_scope {
-    my $op = shift;
-    return $op->name eq "leave" || $op->name eq "scope"
-      || $op->name eq "lineseq"
-	|| ($op->name eq "null" && class($op) eq "UNOP"
-	    && (is_scope($op->first) || $op->first->name eq "enter"));
-}
-
 sub is_state {
     my $name = $_[0]->name;
     return $name eq "nextstate" || $name eq "dbstate" || $name eq "setstate";
@@ -2070,52 +2062,6 @@ sub pp_flop {
     my $flip = $op->first;
     my $type = ($flip->flags & OPf_SPECIAL) ? "..." : "..";
     return info_from_text $self->range($flip->first, $cx, $type), 'pp_flop', {};
-}
-
-# Logical ops, if/until, &&, and
-# The one-line while/until is handled in pp_leave
-sub logop
-{
-    my $self = shift;
-    my ($op, $cx, $lowop, $lowprec, $highop, $highprec, $blockname) = @_;
-    my $left = $op->first;
-    my $right = $op->first->sibling;
-    my ($lhs, $rhs, $texts, $text);
-    my $type;
-    my $sep;
-    my $opts = {};
-    if ($cx < 1 and is_scope($right) and $blockname
-	and $self->{'expand'} < 7) {
-	# if ($a) {$b}
-	$lhs = $self->deparse($left, 1, $op);
-	$rhs = $self->deparse($right, 0, $op);
-	$sep = '';
-	$texts = [$blockname, ' ', $lhs->{text}, ')', ' ',
-		  "{\n\t", $rhs->{text}, "\n\b}\cK"];
-    } elsif ($cx < 1 and $blockname and not $self->{'parens'}
-	     and $self->{'expand'} < 7) { # $b if $a
-	$lhs = $self->deparse($left, 1, $op);
-	$rhs = $self->deparse($right, 1, $op);
-	$texts = [$rhs->{text}, $blockname, $lhs->{text}];
-	$sep = ' ';
-	$text = join(' ', @$texts);
-    } elsif ($cx > $lowprec and $highop) {
-	# $a && $b
-	$lhs = $self->deparse_binop_left($op, $left, $highprec);
-	$rhs = $self->deparse_binop_right($op, $right, $highprec);
-	$texts = [$lhs->{text}, $highop, $rhs->{text}];
-	$sep = ' ';
-	$opts = {maybe_parens => [$self, $cx, $highprec]};
-    } else {
-	# $a and $b
-	$lhs = $self->deparse_binop_left($op, $left, $lowprec);
-	$rhs = $self->deparse_binop_right($op, $right, $lowprec);
-	$texts = [$lhs->{text}, $lowop, $rhs->{text}];
-	$sep = ' ';
-	$opts = {maybe_parens => [$self, $cx, $lowprec]};
-    }
-    $opts->{block} = [$lhs, $rhs];
-    return info_from_list($texts, $sep, $type, $opts);
 }
 
 sub pp_and { logop(@_, "and", 3, "&&", 11, "if") }
@@ -5107,7 +5053,7 @@ unless (caller) {
 	}
 	sub baz {
 	    no strict;
-	    $y = $a . $b;
+	    if ($x) { $y = 1 } ;
 	}
     };
 

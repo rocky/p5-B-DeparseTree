@@ -19,7 +19,7 @@ $VERSION = '1.1.0';
             is_miniwhile is_lexical_subs %strict_bits
             %rev_feature declare_hinthash declare_warnings %ignored_hints
             _features_from_bundle ambiant_pragmas maybe_qualify
-            %globalnames gv_name
+            %globalnames gv_name is_scope logop
             );
 
 our %strict_bits = do {
@@ -490,9 +490,12 @@ sub scopeop
 	    } elsif ($name eq "or") {
 		$name = "until";
 	    } else { # no conditional -> while 1 or until 0
-		return $self->deparse($top->first, 1, $top) . " while 1";
+		my $body = [$self->deparse($top->first, 1, $top)];
+		return info_from_list([$body->{text}, 'while', '1'],
+				      ' ', 'while_1', {body =>$body});
 	    }
 	    my $cond = $top->first;
+	    my $other_ops = [$cond->sibling];
 	    my $body = $cond->sibling->first; # skip lineseq
 	    my $cond_info = $self->deparse($cond, 1, $top);
 	    my $body_info = $self->deparse($body, 1, $top);
@@ -503,6 +506,7 @@ sub scopeop
 		body => [$cond_info, $body_info],
 		texts => \@texts,
 		text => $text,
+		other_ops => $other_ops,
 	    };
 	}
     } else {
@@ -517,7 +521,7 @@ sub scopeop
 	my @texts = ($body->{text});
 	my $text;
 	unless (is_lexical_subs(@kids)) {
-	    @texts = ('do ', "{\n\t", @texts, "\n\b");
+	    @texts = ('do ', "{\n\t", @texts, "\n\b}");
 	};
 	return {
 	    type => 'scope_expr',
@@ -801,6 +805,60 @@ sub gv_name {
         $name = "{$name}";       # ${^WARNING_BITS}, etc and ${
     }
     return $stash . $name;
+}
+
+sub is_scope {
+    my $op = shift;
+    return $op->name eq "leave" || $op->name eq "scope"
+      || $op->name eq "lineseq"
+	|| ($op->name eq "null" && class($op) eq "UNOP"
+	    && (is_scope($op->first) || $op->first->name eq "enter"));
+}
+
+# Logical ops, if/until, &&, and
+# The one-line while/until is handled in pp_leave
+sub logop
+{
+    my ($self, $op, $cx, $lowop, $lowprec, $highop,
+	$highprec, $blockname) = @_;
+    my $left = $op->first;
+    my $right = $op->first->sibling;
+    my ($lhs, $rhs, $texts, $text);
+    my $type;
+    my $sep;
+    my $opts = {};
+    if ($cx < 1 and is_scope($right) and $blockname
+	and $self->{'expand'} < 7) {
+	# if ($a) {$b}
+	$lhs = $self->deparse($left, 1, $op);
+	$rhs = $self->deparse($right, 0, $op);
+	$sep = '';
+	$texts = [$blockname, ' ', '(', $lhs->{text}, ')', ' ',
+		  "{\n\t", $rhs->{text}, "\n\b}\cK"];
+    } elsif ($cx < 1 and $blockname and not $self->{'parens'}
+	     and $self->{'expand'} < 7) { # $b if $a
+	$lhs = $self->deparse($left, 1, $op);
+	$rhs = $self->deparse($right, 1, $op);
+	$texts = [$rhs->{text}, $blockname, $lhs->{text}];
+	$sep = ' ';
+	$text = join(' ', @$texts);
+    } elsif ($cx > $lowprec and $highop) {
+	# $a && $b
+	$lhs = $self->deparse_binop_left($op, $left, $highprec);
+	$rhs = $self->deparse_binop_right($op, $right, $highprec);
+	$texts = [$lhs->{text}, $highop, $rhs->{text}];
+	$sep = ' ';
+	$opts = {maybe_parens => [$self, $cx, $highprec]};
+    } else {
+	# $a and $b
+	$lhs = $self->deparse_binop_left($op, $left, $lowprec);
+	$rhs = $self->deparse_binop_right($op, $right, $lowprec);
+	$texts = [$lhs->{text}, $lowop, $rhs->{text}];
+	$sep = ' ';
+	$opts = {maybe_parens => [$self, $cx, $lowprec]};
+    }
+    $opts->{block} = [$lhs, $rhs];
+    return info_from_list($texts, $sep, $type, $opts);
 }
 
 1;
