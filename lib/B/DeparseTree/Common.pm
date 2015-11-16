@@ -29,7 +29,6 @@ BEGIN { for (qw[ pushmark ]) {
 sub new {
     my $class = shift;
     my $self = bless {}, $class;
-    $self->{'cuddle'} = "\n";
     $self->{'curcop'} = undef;
     $self->{'curstash'} = "main";
     $self->{'ex_const'} = "'???'";
@@ -145,13 +144,7 @@ sub style_opts($$)
     my ($self, $opts) = @_;
     my $opt;
     while (length($opt = substr($opts, 0, 1))) {
-	if ($opt eq "C") {
-	    $self->{'cuddle'} = " ";
-	    $opts = substr($opts, 1);
-	} elsif ($opt eq "i") {
-	    $opts =~ s/^i(\d+)//;
-	    $self->{'indent_size'} = $1;
-	} elsif ($opt eq "T") {
+	if ($opt eq "T") {
 	    $self->{'use_tabs'} = 1;
 	    $opts = substr($opts, 1);
 	} elsif ($opt eq "v") {

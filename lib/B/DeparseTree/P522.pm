@@ -189,8 +189,6 @@ BEGIN {
 # linenums: -l
 # opaddr: -a
 # unquote: -q
-# cuddle: ' ' or '\n', depending on -sC
-# indent_size: -si
 # use_tabs: -sT
 # ex_const: -sv
 
@@ -2965,7 +2963,7 @@ sub loop_common
 	    }
 	}
 	my $state = $body->first;
-	my $cuddle = $self->{'cuddle'};
+	my $cuddle = " ";
 	my @states;
 	for (; $$state != $$cont; $state = $state->sibling) {
 	    push @states, $state;

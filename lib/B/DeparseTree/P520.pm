@@ -164,8 +164,6 @@ BEGIN {
 # linenums: -l
 # opaddr: -a
 # unquote: -q
-# cuddle: ' ' or '\n', depending on -sC
-# indent_size: -si
 # use_tabs: -sT
 # ex_const: -sv
 
@@ -2699,7 +2697,7 @@ sub pp_cond_expr
     my $cond = $op->first;
     my $true = $cond->sibling;
     my $false = $true->sibling;
-    my $cuddle = $self->{'cuddle'};
+    my $cuddle = " ";
     unless ($cx < 1 and (is_scope($true) and $true->name ne "null") and
 	    (is_scope($false) || is_ifelse_cont($false))
 	    and $self->{'expand'} < 7) {
