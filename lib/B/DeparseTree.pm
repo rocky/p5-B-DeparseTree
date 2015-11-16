@@ -152,38 +152,6 @@ options are available:
 
 =over 4
 
-=item B<C>
-
-Cuddle C<elsif>, C<else>, and C<continue> blocks.  For example, print
-
-    if (...) {
-         ...
-    } else {
-         ...
-    }
-
-instead of
-
-    if (...) {
-         ...
-    }
-    else {
-         ...
-    }
-
-The default is not to cuddle.
-
-=item B<i>I<NUMBER>
-
-Indent lines by multiples of I<NUMBER> columns.  The default is 4 columns.
-
-=item B<T>
-
-Use tabs for each 8 columns of indent.  The default is to use only spaces.
-For instance, if the style options are B<-si4T>, a line that's indented
-3 times will be preceded by one tab and four spaces; if the options were
-B<-si8T>, the same line would be preceded by three tabs.
-
 =item B<v>I<STRING>B<.>
 
 Print I<STRING> for the value of a constant that can't be determined
