@@ -5,7 +5,6 @@ Build.PL
 example/fib.pl
 example/multiline.pl
 lib/B/DeparseTree.pm
-lib/B/DeparseTree.pod
 lib/B/DeparseTree/Common.pm
 lib/B/DeparseTree/P520.pm
 lib/B/DeparseTree/P522.pm
