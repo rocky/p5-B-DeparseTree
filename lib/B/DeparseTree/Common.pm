@@ -17,7 +17,7 @@ $VERSION = '1.1.0';
             _features_from_bundle is_scope logop
             );
 
-my %strict_bits = do {
+our %strict_bits = do {
     local $^H;
     map +($_ => strict::bits($_)), qw/refs subs vars/
 };
