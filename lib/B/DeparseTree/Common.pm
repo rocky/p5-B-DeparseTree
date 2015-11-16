@@ -142,7 +142,7 @@ sub print_protos($)
 
 sub style_opts($$)
 {
-    my ($self, $opts) = shift;
+    my ($self, $opts) = @_;
     my $opt;
     while (length($opt = substr($opts, 0, 1))) {
 	if ($opt eq "C") {
@@ -424,8 +424,8 @@ sub indent_info($$)
     my ($self, $info) = @_;
     my $text = $info->{text};
     if ($info->{maybe_parens} and
-	substr($text, 0, 1) == '(' and
-	substr($text, -1) == ')' ) {
+	substr($text, 0, 1) eq '(' and
+	substr($text, -1) eq ')' ) {
 	$text = substr($text, 1, length($text) -2)
     }
     return $self->indent($text);
