@@ -2062,14 +2062,6 @@ sub pp_flop {
     return info_from_text $self->range($flip->first, $cx, $type), 'pp_flop', {};
 }
 
-sub pp_and { logop(@_, "and", 3, "&&", 11, "if") }
-sub pp_or  { logop(@_, "or",  2, "||", 10, "unless") }
-sub pp_dor { logop(@_, "//", 10) }
-
-# xor is syntactically a logop, but it's really a binop (contrary to
-# old versions of opcode.pl). Syntax is what matters here.
-sub pp_xor { logop(@_, "xor", 2, "",   0,  "") }
-
 sub logassignop {
     my ($self, $op, $cx, $opname) = @_;
     my $left = $op->first;

@@ -18,6 +18,7 @@ $VERSION = '1.0.0';
 @EXPORT = qw(
     pp_leave pp_lineseq pp_scope
     pp_dbstate pp_nextstate pp_setstate
+    pp_and pp_or pp_dor pp_xor
     );
 
 BEGIN {
@@ -138,5 +139,14 @@ sub pp_nextstate {
 
 sub pp_dbstate { pp_nextstate(@_) }
 sub pp_setstate { pp_nextstate(@_) }
+
+sub pp_and { logop(@_, "and", 3, "&&", 11, "if") }
+sub pp_or  { logop(@_, "or",  2, "||", 10, "unless") }
+sub pp_dor { logop(@_, "//", 10) }
+
+# xor is syntactically a logop, but it's really a binop (contrary to
+# old versions of opcode.pl). Syntax is what matters here.
+sub pp_xor { logop(@_, "xor", 2, "",   0,  "") }
+
 
 1;
