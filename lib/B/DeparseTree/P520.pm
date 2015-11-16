@@ -881,21 +881,6 @@ sub maybe_local {
     return maybe_local_str($self, $op, $cx, $var_info->{text});
 }
 
-sub maybe_targmy
-{
-    my($self, $op, $cx, $func, @args) = @_;
-    if ($op->private & OPpTARGET_MY) {
-	my $var = $self->padname($op->targ);
-	my $val = $func->($self, $op, 7, @args);
-	return info_from_list([$var, '=', $val->{text}],
-			      ' ', 'maybe_targmy',
-			      {body => [$var],
-			       maybe_parens => [$self, $cx, 7]});
-    } else {
-	return $func->($self, $op, $cx, @args);
-    }
-}
-
 sub padname_sv {
     my $self = shift;
     my $targ = shift;
@@ -2769,7 +2754,7 @@ sub loop_common
     local(@$self{qw'curstash warnings hints hinthash'})
 		= @$self{qw'curstash warnings hints hinthash'};
 
-    my ($body, @body, $type);
+    my ($body, @body, @other_ops, $type);
     my (@head, @head_text) = ((), ());
     my ($bare, $cond_info) = (0, undef);
 
@@ -2787,6 +2772,7 @@ sub loop_common
 	# foreach
 	$type = 'loop_foreach';
 
+	push @other_ops, $enter->first;
 	my $ary = $enter->first->sibling; # first was pushmark
 	my @ary_info;
 	my @ary_text;
@@ -2831,7 +2817,7 @@ sub loop_common
 	}
 
 	# skip OP_AND and OP_ITER
-	my $other_ops = [$kid->first, $kid->first->first];
+	push @other_ops, $kid->first, $kid->first->first;
 	$body = $kid->first->first->sibling;
 
 	@head = (@ary_info, @var_info);
@@ -2842,7 +2828,7 @@ sub loop_common
 	    push @head, $body_info;
 	    my @texts = ($body_info->{text}, "foreach", '(', @ary_text, ')');
 	    return info_from_list(\@texts, ' ', 'loop_foreach_ary',
-				  {body => \@head, other_ops => $other_ops});
+				  {body => \@head, other_ops => \@other_ops});
 	}
 	@head_text = ("foreach", @var_text, '(', @ary_text, ')');
     } elsif ($kid->name eq "null") {
@@ -4913,16 +4899,7 @@ unless (caller) {
   # my($fullname,@suffices) = @_;
 
   my $tail   = '';
-  my $suffix = '';
-  if (@suffices) {
-    foreach $suffix (@suffices) {
-      my $pat = ($igncase ? '(?i)' : '') . "($suffix)\$";
-      if ($basename =~ s/$pat//s) {
-        $taint .= substr($suffix,0,0);
-        $tail = $1 . $tail;
-      }
-    }
-  }
+  $tail = $1 . $tail;
 
   # Ensure taint is propagated from the path to its pieces.
   $tail .= $taint;
@@ -4936,9 +4913,9 @@ unless (caller) {
 	}
     };
 
-    my $deparse = __PACKAGE__->new("-l", "-c", "-sC");
-    # my $info = $deparse->coderef2list(\&fileparse);
-    my $info = $deparse->coderef2list(\&baz);
+    my $deparse = __PACKAGE__->new("-l", "-c");
+    my $info = $deparse->coderef2list(\&fileparse);
+    # my $info = $deparse->coderef2list(\&baz);
     import Data::Printer colored => 0;
     Data::Printer::p($info);
     print "\n", '=' x 30, "\n";
