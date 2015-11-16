@@ -7,7 +7,7 @@ package B::DeparseTree::Common;
 use B::DeparseTree::Node;
 
 use B qw(class opnumber OPpLVAL_INTRO OPf_SPECIAL OPf_KIDS SVf_ROK
-         svref_2object perlstring);
+         OPpTARGET_MY svref_2object perlstring);
 use Carp;
 
 our($VERSION, @EXPORT, @ISA);
@@ -19,7 +19,7 @@ $VERSION = '1.1.0';
             is_miniwhile is_lexical_subs %strict_bits
             %rev_feature declare_hinthash declare_warnings %ignored_hints
             _features_from_bundle ambiant_pragmas maybe_qualify
-            %globalnames gv_name is_scope logop
+            %globalnames gv_name is_scope logop maybe_targmy
             );
 
 our %strict_bits = do {
@@ -170,8 +170,32 @@ sub style_opts($$)
 	} elsif ($opt eq "v") {
 	    $opts =~ s/^v([^.]*)(.|$)//;
 	    $self->{'ex_const'} = $1;
+	} else {
+	    $opts = substr($opts, 1);
 	}
     }
+}
+
+sub maybe_targmy
+{
+    my($self, $op, $cx, $func, @args) = @_;
+    if ($op->private & OPpTARGET_MY) {
+	my $var = $self->padname($op->targ);
+	my $val = $func->($self, $op, 7, @args);
+	return info_from_list([$var, '=', $val->{text}],
+			      ' ', 'maybe_targmy',
+			      {maybe_parens => [$self, $cx, 7]});
+    } else {
+	return $func->($self, $op, $cx, @args);
+    }
+}
+
+# FIXME: remove
+sub parens_test($$) {
+    my ($cx, $prec) = @_;
+    return ($prec < $cx
+	    # unary ops nest just fine
+	    or $prec == $cx and $cx != 4 and $cx != 16 and $cx != 21)
 }
 
 # Possibly add () around $text depending on precidence $prec and
@@ -193,15 +217,6 @@ sub maybe_parens($$$$)
 	$info->{parens} = '';
 	return $info->{text};
     }
-}
-
-# FIXME: remove
-sub parens_test($$)
-{
-    my ($cx, $prec) = @_;
-    return ($prec < $cx or
-	    # unary ops nest just fine
-	    $prec == $cx and $cx != 4 and $cx != 16 and $cx != 21)
 }
 
 # FIXME: remove

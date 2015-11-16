@@ -768,21 +768,6 @@ sub maybe_local {
     return maybe_local_str($self, $op, $cx, $var_info->{text});
 }
 
-sub maybe_targmy
-{
-    my($self, $op, $cx, $func, @args) = @_;
-    if ($op->private & OPpTARGET_MY) {
-	my $var = $self->padname($op->targ);
-	my $val = $func->($self, $op, 7, @args);
-	return info_from_list([$var, '=', $val->{text}],
-			      ' ', 'maybe_targmy',
-			      {body => [$var],
-			       maybe_parens => [$self, $cx, 7]});
-    } else {
-	return $func->($self, $op, $cx, @args);
-    }
-}
-
 sub padname_sv {
     my $self = shift;
     my $targ = shift;
