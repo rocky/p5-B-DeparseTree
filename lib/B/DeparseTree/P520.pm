@@ -1024,33 +1024,6 @@ sub pp_sgrent { baseop(@_, "setgrent") }
 sub pp_egrent { baseop(@_, "endgrent") }
 sub pp_getlogin { baseop(@_, "getlogin") }
 
-sub POSTFIX () { 1 }
-
-# I couldn't think of a good short name, but this is the category of
-# symbolic unary operators with interesting precedence
-
-sub pfixop {
-    my $self = shift;
-    my($op, $cx, $name, $prec, $flags) = (@_, 0);
-    my $kid = $op->first;
-    $kid = $self->deparse($kid, $prec, $op);
-    my $type = 'pfixop';
-    my @texts;
-    if ($flags & POSTFIX) {
-	@texts = ($kid->{text}, $name);
-	$type = 'pfixop_postfix';
-    } elsif ($name eq '-' && $kid =~ /^[a-zA-Z](?!\w)/) {
-	# avoid confusion with filetests
-	$type = 'pfixop_minus';
-	@texts = ($kid->{text}, '(', $name, ')');
-    } else {
-	@texts = ($name, $kid->{text});
-    }
-
-    return info_from_list(\@texts, '', $type,
-			  {maybe_parens => [$self, $cx, $prec]});
-}
-
 sub pp_preinc { pfixop(@_, "++", 23) }
 sub pp_predec { pfixop(@_, "--", 23) }
 sub pp_postinc { maybe_targmy(@_, \&pfixop, "++", 23, POSTFIX) }

@@ -19,8 +19,9 @@ $VERSION = '1.1.0';
             is_miniwhile is_lexical_subs %strict_bits
             %rev_feature declare_hinthash declare_warnings %ignored_hints
             _features_from_bundle ambiant_pragmas maybe_qualify
-            %globalnames gv_name is_scope logop maybe_targmy
-            deparse_root is_state
+            %globalnames gv_name is_scope logop maybe_targmy is_state
+            POSTFIX baseop mapop pfixop
+            deparse_root
             );
 
 our %strict_bits = do {
@@ -1018,6 +1019,80 @@ sub logop
     }
     $opts->{block} = [$lhs, $rhs];
     return info_from_list($texts, $sep, $type, $opts);
+}
+
+sub baseop
+{
+    my($self, $op, $cx, $name) = @_;
+    return info_from_text($self->keyword($name), 'baseop', {});
+}
+
+sub POSTFIX () { 1 }
+
+# I couldn't think of a good short name, but this is the category of
+# symbolic unary operators with interesting precedence
+
+sub pfixop {
+    my $self = shift;
+    my($op, $cx, $name, $prec, $flags) = (@_, 0);
+    my $kid = $op->first;
+    $kid = $self->deparse($kid, $prec, $op);
+    my $type = 'pfixop';
+    my @texts;
+    if ($flags & POSTFIX) {
+	@texts = ($kid->{text}, $name);
+	$type = 'pfixop_postfix';
+    } elsif ($name eq '-' && $kid =~ /^[a-zA-Z](?!\w)/) {
+	# avoid confusion with filetests
+	$type = 'pfixop_minus';
+	@texts = ($kid->{text}, '(', $name, ')');
+    } else {
+	@texts = ($name, $kid->{text});
+    }
+
+    return info_from_list(\@texts, '', $type,
+			  {maybe_parens => [$self, $cx, $prec]});
+}
+
+sub mapop
+{
+    my($self, $op, $cx, $name) = @_;
+    my $kid = $op->first; # this is the (map|grep)start
+
+    my @other_ops = ($kid, $kid->first);
+    $kid = $kid->first->sibling; # skip a pushmark
+
+    my $code = $kid->first; # skip a null
+    my $code_info;
+
+    my @block_texts = ();
+    my @exprs_texts = ();
+    if (is_scope $code) {
+	$code_info = $self->deparse($code, 0, $op);
+	(my $text = $code_info->{text})=~ s/^\n//;  # remove first \n in block.
+	@block_texts = ('{', $text, '}');
+    } else {
+	$code_info = $self->deparse($code, 24, $op);
+	@exprs_texts = ($code_info->{text});
+    }
+    my @body = ($code_info);
+
+    $kid = $kid->sibling;
+    my($expr, @exprs);
+    for (; !null($kid); $kid = $kid->sibling) {
+	$expr = $self->deparse($kid, 6, $op);
+	push @exprs, $expr if defined $expr;
+    }
+    push @body, @exprs;
+    push @exprs_texts, map $_->{text}, @exprs;
+    my $opts = {
+	body => \@body,
+	other_ops => \@other_ops,
+    };
+    my $params = join(', ', @exprs_texts);
+    $params = join(" ", @block_texts) . ' ' . $params if @block_texts;
+    my @texts = $self->maybe_parens_func($name, $params, $cx, 5);
+    return info_from_list(\@texts, '', 'mapop', $opts)
 }
 
 1;
