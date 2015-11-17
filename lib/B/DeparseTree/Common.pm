@@ -175,6 +175,12 @@ sub style_opts($$)
     }
 }
 
+sub null
+{
+    my $op = shift;
+    return class($op) eq "NULL";
+}
+
 # This is a special case of scopeop and lineseq, for the case of the
 # main_root.
 sub deparse_root {
@@ -261,12 +267,6 @@ sub info_from_text($$$)
 {
     my ($text, $type, $opts) = @_;
     return info_from_list([$text], '', $type, $opts)
-}
-
-sub null
-{
-    my $op = shift;
-    return class($op) eq "NULL";
 }
 
 sub walk_lineseq
