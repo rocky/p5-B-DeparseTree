@@ -1036,7 +1036,7 @@ sub mapop
     my($self, $op, $cx, $name) = @_;
     my $kid = $op->first; # this is the (map|grep)start
 
-    my @other_ops = ($op->first);
+    my @other_ops = ($kid, $kid->first);
     $kid = $kid->first->sibling; # skip a pushmark
 
     my $code = $kid->first; # skip a null
