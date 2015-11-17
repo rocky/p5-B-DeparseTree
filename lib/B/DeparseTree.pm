@@ -4,7 +4,7 @@ use rlib '.';
 use strict;
 use vars qw(@ISA $VERSION);
 
-$VERSION = '2.0.0';
+$VERSION = '2.0.2';
 
 my $module;
 if ($] >= 5.020 and $] < 5.022) {
