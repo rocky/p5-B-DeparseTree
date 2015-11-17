@@ -18,7 +18,8 @@ $VERSION = '1.1.0';
             %rev_feature declare_hinthash declare_warnings %ignored_hints
             _features_from_bundle ambiant_pragmas maybe_qualify
             %globalnames gv_name is_scope logop maybe_targmy is_state
-            POSTFIX baseop pfixop deparse_sub deparse_subname next_todo
+            POSTFIX baseop mapop pfixop
+            deparse_sub deparse_subname next_todo
             );
 
 BEGIN {
@@ -1029,5 +1030,50 @@ sub pfixop
     return info_from_list(\@texts, '', $type,
 			  {maybe_parens => [$self, $cx, $prec]});
 }
+
+sub mapop
+{
+    my($self, $op, $cx, $name) = @_;
+    my $kid = $op->first; # this is the (map|grep)start
+
+    my @other_ops = ($op->first);
+    $kid = $kid->first->sibling; # skip a pushmark
+
+    my $code = $kid->first; # skip a null
+
+    my $code_info;
+
+    my @block_texts = ();
+    my @exprs_texts = ();
+    if (is_scope $code) {
+	$code_info = $self->deparse($code, 0, $op);
+	(my $text = $code_info->{text})=~ s/^\n//;  # remove first \n in block.
+	@block_texts = ('{', $text, '}');
+    } else {
+	$code_info = $self->deparse($code, 24, $op);
+	@exprs_texts = ($code_info->{text});
+    }
+    my @body = ($code_info);
+
+    push @other_ops, $kid;
+    $kid = $kid->sibling;
+    my($expr, @exprs);
+    for (; !null($kid); $kid = $kid->sibling) {
+	$expr = $self->deparse($kid, 6, $op);
+	push @exprs, $expr if defined $expr;
+    }
+    push @body, @exprs;
+    push @exprs_texts, map $_->{text}, @exprs;
+    my $opts = {
+	body => \@body,
+	other_ops => \@other_ops,
+    };
+    my $params = join(', ', @exprs_texts);
+    $params = join(" ", @block_texts) . ' ' . $params if @block_texts;
+    my @texts = $self->maybe_parens_func($name, $params, $cx, 5);
+    return info_from_list(\@texts, '', 'mapop', $opts)
+}
+
+
 
 1;

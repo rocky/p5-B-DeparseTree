@@ -2298,51 +2298,8 @@ sub pp_print { indirop(@_, "print") }
 sub pp_say  { indirop(@_, "say") }
 sub pp_sort { indirop(@_, "sort") }
 
-sub mapop
-{
-    my($self, $op, $cx, $name) = @_;
-    my $kid = $op->first; # this is the (map|grep)start
-
-    my $other_ops = [$op->first];
-    $kid = $kid->first->sibling; # skip a pushmark
-
-    my $code = $kid->first; # skip a null
-    my $code_info;
-
-    my @block_texts = ();
-    my @exprs_texts = ();
-    if (is_scope $code) {
-	$code_info = $self->deparse($code, 0, $op);
-	(my $text = $code_info->{text})=~ s/^\n//;  # remove first \n in block.
-	@block_texts = ('{', $text, '}');
-    } else {
-	$code_info = $self->deparse($code, 24, $op);
-	@exprs_texts = ($code_info->{text});
-    }
-    my @body = ($code_info);
-
-    $kid = $kid->sibling;
-    my($expr, @exprs);
-    for (; !null($kid); $kid = $kid->sibling) {
-	$expr = $self->deparse($kid, 6, $op);
-	push @exprs, $expr if defined $expr;
-    }
-    push @body, @exprs;
-    push @exprs_texts, map $_->{text}, @exprs;
-    my $opts = {
-	body => \@body,
-	other_ops => $other_ops,
-    };
-    my $params = join(', ', @exprs_texts);
-    $params = join(" ", @block_texts) . ' ' . $params if @block_texts;
-    my @texts = $self->maybe_parens_func($name, $params, $cx, 5);
-    return info_from_list(\@texts, '', 'mapop', $opts)
-}
-
 sub pp_mapwhile { mapop(@_, "map") }
 sub pp_grepwhile { mapop(@_, "grep") }
-sub pp_mapstart { baseop(@_, "map") }
-sub pp_grepstart { baseop(@_, "grep") }
 
 sub pp_list
 {

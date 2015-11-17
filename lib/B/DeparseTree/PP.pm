@@ -21,8 +21,9 @@ $VERSION = '1.0.0';
     pp_eprotoent pp_epwent pp_eservent
     pp_fork pp_getlogin pp_ggrent
     pp_ghostent pp_gnetent pp_gprotoent
-    pp_gpwent pp_gservent pp_sgrent
-    pp_spwent pp_tms pp_wantarray
+    pp_gpwent pp_grepstart pp_gservent
+    pp_mapstart
+    pp_sgrent pp_spwent pp_tms pp_wantarray
 
     pp_leave pp_lineseq pp_scope
 
@@ -64,7 +65,9 @@ sub pp_ghostent { baseop(@_, "gethostent") }
 sub pp_gnetent { baseop(@_, "getnetent") }
 sub pp_gprotoent { baseop(@_, "getprotoent") }
 sub pp_gpwent { baseop(@_, "getpwent") }
+sub pp_grepstart { baseop(@_, "grep") }
 sub pp_gservent { baseop(@_, "getservent") }
+sub pp_mapstart { baseop(@_, "map") }
 sub pp_sgrent { baseop(@_, "setgrent") }
 sub pp_spwent { baseop(@_, "setpwent") }
 sub pp_tms { baseop(@_, "times") }
