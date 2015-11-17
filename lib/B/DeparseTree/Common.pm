@@ -96,6 +96,12 @@ sub lineseq {
     return $self->walk_lineseq($root, \@ops, $fn);
 }
 
+sub null
+{
+    my $op = shift;
+    return class($op) eq "NULL";
+}
+
 # This is a special case of scopeop and lineseq, for the case of the
 # main_root.
 sub deparse_root {
@@ -391,12 +397,6 @@ sub maybe_parens_str($$$$)
 # FIXME: remove
 *info_from_text = \&B::DeparseTree::Node::from_str;
 *info_from_list = \&B::DeparseTree::Node::from_list;
-
-sub null
-{
-    my $op = shift;
-    return class($op) eq "NULL";
-}
 
 sub todo
 {
