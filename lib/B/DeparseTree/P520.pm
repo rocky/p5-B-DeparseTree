@@ -12,7 +12,9 @@
 # B::Parse in turn is based on the module of the same name by Malcolm Beattie,
 # but essentially none of his code remains.
 
-use v5.20;
+# For now 5.18 and 5.20 are the same.  If in the future they should be
+# different, # we can deal with that here.
+use v5.18;
 
 use rlib '../..';
 
