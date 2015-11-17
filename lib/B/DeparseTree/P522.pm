@@ -1097,12 +1097,6 @@ sub keyword {
     return $name;
 }
 
-sub baseop
-{
-    my($self, $op, $cx, $name) = @_;
-    return info_from_text($self->keyword($name), 'baseop', {});
-}
-
 sub pp_stub {
     my $self = shift;
     my($op, $cx, $name) = @_;
@@ -1428,7 +1422,7 @@ sub pp_anonlist {
 	return $self->anon_hash_or_list($op, $cx);
     }
     warn "Unexpected op pp_" . $op->name() . " without OPf_SPECIAL";
-    return info_from_text 'XXX', 'bad_anonlist', {};
+    return info_from_text('XXX', 'bad_anonlist', {});
 }
 
 *pp_anonhash = \&pp_anonlist;
@@ -1941,7 +1935,7 @@ sub listop
 	$first = $self->deparse($kid, 6, $op);
     }
     if ($name eq "chmod" && $first->{text} =~ /^\d+$/) {
-	$first = info_from_text sprintf("%#o", $first), 'listop_chmod', {};
+	$first = info_from_text(sprintf("%#o", $first), 'listop_chmod', {});
     }
     $first->{text} = "+" + $first->{text}
 	if not $parens and not $nollafr and substr($first->{text}, 0, 1) eq "(";
@@ -2250,9 +2244,6 @@ sub pp_prtf { indirop(@_, "printf") }
 sub pp_print { indirop(@_, "print") }
 sub pp_say  { indirop(@_, "say") }
 sub pp_sort { indirop(@_, "sort") }
-
-sub pp_mapwhile { mapop(@_, "map") }
-sub pp_grepwhile { mapop(@_, "grep") }
 
 sub pp_list
 {
@@ -2773,7 +2764,7 @@ sub rv2x
 
     if (class($op) eq 'NULL' || !$op->can("first")) {
 	carp("Unexpected op in pp_rv2x");
-	return info_from_text 'XXX', 'bad_rv2x', {};
+	return info_from_text('XXX', 'bad_rv2x', {});
     }
     my ($info, $kid_info);
     my $kid = $op->first;
@@ -3817,7 +3808,7 @@ sub const {
 	return info_from_text $text, 'const_special', {};
     }
     if (class($sv) eq "NULL") {
-	return info_from_text 'undef', 'const_NULL', {};
+	return info_from_text('undef', 'const_NULL', {});
     }
     # convert a version object into the "v1.2.3" string in its V magic
     if ($sv->FLAGS & SVs_RMG) {
@@ -3835,7 +3826,7 @@ sub const {
 	if ($nv == 0) {
 	    if (pack("F", $nv) eq pack("F", 0)) {
 		# positive zero
-		return info_from_text "0", 'const_plus_zero', {};
+		return info_from_text("0", 'const_plus_zero', {});
 	    } else {
 		# negative zero
 		return info_from_text($self->maybe_parens("-.0", $cx, 21),
@@ -3855,7 +3846,7 @@ sub const {
 	    # NaN
 	    if (pack("F", $nv) eq pack("F", sin(9**9**9))) {
 		# the normal kind
-		return info_from_text "sin(9**9**9)", 'const_Nan', {};
+		return info_from_text("sin(9**9**9)", 'const_Nan', {});
 	    } elsif (pack("F", $nv) eq pack("F", -sin(9**9**9))) {
 		# the inverted kind
 		return info_from_text($self->maybe_parens("-sin(9**9**9)", $cx, 21),
@@ -3937,7 +3928,7 @@ sub const {
 	    return single_delim("q", "'", unback $str);
 	}
     } else {
-	return info_from_text "undef", 'const_undef', {};
+	return info_from_text("undef", 'const_undef', {});
     }
 }
 
@@ -3993,7 +3984,7 @@ sub pp_const {
     my $self = shift;
     my($op, $cx) = @_;
     if ($op->private & OPpCONST_ARYBASE) {
-        return info_from_text '$[', 'const_ary', {};
+        return info_from_text('$[', 'const_ary', {});
     }
     # if ($op->private & OPpCONST_BARE) { # trouble with '=>' autoquoting
     # 	return $self->const_sv($op)->PV;

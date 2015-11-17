@@ -31,6 +31,8 @@ $VERSION = '1.0.0';
 
     pp_and pp_or pp_dor pp_xor
 
+    pp_mapwhile pp_grepwhile
+
     pp_complement
     pp_getppid
     pp_postdec
@@ -181,6 +183,9 @@ sub pp_dor { logop(@_, "//", 10) }
 # old versions of opcode.pl). Syntax is what matters here.
 sub pp_xor { logop(@_, "xor", 2, "",   0,  "") }
 
+sub pp_mapwhile { mapop(@_, "map") }
+sub pp_grepwhile { mapop(@_, "grep") }
+
 sub pp_complement { maybe_targmy(@_, \&pfixop, "~", 21) }
 sub pp_getppid { maybe_targmy(@_, \&baseop, "getppid") }
 sub pp_postdec { maybe_targmy(@_, \&pfixop, "--", 23, POSTFIX) }
@@ -192,7 +197,5 @@ sub pp_preinc { pfixop(@_, "++", 23) }
 sub pp_predec { pfixop(@_, "--", 23) }
 sub pp_i_preinc { pfixop(@_, "++", 23) }
 sub pp_i_predec { pfixop(@_, "--", 23) }
-
-
 
 1;

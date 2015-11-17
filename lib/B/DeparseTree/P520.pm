@@ -287,135 +287,6 @@ sub deparse_format($$$)
     return $info;
 }
 
-# Deparse a subroutine
-sub deparse_sub($$$)
-{
-    my ($self, $cv, $parent) = @_;
-    Carp::confess("NULL in deparse_sub") if !defined($cv) || $cv->isa("B::NULL");
-    Carp::confess("SPECIAL in deparse_sub") if $cv->isa("B::SPECIAL");
-    local $self->{'curcop'} = $self->{'curcop'};
-    my $proto = '';
-    if ($cv->FLAGS & SVf_POK) {
-	$proto .= "(". $cv->PV . ") ";
-    }
-    if ($cv->CvFLAGS & (CVf_METHOD|CVf_LOCKED|CVf_LVALUE)) {
-        $proto .= ": ";
-        $proto .= "lvalue " if $cv->CvFLAGS & CVf_LVALUE;
-        $proto .= "locked " if $cv->CvFLAGS & CVf_LOCKED;
-        $proto .= "method " if $cv->CvFLAGS & CVf_METHOD;
-    }
-
-    local($self->{'curcv'}) = $cv;
-    local($self->{'curcvlex'});
-    local(@$self{qw'curstash warnings hints hinthash'})
-		= @$self{qw'curstash warnings hints hinthash'};
-
-    my $root = $cv->ROOT;
-    my $body;
-
-    my $info = {};
-
-    local $B::overlay = {};
-    if (not null $root) {
-	$self->pessimize($root, $cv->START);
-	my $lineseq = $root->first;
-	if ($lineseq->name eq "lineseq") {
-	    my @ops;
-	    for(my $o=$lineseq->first; $$o; $o=$o->sibling) {
-		push @ops, $o;
-	    }
-	    $body = $self->lineseq($root, 0, @ops);
-	    my $scope_en = $self->find_scope_en($lineseq);
-	}
-	else {
-	    $body = $self->deparse($root->first, 0, $root);
-	}
-	my @texts = ("{\n\t", $body->{text}, "\n\b}");
-	unshift @texts, $proto if $proto;
-	$info = info_from_list(\@texts, '', 'sub',
-			       {body =>[$body],
-			        other_ops =>[$lineseq]});
-	$self->{optree}{$$lineseq} = $info;
-
-    } else {
-	my $sv = $cv->const_sv;
-	if ($$sv) {
-	    # uh-oh. inlinable sub... format it differently
-	    my @texts = ("{", $self->const($sv, 0)->{text}, "}");
-	    unshift @texts, $proto if $proto;
-	    $info = info_from_list \@texts, '', 'sub_const', {};
-	} else { # XSUB? (or just a declaration)
-	    my @texts = ();
-	    @texts = push @texts, $proto if $proto;
-	    $info = info_from_list \@texts, ' ', 'sub_decl', {};
-	}
-    }
-
-    $info->{op} = $root;
-    $info->{cop} = undef;
-    $info->{parent}  = $parent if $parent;
-    $self->{optree}{$$root} = $info;
-    return $info;
-}
-
-# Deparse a subroutine by name
-sub deparse_subname($$$)
-{
-    my ($self, $funcname, $parent) = @_;
-    my $cv = svref_2object(\&$funcname);
-    my $info = $self->deparse_sub($cv, $parent);
-    return info_from_list(['sub', $funcname, $info->{text}], ' ',
-			  'deparse_subname', {body=>[$info]})
-}
-
-sub next_todo {
-    my ($self, $parent) = @_;
-    my $ent = shift @{$self->{'subs_todo'}};
-    my $cv = $ent->[1];
-    my $gv = $cv->GV;
-    my $name = $self->gv_name($gv);
-    if ($ent->[2]) {
-	my $info = $self->deparse_format($ent->[1], $cv);
-	my $texts = ["format $name", "=", $info->{text} + "\n"];
-	return {
-	    body => [$info],
-	    texts => $texts,
-	    type => 'format_todo',
-	    text => join(" ", @$texts),
-	};
-    } else {
-	$self->{'subs_declared'}{$name} = 1;
-	if ($name eq "BEGIN") {
-	    my $use_dec = $self->begin_is_use($cv);
-	    if (defined ($use_dec) and $self->{'expand'} < 5) {
-		return { text => '', type => 'begin_todo' } if 0 == length($use_dec);
-		return { text => $use_dec, type => 'begin_todo' };
-	    }
-	}
-	my $l = '';
-	if ($self->{'linenums'}) {
-	    my $line = $gv->LINE;
-	    my $file = $gv->FILE;
-	    $l = "\n# line $line \"$file\"\n";
-	}
-	my $p = '';
-	my @texts = ();
-	if (class($cv->STASH) ne "SPECIAL") {
-	    my $stash = $cv->STASH->NAME;
-	    if ($stash ne $self->{'curstash'}) {
-		push @texts, 'package', $stash, ';\n';
-		$name = "$self->{'curstash'}::$name" unless $name =~ /::/;
-		$self->{'curstash'} = $stash;
-	    }
-	    $name =~ s/^\Q$stash\E::(?!\z|.*::)//;
-	    push @texts, $name;
-	}
-	my $info = $self->deparse_sub($cv, $parent);
-	push @texts, $info->{text};
-	return info_from_list(\@texts, ' ', 'sub_todo', {body=>[$info]})
-    }
-}
-
 # Return a "use" declaration for this BEGIN block, if appropriate
 sub begin_is_use
 {
@@ -1473,7 +1344,7 @@ sub pp_anonlist {
 	return $self->anon_hash_or_list($op, $cx);
     }
     warn "Unexpected op pp_" . $op->name() . " without OPf_SPECIAL";
-    return info_from_text 'XXX', 'bad_anonlist', {};
+    return info_from_text('XXX', 'bad_anonlist', {});
 }
 
 *pp_anonhash = \&pp_anonlist;
@@ -1990,7 +1861,7 @@ sub listop
 	$first = $self->deparse($kid, 6, $op);
     }
     if ($name eq "chmod" && $first->{text} =~ /^\d+$/) {
-	$first = info_from_text sprintf("%#o", $first), 'listop_chmod', {};
+	$first = info_from_text(sprintf("%#o", $first), 'listop_chmod', {});
     }
     $first->{text} = "+" + $first->{text}
 	if not $parens and not $nollafr and substr($first->{text}, 0, 1) eq "(";
@@ -2299,9 +2170,6 @@ sub pp_prtf { indirop(@_, "printf") }
 sub pp_print { indirop(@_, "print") }
 sub pp_say  { indirop(@_, "say") }
 sub pp_sort { indirop(@_, "sort") }
-
-sub pp_mapwhile { mapop(@_, "map") }
-sub pp_grepwhile { mapop(@_, "grep") }
 
 sub pp_list
 {
@@ -2823,7 +2691,7 @@ sub rv2x
 
     if (class($op) eq 'NULL' || !$op->can("first")) {
 	carp("Unexpected op in pp_rv2x");
-	return info_from_text 'XXX', 'bad_rv2x', {};
+	return info_from_text('XXX', 'bad_rv2x', {});
     }
     my ($info, $kid_info);
     my $kid = $op->first;
@@ -3700,7 +3568,7 @@ sub const {
 	return info_from_text $text, 'const_special', {};
     }
     if (class($sv) eq "NULL") {
-	return info_from_text 'undef', 'const_NULL', {};
+	return info_from_text('undef', 'const_NULL', {});
     }
     # convert a version object into the "v1.2.3" string in its V magic
     if ($sv->FLAGS & SVs_RMG) {
@@ -3718,7 +3586,7 @@ sub const {
 	if ($nv == 0) {
 	    if (pack("F", $nv) eq pack("F", 0)) {
 		# positive zero
-		return info_from_text "0", 'const_plus_zero', {};
+		return info_from_text("0", 'const_plus_zero', {});
 	    } else {
 		# negative zero
 		return info_from_text($self->maybe_parens("-.0", $cx, 21),
@@ -3738,7 +3606,7 @@ sub const {
 	    # NaN
 	    if (pack("F", $nv) eq pack("F", sin(9**9**9))) {
 		# the normal kind
-		return info_from_text "sin(9**9**9)", 'const_Nan', {};
+		return info_from_text("sin(9**9**9)", 'const_Nan', {});
 	    } elsif (pack("F", $nv) eq pack("F", -sin(9**9**9))) {
 		# the inverted kind
 		return info_from_text($self->maybe_parens("-sin(9**9**9)", $cx, 21),
@@ -3820,7 +3688,7 @@ sub const {
 	    return single_delim("q", "'", unback $str);
 	}
     } else {
-	return info_from_text "undef", 'const_undef', {};
+	return info_from_text("undef", 'const_undef', {});
     }
 }
 
@@ -3855,7 +3723,7 @@ sub pp_const {
     my $self = shift;
     my($op, $cx) = @_;
     if ($op->private & OPpCONST_ARYBASE) {
-        return info_from_text '$[', 'const_ary', {};
+        return info_from_text('$[', 'const_ary', {});
     }
     # if ($op->private & OPpCONST_BARE) { # trouble with '=>' autoquoting
     # 	return $self->const_sv($op)->PV;
