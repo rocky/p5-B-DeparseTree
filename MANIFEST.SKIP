@@ -78,7 +78,7 @@
 
 
 # Avoid archives of this distribution
-\bB-DeparseTree-[\d\.\_]+
+\bB-DeparseTree-v[\d\.\_]+
 
 # Nothing in tmp
 \btmp/

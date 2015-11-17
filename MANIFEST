@@ -1,6 +1,7 @@
 README.md
 TODO
 GNUmakefile
+ChangeLog
 Build.PL
 example/fib.pl
 example/multiline.pl
