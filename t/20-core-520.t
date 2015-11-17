@@ -32,21 +32,22 @@ BEGIN {
         print "1..0 # Skip -- Perl configured without B module\n";
         exit 0;
     }
+    use Test::More;
+    if ($] < 5.020 || $] > 5.0209) {
+	plan skip_all => 'Customized to Perl 5.20 interpreter';
+    }
 }
 
 use rlib '../lib';
 use strict;
 use English;
-use Test::More;
 
-if ($] < 5.020 || $] > 5.0209) {
-    plan skip_all => 'Customized to Perl 5.20 interpreter';
-}
 
 use feature (sprintf(":%vd", $^V)); # to avoid relying on the feature
                                     # logic to add CORE::
 
 no warnings 'experimental::autoderef';
+
 use B::DeparseTree;
 my $deparse = new B::DeparseTree;
 # use B::Deparse;

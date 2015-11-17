@@ -16,9 +16,28 @@ $VERSION = '1.0.0';
 
 @ISA = qw(Exporter);
 @EXPORT = qw(
+
+    pp_egrent pp_ehostent pp_enetent
+    pp_eprotoent pp_epwent pp_eservent
+    pp_fork pp_getlogin pp_ggrent
+    pp_ghostent pp_gnetent pp_gprotoent
+    pp_gpwent pp_gservent pp_sgrent
+    pp_spwent pp_tms pp_wantarray
+
     pp_leave pp_lineseq pp_scope
+
     pp_dbstate pp_nextstate pp_setstate
+
     pp_and pp_or pp_dor pp_xor
+
+    pp_complement
+    pp_getppid
+    pp_postdec
+    pp_postinc
+    pp_time
+    pp_wait
+
+    pp_preinc pp_predec pp_i_preinc pp_i_predec
     );
 
 BEGIN {
@@ -32,9 +51,28 @@ BEGIN {
     }
 }
 
-sub pp_scope { scopeop(0, @_); }
-sub pp_lineseq { scopeop(0, @_); }
+sub pp_egrent { baseop(@_, "endgrent") }
+sub pp_ehostent { baseop(@_, "endhostent") }
+sub pp_enetent { baseop(@_, "endnetent") }
+sub pp_eprotoent { baseop(@_, "endprotoent") }
+sub pp_epwent { baseop(@_, "endpwent") }
+sub pp_eservent { baseop(@_, "endservent") }
+sub pp_fork { baseop(@_, "fork") }
+sub pp_getlogin { baseop(@_, "getlogin") }
+sub pp_ggrent { baseop(@_, "getgrent") }
+sub pp_ghostent { baseop(@_, "gethostent") }
+sub pp_gnetent { baseop(@_, "getnetent") }
+sub pp_gprotoent { baseop(@_, "getprotoent") }
+sub pp_gpwent { baseop(@_, "getpwent") }
+sub pp_gservent { baseop(@_, "getservent") }
+sub pp_sgrent { baseop(@_, "setgrent") }
+sub pp_spwent { baseop(@_, "setpwent") }
+sub pp_tms { baseop(@_, "times") }
+sub pp_wantarray { baseop(@_, "wantarray") }
+
 sub pp_leave { scopeop(1, @_); }
+sub pp_lineseq { scopeop(0, @_); }
+sub pp_scope { scopeop(0, @_); }
 
 # Notice how subs and formats are inserted between statements here;
 # also $[ assignments and pragmas.
@@ -139,6 +177,19 @@ sub pp_dor { logop(@_, "//", 10) }
 # xor is syntactically a logop, but it's really a binop (contrary to
 # old versions of opcode.pl). Syntax is what matters here.
 sub pp_xor { logop(@_, "xor", 2, "",   0,  "") }
+
+sub pp_complement { maybe_targmy(@_, \&pfixop, "~", 21) }
+sub pp_getppid { maybe_targmy(@_, \&baseop, "getppid") }
+sub pp_postdec { maybe_targmy(@_, \&pfixop, "--", 23, POSTFIX) }
+sub pp_postinc { maybe_targmy(@_, \&pfixop, "++", 23, POSTFIX) }
+sub pp_time { maybe_targmy(@_, \&baseop, "time") }
+sub pp_wait { maybe_targmy(@_, \&baseop, "wait") }
+
+sub pp_preinc { pfixop(@_, "++", 23) }
+sub pp_predec { pfixop(@_, "--", 23) }
+sub pp_i_preinc { pfixop(@_, "++", 23) }
+sub pp_i_predec { pfixop(@_, "--", 23) }
+
 
 
 1;

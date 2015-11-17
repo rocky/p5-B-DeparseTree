@@ -756,34 +756,6 @@ sub ambient_pragmas {
     $self->{'ambient_hinthash'} = $hinthash;
 }
 
-sub is_state {
-    my $name = $_[0]->name;
-    return $name eq "nextstate" || $name eq "dbstate" || $name eq "setstate";
-}
-
-# Check if the op and its sibling are the initialization and the rest of a
-# for (..;..;..) { ... } loop
-sub is_for_loop {
-    my $op = shift;
-    # This OP might be almost anything, though it won't be a
-    # nextstate. (It's the initialization, so in the canonical case it
-    # will be an sassign.) The sibling is (old style) a lineseq whose
-    # first child is a nextstate and whose second is a leaveloop, or
-    # (new style) an unstack whose sibling is a leaveloop.
-    my $lseq = $op->sibling;
-    return 0 unless !is_state($op) and !null($lseq);
-    if ($lseq->name eq "lineseq") {
-	if ($lseq->first && !null($lseq->first) && is_state($lseq->first)
-	    && (my $sib = $lseq->first->sibling)) {
-	    return (!null($sib) && $sib->name eq "leaveloop");
-	}
-    } elsif ($lseq->name eq "unstack" && ($lseq->flags & OPf_SPECIAL)) {
-	my $sib = $lseq->sibling;
-	return $sib && !null($sib) && $sib->name eq "leaveloop";
-    }
-    return 0;
-}
-
 sub is_scalar {
     my $op = shift;
     return ($op->name eq "rv2sv" or
@@ -920,130 +892,6 @@ sub AUTOLOAD {
 }
 
 sub DESTROY {}	#	Do not AUTOLOAD
-
-# $root should be the op which represents the root of whatever
-# we're sequencing here. If it's undefined, then we don't append
-# any subroutine declarations to the deparsed ops, otherwise we
-# append appropriate declarations.
-sub lineseq {
-    my($self, $root, $cx, @ops) = @_;
-
-    my $out_cop = $self->{'curcop'};
-    my $out_seq = defined($out_cop) ? $out_cop->cop_seq : undef;
-    my $limit_seq;
-    if (defined $root) {
-	$limit_seq = $out_seq;
-	my $nseq;
-	$nseq = $self->find_scope_st($root->sibling) if ${$root->sibling};
-	$limit_seq = $nseq if !defined($limit_seq)
-			   or defined($nseq) && $nseq < $limit_seq;
-    }
-    $limit_seq = $self->{'limit_seq'}
-	if defined($self->{'limit_seq'})
-	&& (!defined($limit_seq) || $self->{'limit_seq'} < $limit_seq);
-    local $self->{'limit_seq'} = $limit_seq;
-
-    my $fn = sub {
-	my ($exprs, $i, $info, $parent) = @_;
-	my $text = $info->{text};
-	my $op = $ops[$i];
-	$text =~ s/\f//;
-	$text =~ s/\n$//;
-	$text =~ s/;\n?\z//;
-	$info->{type} = $op->name;
-	$info->{op} = $op;
-	if ($parent) {
-	    Carp::confess("nonref parent, op: $op->name") if !ref($parent);
-	    $info->{parent} = $$parent ;
-	}
-	if ($info->{body}) {
-	    foreach my $bod (@{$info->{body}}) {
-		if (!ref($bod)) {
-		    Carp::carp(sprintf "nonref body: %s, op: %s", $bod, $op->name)
-		} else {
-		    $bod->{parent} = $$op;
-		}
-	    }
-	}
-	$self->{optree}{$$op} = $info;
-	$info->{text} = $text;
-	push @$exprs, $info;
-    };
-    return $self->walk_lineseq($root, \@ops, $fn);
-}
-
-# This is a special case of scopeop and lineseq, for the case of the
-# main_root.
-sub deparse_root {
-    my $self = shift;
-    my($op) = @_;
-    local(@$self{qw'curstash warnings hints hinthash'})
-      = @$self{qw'curstash warnings hints hinthash'};
-    my @ops;
-    return if null $op->first; # Can happen, e.g., for Bytecode without -k
-    for (my $kid = $op->first->sibling; !null($kid); $kid = $kid->sibling) {
-	push @ops, $kid;
-    }
-    my $fn = sub {
-	my ($exprs, $i, $info, $parent) = @_;
-	my $text = $info->{text};
-	my $op = $ops[$i];
-	$text =~ s/\f//;
-	$text =~ s/\n$//;
-	$text =~ s/;\n?\z//;
-	$text =~ s/^\((.+)\)$/$1/;
-	$info->{type} = $op->name;
-	$info->{op} = $op;
-	$self->{optree}{$$op} = $info;
-	$info->{text} = $text;
-	$info->{parent} = $$parent if $parent;
-	push @$exprs, $info;
-    };
-    return $self->walk_lineseq($op, \@ops, $fn);
-}
-
-sub walk_lineseq {
-    my ($self, $op, $kids, $callback) = @_;
-    my @kids = @$kids;
-    my @body = ();
-    my $expr;
-    my $parent = $op;
-    for (my $i = 0; $i < @kids; $i++) {
-	if (is_state $kids[$i]) {
-	    $expr = ($self->deparse($kids[$i], 0, $parent));
-	    $callback->(\@body, $i, $expr);
-	    $i++;
-	    if ($i > $#kids) {
-		last;
-	    }
-	}
-	if (is_for_loop($kids[$i])) {
-	    my $loop_expr = $self->for_loop($kids[$i], 0);
-	    $loop_expr =~ s/\cK//;
-	    $callback->(\@body,
-			$i += $kids[$i]->sibling->name eq "unstack" ? 2 : 1,
-			$loop_expr);
-	    next;
-	}
-	$expr = $self->deparse($kids[$i], (@kids != 1)/2, $parent);
-	$callback->(\@body, $i, $expr, $parent);
-    }
-
-    # Add semicolons between statements. Don't add them to blank lines,
-    # or to comment lines, which we
-    # assume will always be the last line in the text and start after a \n.
-    my @texts = map { $_->{text} =~ /(?:\n#)|^\s*$/ ?
-			  $_->{text} : $_->{text} . ';' } @body;
-    my $info = {
-	type => 'lineseq',
-	op => $op,
-	body => \@body,
-	texts => \@texts,
-	text => join("\n", @texts)
-    };
-    $self->{optree}{$$op} = $info if $op;
-    return $info;
-}
 
 # The BEGIN {} is used here because otherwise this code isn't executed
 # when you run B::Deparse on itself.
@@ -1298,12 +1146,6 @@ sub keyword {
     return $name;
 }
 
-sub baseop
-{
-    my($self, $op, $cx, $name) = @_;
-    return info_from_text($self->keyword($name), 'baseop', {});
-}
-
 sub pp_stub {
     my $self = shift;
     my($op, $cx, $name) = @_;
@@ -1314,65 +1156,6 @@ sub pp_stub {
 	return info_from_list(["(", ")", ';'], '', 'stub', {});
     }
 }
-sub pp_wantarray { baseop(@_, "wantarray") }
-sub pp_fork { baseop(@_, "fork") }
-sub pp_wait { maybe_targmy(@_, \&baseop, "wait") }
-sub pp_getppid { maybe_targmy(@_, \&baseop, "getppid") }
-sub pp_time { maybe_targmy(@_, \&baseop, "time") }
-sub pp_tms { baseop(@_, "times") }
-sub pp_ghostent { baseop(@_, "gethostent") }
-sub pp_gnetent { baseop(@_, "getnetent") }
-sub pp_gprotoent { baseop(@_, "getprotoent") }
-sub pp_gservent { baseop(@_, "getservent") }
-sub pp_ehostent { baseop(@_, "endhostent") }
-sub pp_enetent { baseop(@_, "endnetent") }
-sub pp_eprotoent { baseop(@_, "endprotoent") }
-sub pp_eservent { baseop(@_, "endservent") }
-sub pp_gpwent { baseop(@_, "getpwent") }
-sub pp_spwent { baseop(@_, "setpwent") }
-sub pp_epwent { baseop(@_, "endpwent") }
-sub pp_ggrent { baseop(@_, "getgrent") }
-sub pp_sgrent { baseop(@_, "setgrent") }
-sub pp_egrent { baseop(@_, "endgrent") }
-sub pp_getlogin { baseop(@_, "getlogin") }
-
-sub POSTFIX () { 1 }
-
-# I couldn't think of a good short name, but this is the category of
-# symbolic unary operators with interesting precedence
-
-sub pfixop {
-    my $self = shift;
-    my($op, $cx, $name, $prec, $flags) = (@_, 0);
-    my $kid = $op->first;
-    $kid = $self->deparse($kid, $prec, $op);
-    my $type = 'pfixop';
-    my @texts;
-    if ($flags & POSTFIX) {
-	@texts = ($kid->{text}, $name);
-	$type = 'pfixop_postfix';
-    } elsif ($name eq '-' && $kid =~ /^[a-zA-Z](?!\w)/) {
-	# avoid confusion with filetests
-	$type = 'pfixop_minus';
-	@texts = ($kid->{text}, '(', $name, ')');
-    } else {
-	@texts = ($name, $kid->{text});
-    }
-
-    return info_from_list(\@texts, '', $type,
-			  {maybe_parens => [$self, $cx, $prec]});
-}
-
-sub pp_preinc { pfixop(@_, "++", 23) }
-sub pp_predec { pfixop(@_, "--", 23) }
-sub pp_postinc { maybe_targmy(@_, \&pfixop, "++", 23, POSTFIX) }
-sub pp_postdec { maybe_targmy(@_, \&pfixop, "--", 23, POSTFIX) }
-sub pp_i_preinc { pfixop(@_, "++", 23) }
-sub pp_i_predec { pfixop(@_, "--", 23) }
-sub pp_i_postinc { maybe_targmy(@_, \&pfixop, "++", 23, POSTFIX) }
-sub pp_i_postdec { maybe_targmy(@_, \&pfixop, "--", 23, POSTFIX) }
-sub pp_complement { maybe_targmy(@_, \&pfixop, "~", 21) }
-
 sub pp_negate { maybe_targmy(@_, \&real_negate) }
 sub real_negate {
     my $self = shift;
