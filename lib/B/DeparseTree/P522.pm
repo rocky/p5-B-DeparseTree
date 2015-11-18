@@ -18,7 +18,7 @@ use rlib '../..';
 
 package B::DeparseTree::P522;
 use Carp;
-use B qw(class main_root main_start main_cv svref_2object opnumber perlstring
+use B qw(class opnumber
     OPf_WANT OPf_WANT_VOID OPf_WANT_SCALAR OPf_WANT_LIST
     OPf_KIDS OPf_REF OPf_STACKED OPf_SPECIAL OPf_MOD OPf_PARENS
     OPpLVAL_INTRO OPpOUR_INTRO OPpENTERSUB_AMPER OPpSLICE OPpCONST_BARE
@@ -411,132 +411,6 @@ sub begin_is_use
 	return "$use $module ($args);\n";
     } else {
 	return "$use $module;\n";
-    }
-}
-
-sub stash_subs {
-    my ($self, $pack, $seen) = @_;
-    my (@ret, $stash);
-    if (!defined $pack) {
-	$pack = '';
-	$stash = \%::;
-    }
-    else {
-	$pack =~ s/(::)?$/::/;
-	no strict 'refs';
-	$stash = \%{"main::$pack"};
-    }
-    return
-	if ($seen ||= {})->{
-	    $INC{"overload.pm"} ? overload::StrVal($stash) : $stash
-	   }++;
-    my %stash = svref_2object($stash)->ARRAY;
-    while (my ($key, $val) = each %stash) {
-	my $class = class($val);
-	if ($class eq "PV") {
-	    # Just a prototype. As an ugly but fairly effective way
-	    # to find out if it belongs here is to see if the AUTOLOAD
-	    # (if any) for the stash was defined in one of our files.
-	    my $A = $stash{"AUTOLOAD"};
-	    if (defined ($A) && class($A) eq "GV" && defined($A->CV)
-		&& class($A->CV) eq "CV") {
-		my $AF = $A->FILE;
-		next unless $AF eq $0 || exists $self->{'files'}{$AF};
-	    }
-	    push @{$self->{'protos_todo'}}, [$pack . $key, $val->PV];
-	} elsif ($class eq "IV" && !($val->FLAGS & SVf_ROK)) {
-	    # Just a name. As above.
-	    # But skip proxy constant subroutines, as some form of perl-space
-	    # visible code must have created them, be it a use statement, or
-	    # some direct symbol-table manipulation code that we will Deparse
-	    my $A = $stash{"AUTOLOAD"};
-	    if (defined ($A) && class($A) eq "GV" && defined($A->CV)
-		&& class($A->CV) eq "CV") {
-		my $AF = $A->FILE;
-		next unless $AF eq $0 || exists $self->{'files'}{$AF};
-	    }
-	    push @{$self->{'protos_todo'}}, [$pack . $key, undef];
-	} elsif ($class eq "GV") {
-	    if (class(my $cv = $val->CV) ne "SPECIAL") {
-		next if $self->{'subs_done'}{$$val}++;
-		next if $$val != ${$cv->GV};   # Ignore imposters
-		$self->todo($cv, 0);
-	    }
-	    if (class(my $cv = $val->FORM) ne "SPECIAL") {
-		next if $self->{'forms_done'}{$$val}++;
-		next if $$val != ${$cv->GV};   # Ignore imposters
-		$self->todo($cv, 1);
-	    }
-	    if (class($val->HV) ne "SPECIAL" && $key =~ /::$/) {
-		$self->stash_subs($pack . $key, $seen);
-	    }
-	}
-    }
-}
-
-sub compile {
-    my(@args) = @_;
-    return sub {
-	my $self = B::DeparseTree->new(@args);
-	# First deparse command-line args
-	if (defined $^I) { # deparse -i
-	    print q(BEGIN { $^I = ).perlstring($^I).qq(; }\n);
-	}
-	if ($^W) { # deparse -w
-	    print qq(BEGIN { \$^W = $^W; }\n);
-	}
-	if ($/ ne "\n" or defined $O::savebackslash) { # deparse -l and -0
-	    my $fs = perlstring($/) || 'undef';
-	    my $bs = perlstring($O::savebackslash) || 'undef';
-	    print qq(BEGIN { \$/ = $fs; \$\\ = $bs; }\n);
-	}
-	my @BEGINs  = B::begin_av->isa("B::AV") ? B::begin_av->ARRAY : ();
-	my @UNITCHECKs = B::unitcheck_av->isa("B::AV")
-	    ? B::unitcheck_av->ARRAY
-	    : ();
-	my @CHECKs  = B::check_av->isa("B::AV") ? B::check_av->ARRAY : ();
-	my @INITs   = B::init_av->isa("B::AV") ? B::init_av->ARRAY : ();
-	my @ENDs    = B::end_av->isa("B::AV") ? B::end_av->ARRAY : ();
-	for my $block (@BEGINs, @UNITCHECKs, @CHECKs, @INITs, @ENDs) {
-	    $self->todo($block, 0);
-	}
-	$self->stash_subs();
-	local($SIG{"__DIE__"}) =
-	  sub {
-	      if ($self->{'curcop'}) {
-		  my $cop = $self->{'curcop'};
-		  my($line, $file) = ($cop->line, $cop->file);
-		  print STDERR "While deparsing $file near line $line,\n";
-	      }
-	    };
-	$self->{'curcv'} = main_cv;
-	$self->{'curcvlex'} = undef;
-	print $self->print_protos;
-	@{$self->{'subs_todo'}} =
-	  sort {$a->[0] <=> $b->[0]} @{$self->{'subs_todo'}};
-	my $root = main_root;
-	local $B::overlay = {};
-	unless (null $root) {
-	    $self->pessimize($root, main_start);
-	    my $deparsed = $self->deparse_root($root);
-	    print $self->indent_info($deparsed), "\n";
-	}
-	my @texts;
-	while (scalar(@{$self->{'subs_todo'}})) {
-	    push @texts, $self->next_todo;
-	}
-	print $self->indent(join("", @texts)), "\n" if @texts;
-
-	# Print __DATA__ section, if necessary
-	no strict 'refs';
-	my $laststash = defined $self->{'curcop'}
-	    ? $self->{'curcop'}->stash->NAME : $self->{'curstash'};
-	if (defined *{$laststash."::DATA"}{IO}) {
-	    print "package $laststash;\n"
-		unless $laststash eq $self->{'curstash'};
-	    print "__DATA__\n";
-	    print readline(*{$laststash."::DATA"});
-	}
     }
 }
 

@@ -12,17 +12,16 @@ if ($] >= 5.018 and $] < 5.022) {
     # shoudl be different, we can deal with that here.
     $module = "P520";
     require "B/DeparseTree/${module}.pm";
-    *compile = \&B::DeparseTree::P520::compile;
 # } elsif ($] >= 5.020 and $] < 5.022) {
 #     require "B/DeparseTree/${module}.pm";
 #     *compile = \&B::DeparseTree::P520::compile;
 } elsif ($] >= 5.022) {
     $module = "P522";
     require "B/DeparseTree/${module}.pm";
-    *compile = \&B::DeparseTree::P522::compile;
 } else {
     die "Can only handle Perl 5.18, 5.20 and 5.22";
 }
+*compile = \&B::DeparseTree::Common::compile;
 
 @ISA = ("B::DeparseTree::$module");
 
