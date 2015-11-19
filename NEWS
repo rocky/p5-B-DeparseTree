@@ -1,0 +1,7 @@
+2.1.0
+
+- Add perl 5.18
+- Be able to deparse main::
+
+2.0.0
+  Add perl 5.22
