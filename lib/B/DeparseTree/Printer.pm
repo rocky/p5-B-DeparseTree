@@ -150,7 +150,7 @@ unless(caller) {
 	}
     };
     my $deparse = B::DeparseTree->new("-p", "-l", "-c", "-sC");
-    my $info = $deparse->coderef2list(\&fib);
+    my $info = $deparse->coderef2info(\&fib);
     print format_info($info), "\n";
     print format_info_short($info, 1), "\n";
     print '*' x 30 . "\n";

@@ -25,7 +25,7 @@ print($buf);
 my $deparse = B::Deparse->new("-p", "-l", "-c", "-sC");
 foo();
 
-my @exprs = $deparse->coderef2list(\&foo);
+my @exprs = $deparse->coderef2info(\&foo);
 import Data::Printer colored => 0;
 Data::Printer::p(@exprs);
 print $deparse->coderef2text(\&foo);

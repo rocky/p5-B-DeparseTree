@@ -24,8 +24,8 @@ sub bar {
 
 my $deparse = B::DeparseTree->new("-p", "-l", "-c", "-sC");
 
-# my @exprs = $deparse->coderef2list(\&fib);
-my @exprs = $deparse->coderef2list(\&bar);
+# my @exprs = $deparse->coderef2info(\&fib);
+my @exprs = $deparse->coderef2info(\&bar);
 
 # import Data::Printer colored => 0;
 # Data::Printer::p(@exprs);

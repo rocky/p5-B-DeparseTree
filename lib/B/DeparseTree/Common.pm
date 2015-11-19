@@ -131,21 +131,30 @@ sub init($)
     delete $self->{'subs_declared'};
 }
 
-sub coderef2text {
+sub main2info($)
+{
     my $self = shift;
-    my $func = shift;
+    $self->{'curcv'} = B::main_cv;
+    $self->pessimize(B::main_root, B::main_start);
+    return $self->deparse_root(B::main_root);
+}
+
+sub coderef2info($$)
+{
+    my ($self, $coderef) = @_;
+    croak "Usage: ->coderef2info(CODEREF)" unless UNIVERSAL::isa($coderef, "CODE");
+    $self->init();
+    return $self->deparse_sub(svref_2object($coderef));
+}
+
+sub coderef2text($$)
+{
+    my ($self, $func) = @_;
     croak "Usage: ->coderef2text(CODEREF)" unless UNIVERSAL::isa($func, "CODE");
 
     $self->init();
-    my $info = $self->coderef2list($func);
+    my $info = $self->coderef2info($func);
     return $self->indent($info->{text});
-}
-
-sub coderef2list {
-    my ($self, $coderef) = @_;
-    croak "Usage: ->coderef2list(CODEREF)" unless UNIVERSAL::isa($coderef, "CODE");
-    $self->init();
-    return $self->deparse_sub(svref_2object($coderef));
 }
 
 sub print_protos($)
@@ -211,7 +220,17 @@ sub deparse_root {
 	$info->{parent} = $$parent if $parent;
 	push @$exprs, $info;
     };
-    return $self->walk_lineseq($op, \@ops, $fn);
+    my $info = $self->walk_lineseq($op, \@ops, $fn);
+    my @other_ops;
+    if (exists $info->{other_ops}) {
+	@other_ops = @{$info->other_ops};
+	push @other_ops, $op->first;
+    } else {
+	@other_ops = ($op->first);
+    }
+    $info->{other_ops} = \@other_ops;
+    return $info;
+
 }
 
 sub is_state {

@@ -4687,7 +4687,7 @@ unless (caller) {
     # print $deparse_old->coderef2text(\&baz);
     # exit 1;
     my $deparse = __PACKAGE__->new("-l", "-c", "-sC");
-    my $info = $deparse->coderef2list(\&baz);
+    my $info = $deparse->coderef2info(\&baz);
     import Data::Printer colored => 0;
     Data::Printer::p($info);
     print "\n", '=' x 30, "\n";
