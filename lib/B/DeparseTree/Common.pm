@@ -421,8 +421,9 @@ sub maybe_parens($$$$)
 sub todo
 {
     my $self = shift;
-    my($cv, $is_form) = @_;
-    return unless ($cv->FILE eq $0 || exists $self->{files}{$cv->FILE});
+    my($cv, $is_form, $name) = @_;
+    my $cvfile = $cv->FILE//'';
+    return unless ($cvfile eq $0 || exists $self->{files}{$cvfile});
     my $seq;
     if ($cv->OUTSIDE_SEQ) {
 	$seq = $cv->OUTSIDE_SEQ;
@@ -431,10 +432,7 @@ sub todo
     } else {
 	$seq = 0;
     }
-    push @{$self->{'subs_todo'}}, [$seq, $cv, $is_form];
-    unless ($is_form || class($cv->STASH) eq 'SPECIAL') {
-	$self->{'subs_deparsed'}{$cv->STASH->NAME."::".$cv->GV->NAME} = 1;
-    }
+    push @{$self->{'subs_todo'}}, [$seq, $cv, $is_form, $name];
 }
 
 # _pessimize_walk(): recursively walk the optree of a sub,

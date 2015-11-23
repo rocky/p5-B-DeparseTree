@@ -138,7 +138,11 @@ BEGIN {
 # lib/Tie/File/t/29_downcopy 5
 # lib/vars 22
 
-# Object fields (were globals):
+# Object fields:
+#
+# in_coderef2text:
+# True when deparsing via $deparse->coderef2text; false when deparsing the
+# main program.
 #
 # avoid_local:
 # (local($a), local($b)) and local($a, $b) have the same internal
@@ -154,8 +158,9 @@ BEGIN {
 # curcvlex:
 # Cached hash of lexical variables for curcv: keys are
 # names prefixed with "m" or "o" (representing my/our), and
-# each value is an array of pairs, indicating the cop_seq of scopes
-# in which a var of that name is valid.
+# each value is an array with two elements indicating the cop_seq
+# of scopes in which a var of that name is valid and a third ele-
+# ment referencing the pad name.
 #
 # curcop:
 # COP for statement being deparsed
@@ -164,8 +169,10 @@ BEGIN {
 # name of the current package for deparsed code
 #
 # subs_todo:
-# array of [cop_seq, CV, is_format?] for subs and formats we still
-# want to deparse
+# array of [cop_seq, CV, is_format?, name] for subs and formats we still
+# want to deparse.  The fourth element is a pad name thingy for lexical
+# subs or a string for special blocks.  For other subs, it is undef.  For
+# lexical subs, CV may be undef, indicating a stub declaration.
 #
 # protos_todo:
 # as above, but [name, prototype] for subs that never got a GV
@@ -184,6 +191,9 @@ BEGIN {
 #
 # in_subst_repl
 # True when deparsing the replacement part of a substitution.
+#
+# in_refgen
+# True when deparsing the argument to \.
 #
 # parens: -p
 # linenums: -l
