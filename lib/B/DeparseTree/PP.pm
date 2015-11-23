@@ -40,6 +40,7 @@ $VERSION = '1.0.0';
     pp_time
     pp_wait
 
+    pp_print pp_prtf pp_say pp_sort
     pp_preinc pp_predec pp_i_preinc pp_i_predec
     );
 
@@ -171,6 +172,11 @@ sub pp_nextstate {
 	text => join("", @text)
     }
 }
+
+sub pp_print { indirop(@_, "print") }
+sub pp_prtf { indirop(@_, "printf") }
+sub pp_say  { indirop(@_, "say") }
+sub pp_sort { indirop(@_, "sort") }
 
 sub pp_dbstate { pp_nextstate(@_) }
 sub pp_setstate { pp_nextstate(@_) }

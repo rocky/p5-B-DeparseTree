@@ -7,7 +7,8 @@ use B qw(class
          main_cv main_root main_start
          opnumber OPpLVAL_INTRO OPf_SPECIAL OPf_KIDS SVf_ROK
          SVf_POK CVf_LVALUE CVf_METHOD
-         OPpTARGET_MY svref_2object perlstring);
+         OPf_STACKED OPpCONST_BARE OPpSORT_NUMERIC OPpSORT_INTEGER
+         OPpSORT_REVERSE OPpTARGET_MY svref_2object perlstring);
 use Carp;
 
 our($VERSION, @EXPORT, @ISA);
@@ -20,7 +21,7 @@ $VERSION = '1.1.0';
             %rev_feature declare_hinthash declare_warnings %ignored_hints
             _features_from_bundle ambiant_pragmas maybe_qualify
             %globalnames gv_name is_scope logop maybe_targmy is_state
-            POSTFIX baseop mapop pfixop
+            POSTFIX baseop mapop pfixop indirop
             deparse_sub deparse_subname next_todo
             );
 
@@ -1095,6 +1096,108 @@ sub is_scope {
       || $op->name eq "lineseq"
 	|| ($op->name eq "null" && class($op) eq "UNOP"
 	    && (is_scope($op->first) || $op->first->name eq "enter"));
+}
+
+sub indirop
+{
+    my($self, $op, $cx, $name) = @_;
+    my($expr, @exprs);
+    my $firstkid = my $kid = $op->first->sibling;
+    my $indir_info;
+    my @body = ();
+    my $type = 'indirop';
+    my @other_ops = ($op->first);
+    my @indir = ();
+
+    if ($op->flags & OPf_STACKED) {
+	push @other_ops, $kid;
+	my $indir_op = $kid->first; # skip rv2gv
+	if (is_scope($indir_op)) {
+	    $indir_info = $self->deparse($indir_op, 0, $op);
+	    @indir = $indir_info->{text} eq '' ?
+		("{", ';', "}") : ("{", $indir_info->{texts}, "}");
+
+	} elsif ($indir_op->name eq "const" && $indir_op->private & OPpCONST_BARE) {
+	    @indir = ($self->const_sv($indir_op)->PV);
+	} else {
+	    $indir_info = $self->deparse($indir_op, 24, $op);
+	    @indir = @{$indir_info->{texts}};
+	}
+	push @body, $indir_info if $indir_info;
+	$kid = $kid->sibling;
+    }
+    if ($name eq "sort" && $op->private & (OPpSORT_NUMERIC | OPpSORT_INTEGER)) {
+	$type = 'sort_num_int';
+	@indir = ($op->private & OPpSORT_DESCEND) ?
+	    ('{', '$b', ' <=> ', '$a', '}' ) : ('{', '$a', ' <=> ', '$b', '}' );
+    }
+    elsif ($name eq "sort" && $op->private & OPpSORT_DESCEND) {
+	$type = 'sort_descend';
+	@indir =  ('{', '$b', ' cmp ', '$a', '}' );
+    }
+
+    for (; !null($kid); $kid = $kid->sibling) {
+	my $cx = (!scalar(@indir) &&
+		  $kid == $firstkid && $name eq "sort" &&
+		  $firstkid->name eq "entersub")
+	    ? 16 : 6;
+	$expr = $self->deparse($kid, $cx, $op);
+	push @exprs, $expr;
+    }
+
+    push @body, @exprs;
+    my $opts = {
+	body => \@body,
+	other_ops => \@other_ops
+    };
+
+    my $name2;
+    if ($name eq "sort" && $op->private & OPpSORT_REVERSE) {
+	$type = 'sort_reverse';
+	$name2 = $self->keyword('reverse') . ' ' . $self->keyword('sort');
+    }  else {
+	$name2 = $self->keyword($name);
+    }
+    my $indir = scalar @indir ? (join('', @indir) . ' ') : '';
+    if ($name eq "sort" && ($op->private & OPpSORT_INPLACE)) {
+	my @texts = ($exprs[0]->{text}, '=', $name2, $indir, $exprs[0]->{text});
+	return info_from_list(\@texts, '', 'sort_inplace', $opts);
+    }
+
+    my @texts;
+    my $args = $indir . join(', ', map($_->{text},  @exprs));
+    if ($indir ne "" && $name eq "sort") {
+	# We don't want to say "sort(f 1, 2, 3)", since perl -w will
+	# give bareword warnings in that case. Therefore if context
+	# requires, we'll put parens around the outside "(sort f 1, 2,
+	# 3)". Unfortunately, we'll currently think the parens are
+	# necessary more often that they really are, because we don't
+	# distinguish which side of an assignment we're on.
+	if ($cx >= 5) {
+	    @texts = ('(', $name2, $args, ')');
+	} else {
+	    @texts = ($name2, $args);
+	}
+	$type='sort1';
+    } elsif (!$indir && $name eq "sort"
+	     && !null($op->first->sibling)
+	     && $op->first->sibling->name eq 'entersub' ) {
+	# We cannot say sort foo(bar), as foo will be interpreted as a
+	# comparison routine.  We have to say sort(...) in that case.
+	@texts = ($name2, '(', $args, ')');
+	$type='sort2';
+    } else {
+	# indir
+	if (length $args) {
+	    $type='indirop';
+	    @texts = ($self->maybe_parens_func($name2, $args, $cx, 5))
+	} else {
+	    $type='indirop_noargs';
+	    @texts = ($name2);
+	    push(@texts, '(', ')') if (7 < $cx);
+	}
+    }
+    return info_from_list(\@texts, '', $type, $opts);
 }
 
 # Logical ops, if/until, &&, and
