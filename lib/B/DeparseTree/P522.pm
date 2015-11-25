@@ -23,7 +23,7 @@ use B qw(class opnumber
     OPf_KIDS OPf_REF OPf_STACKED OPf_SPECIAL OPf_MOD OPf_PARENS
     OPpLVAL_INTRO OPpOUR_INTRO OPpENTERSUB_AMPER OPpSLICE OPpCONST_BARE
     OPpTRANS_SQUASH OPpTRANS_DELETE OPpTRANS_COMPLEMENT OPpTARGET_MY
-    OPpEXISTS_SUB OPpSORT_NUMERIC OPpSORT_INTEGER OPpREPEAT_DOLIST
+    OPpSORT_NUMERIC OPpSORT_INTEGER OPpREPEAT_DOLIST
     OPpSORT_REVERSE OPpMULTIDEREF_EXISTS OPpMULTIDEREF_DELETE
     SVf_IOK SVf_NOK SVf_ROK SVf_POK SVpad_OUR SVf_FAKE SVs_RMG SVs_SMG
     SVs_PADTMP SVpad_TYPED
@@ -981,16 +981,6 @@ sub keyword {
     return $name;
 }
 
-sub pp_stub {
-    my $self = shift;
-    my($op, $cx, $name) = @_;
-    if ($cx >= 1) {
-	return info_from_list(["(", ")"], '', 'stub_cx', {});
-    }
-    else {
-	return info_from_list(["(", ")", ';'], '', 'stub', {});
-    }
-}
 sub pp_negate { maybe_targmy(@_, \&real_negate) }
 sub real_negate {
     my $self = shift;
@@ -1109,7 +1099,7 @@ sub pp_tell { unop(@_, "tell") }
 sub pp_getsockname { unop(@_, "getsockname") }
 sub pp_getpeername { unop(@_, "getpeername") }
 
-sub pp_chdir { maybe_targmy(@_, \&unop, "chdir") }
+
 sub pp_chroot { maybe_targmy(@_, \&unop, "chroot") }
 sub pp_readlink { unop(@_, "readlink") }
 sub pp_rmdir { maybe_targmy(@_, \&unop, "rmdir") }
@@ -1128,14 +1118,6 @@ sub pp_dofile
     my $code = unop(@_, "do", 1); # llafr does not apply
     if ($code =~ s/^((?:CORE::)?do) \{/$1({/) { $code .= ')' }
     $code;
-}
-
-sub pp_entereval
-{
-    unop(
-      @_,
-      $_[1]->private & OPpEVAL_BYTES ? $_[0]->keyword('evalbytes') : "eval"
-    )
 }
 
 sub pp_ghbyname { unop(@_, "gethostbyname") }
@@ -1180,28 +1162,6 @@ sub givwhen
 
 sub pp_leavegiven { givwhen(@_, $_[0]->keyword("given")); }
 sub pp_leavewhen  { givwhen(@_, $_[0]->keyword("when")); }
-
-sub pp_exists
-{
-    my($self, $op, $cx) = @_;
-    my ($info, $type);
-    my $name = $self->keyword("exists");
-    if ($op->private & OPpEXISTS_SUB) {
-	# Checking for the existence of a subroutine
-	$info = $self->pp_rv2cv($op->first, 16);
-	$type = 'exists_sub';
-    }
-    if ($op->flags & OPf_SPECIAL) {
-	# Array element
-	$info = $self->pp_aelem($op->first, 16);
-	$type = 'info_array';
-    } else {
-	$info = $self->pp_helem($op->first, 16);
-	$type = 'info_hash';
-    }
-    my @texts = $self->maybe_parens_func($name, $info->{text}, $cx, 16);
-    return info_from_list(\@texts, '', $type, {body=>[$info]});
-}
 
 sub pp_delete
 {
@@ -4612,5 +4572,33 @@ unless (caller) {
 	print '-' x 30, "\n";
     }
 }
+
+# FIXME:
+# Different in 5.20. Go over differences to see if okay in 5.20.
+sub pp_chdir {
+    my ($self, $op, $cx) = @_;
+    if (($op->flags & (OPf_SPECIAL|OPf_KIDS)) == (OPf_SPECIAL|OPf_KIDS)) {
+	my $kw = $self->keyword("chdir");
+	my $kid = $self->const_sv($op->first)->PV;
+	my $code = $kw
+		 . ($cx >= 16 || $self->{'parens'} ? "($kid)" : " $kid");
+	maybe_targmy(@_, sub { $_[3] }, $code);
+    } else {
+	maybe_targmy(@_, \&unop, "chdir")
+    }
+}
+
+sub pp_entereval
+{
+    unop(
+      @_,
+      $_[1]->private & OPpEVAL_BYTES ? 'evalbytes' : "eval"
+    )
+}
+
+
+# Not in Perl 5.20 and presumeably < 5.20. No harm in adding to 5.20?
+*pp_ncomplement = *pp_complement;
+sub pp_scomplement { maybe_targmy(@_, \&pfixop, "~.", 21) }
 
 1;

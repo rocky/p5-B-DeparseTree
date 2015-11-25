@@ -25,7 +25,7 @@ use B qw(class opnumber
 	 OPf_KIDS OPf_REF OPf_STACKED OPf_SPECIAL OPf_MOD
 	 OPpLVAL_INTRO OPpOUR_INTRO OPpENTERSUB_AMPER OPpSLICE OPpCONST_BARE
 	 OPpTRANS_SQUASH OPpTRANS_DELETE OPpTRANS_COMPLEMENT OPpTARGET_MY
-	 OPpEXISTS_SUB OPpSORT_NUMERIC OPpSORT_INTEGER
+	 OPpSORT_NUMERIC OPpSORT_INTEGER
 	 OPpSORT_REVERSE
 	 SVf_IOK SVf_NOK SVf_ROK SVf_POK SVpad_OUR SVf_FAKE SVs_RMG SVs_SMG
 	 PMf_KEEP PMf_GLOBAL PMf_CONTINUE PMf_EVAL PMf_ONCE
@@ -892,16 +892,6 @@ sub keyword {
     return $name;
 }
 
-sub pp_stub {
-    my $self = shift;
-    my($op, $cx, $name) = @_;
-    if ($cx >= 1) {
-	return info_from_list(["(", ")"], '', 'stub_cx', {});
-    }
-    else {
-	return info_from_list(["(", ")", ';'], '', 'stub', {});
-    }
-}
 sub pp_negate { maybe_targmy(@_, \&real_negate) }
 sub real_negate {
     my $self = shift;
@@ -1091,28 +1081,6 @@ sub givwhen
 
 sub pp_leavegiven { givwhen(@_, $_[0]->keyword("given")); }
 sub pp_leavewhen  { givwhen(@_, $_[0]->keyword("when")); }
-
-sub pp_exists
-{
-    my($self, $op, $cx) = @_;
-    my ($info, $type);
-    my $name = $self->keyword("exists");
-    if ($op->private & OPpEXISTS_SUB) {
-	# Checking for the existence of a subroutine
-	$info = $self->pp_rv2cv($op->first, 16);
-	$type = 'exists_sub';
-    }
-    if ($op->flags & OPf_SPECIAL) {
-	# Array element
-	$info = $self->pp_aelem($op->first, 16);
-	$type = 'info_array';
-    } else {
-	$info = $self->pp_helem($op->first, 16);
-	$type = 'info_hash';
-    }
-    my @texts = $self->maybe_parens_func($name, $info->{text}, $cx, 16);
-    return info_from_list(\@texts, '', $type, {body=>[$info]});
-}
 
 sub pp_delete
 {
