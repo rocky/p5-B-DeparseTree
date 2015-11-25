@@ -11,6 +11,8 @@ package B::DeparseTree::PP;
 
 use B::DeparseTree::Common;
 
+use B qw(OPpEXISTS_SUB OPf_SPECIAL);
+
 our($VERSION, @EXPORT, @ISA);
 $VERSION = '1.0.0';
 
@@ -42,6 +44,8 @@ $VERSION = '1.0.0';
 
     pp_print pp_prtf pp_say pp_sort
     pp_preinc pp_predec pp_i_preinc pp_i_predec
+
+    pp_stub pp_exists
     );
 
 BEGIN {
@@ -204,4 +208,29 @@ sub pp_predec { pfixop(@_, "--", 23) }
 sub pp_i_preinc { pfixop(@_, "++", 23) }
 sub pp_i_predec { pfixop(@_, "--", 23) }
 
-1;
+# FIXME:
+# Different between 5.20 and 5.20. We've used 5.22 tough
+# Go over and make sure this is okay.
+sub pp_stub {info_from_list(["(", ")"], '', 'stub', {})};
+
+sub pp_exists
+{
+    my($self, $op, $cx) = @_;
+    my ($info, $type);
+    my $name = $self->keyword("exists");
+    if ($op->private & OPpEXISTS_SUB) {
+	# Checking for the existence of a subroutine
+	$info = $self->pp_rv2cv($op->first, 16);
+	$type = 'exists_sub';
+    }
+    if ($op->flags & OPf_SPECIAL) {
+	# Array element
+	$info = $self->pp_aelem($op->first, 16);
+	$type = 'info_array';
+    } else {
+	$info = $self->pp_helem($op->first, 16);
+	$type = 'info_hash';
+    }
+    my @texts = $self->maybe_parens_func($name, $info->{text}, $cx, 16);
+    return info_from_list(\@texts, '', $type, {body=>[$info]});
+}
