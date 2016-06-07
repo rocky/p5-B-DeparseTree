@@ -10,6 +10,7 @@ lib/B/DeparseTree.pm
 lib/B/DeparseTree/Common.pm
 lib/B/DeparseTree/P520.pm
 lib/B/DeparseTree/P522.pm
+lib/B/DeparseTree/P524.pm
 lib/B/DeparseTree/PP.pm
 lib/B/DeparseTree/Printer.pm
 MANIFEST			This list of files
@@ -18,6 +19,7 @@ t/20-core-520.t
 t/20-core-522.t
 t/20-deparse-520-small.t
 t/20-deparse-522-small.t
+t/20-deparse-524-small.t
 testdata/base/cond.t
 testdata/base/if.t
 testdata/base/lex.t

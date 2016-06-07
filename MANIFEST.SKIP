@@ -42,6 +42,7 @@
 \.tmp$
 \.#
 \.rej$
+-notyet$
 
 # Avoid OS-specific files/dirs
 # Mac OSX metadata
@@ -73,8 +74,9 @@
 \B\.git\b
 \B\.gitignore\b
 
-# Skip Travis Continuous Integration configuration
+# Skip Continuous Integration configurations
 ^\.travis\.yml$
+^circle\.yml$
 
 
 # Avoid archives of this distribution
