@@ -6,6 +6,7 @@
 /META.yml
 /MYMETA.json
 /MYMETA.yml
+/Makefile.PL
 /_build
 /blib
 /how-to-make-a-release.txt

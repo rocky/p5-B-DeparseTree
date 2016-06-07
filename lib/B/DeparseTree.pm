@@ -18,8 +18,11 @@ if ($] >= 5.018 and $] < 5.022) {
 } elsif ($] >= 5.022) {
     $module = "P522";
     require "B/DeparseTree/${module}.pm";
+} elsif ($] >= 5.024) {
+    $module = "P524";
+    require "B/DeparseTree/${module}.pm";
 } else {
-    die "Can only handle Perl 5.18, 5.20 and 5.22";
+    die "Can only handle Perl 5.18, 5.20, 5.22 and 5.24";
 }
 *compile = \&B::DeparseTree::Common::compile;
 
