@@ -1,0 +1,9 @@
+checkout:
+  post:
+    - sudo apt-get -y install cpanminus
+    - sudo cpanm rlib Text::Diff Test::Simple Devel::Trepan rlib
+
+test:
+  override:
+    - perl ./Build.PL
+    - make check
