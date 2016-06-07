@@ -3,7 +3,7 @@ language: perl
 sudo: false
 
 env:
-  - AUTOMATED_TESTING=1 PREREQS="rlib"
+  - AUTOMATED_TESTING=1 PREREQS="rlib Text::Diff Test::Simple"
 
 after_failure:
   - cat /home/travis/.cpanm/work/*/build.log
@@ -16,3 +16,4 @@ perl:
   - "5.18"
   - "5.20"
   - "5.22"
+  - "5.24"
