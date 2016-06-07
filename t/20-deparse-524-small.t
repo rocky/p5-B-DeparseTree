@@ -141,11 +141,13 @@ EOF
 # FIXME rocky
 # is($a, $b,
 #    'command line flags deparse as BEGIN blocks setting control variables');
+$b &&= undef;
 
 $a = `$^X $path "-MO=Deparse" -e "use constant PI => 4" 2>&1`;
 $a =~ s/-e syntax OK\n//g;
 is($a, "use constant ('PI', 4);\n",
    "Proxy Constant Subroutines must not show up as (incorrect) prototypes");
+
 
 #Re: perlbug #35857, patch #24505
 #handle warnings::register-ed packages properly.
