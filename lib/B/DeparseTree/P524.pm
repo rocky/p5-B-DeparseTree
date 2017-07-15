@@ -78,7 +78,7 @@ BEGIN {
 		PMf_CHARSET PMf_KEEPCOPY PMf_NOCAPTURE CVf_ANONCONST
 		CVf_LOCKED OPpREVERSE_INPLACE OPpSUBSTR_REPL_FIRST
 		PMf_NONDESTRUCT OPpCONST_ARYBASE OPpEVAL_BYTES)) {
-	eval { B->import B($_) };
+	eval { import B $_ };
 	no strict 'refs';
 	*{$_} = sub () {0} unless *{$_}{CODE};
     }
@@ -4359,7 +4359,11 @@ sub pp_qr { matchop(@_, "qr", "") }
 
 sub pp_runcv { unop(@_, "__SUB__"); }
 
-sub pp_split
+sub pp_split {
+    maybe_targmy(@_, \&split, "split");
+}
+
+sub split
 {
     my($self, $op, $cx) = @_;
     my($kid, @exprs, $ary_info, $expr);

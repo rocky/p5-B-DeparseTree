@@ -1,6 +1,6 @@
 # B::DeparseTree::P526.pm
 # Copyright (c) 1998-2000, 2002, 2003, 2004, 2005, 2006 Stephen McCamant.
-# Copyright (c) 2015 Rocky Bernstein
+# Copyright (c) 2015, 2017 Rocky Bernstein
 # All rights reserved.
 # This module is free software; you can redistribute and/or modify
 # it under the same terms as Perl itself.
@@ -79,7 +79,7 @@ BEGIN {
 		PMf_CHARSET PMf_KEEPCOPY PMf_NOCAPTURE CVf_ANONCONST
 		CVf_LOCKED OPpREVERSE_INPLACE OPpSUBSTR_REPL_FIRST
 		PMf_NONDESTRUCT OPpCONST_ARYBASE OPpEVAL_BYTES)) {
-	eval { B->import B($_) };
+	eval { import B $_ };
 	no strict 'refs';
 	*{$_} = sub () {0} unless *{$_}{CODE};
     }
@@ -90,7 +90,7 @@ BEGIN {
 # In order to test modulie, we run this over Perl test suite.
 # Then we run the test on the deparsed code. Slick, eh?
 
-# Here are B::Deparse failure notes:
+# Here are B::DeparseTree failure notes:
 
 # Current test.deparse failures
 # comp/hints 6 - location of BEGIN blocks wrt. block openings
@@ -4364,54 +4364,67 @@ sub pp_split
 {
     my($self, $op, $cx) = @_;
     my($kid, @exprs, $ary_info, $expr);
+    my $stacked = $op->flags & OPf_STACKED;
     my $ary = '';
     my @body = ();
     my @other_ops = ();
     $kid = $op->first;
 
-    # For our kid (an OP_PUSHRE), pmreplroot is never actually the
-    # root of a replacement; it's either empty, or abused to point to
-    # the GV for an array we split into (an optimization to save
-    # assignment overhead). Depending on whether we're using ithreads,
-    # this OP* holds either a GV* or a PADOFFSET. Luckily, B.xs
-    # figures out for us which it is.
-    my $replroot = $kid->pmreplroot;
-    my $gv = 0;
-    my $stacked = $op->flags & OPf_STACKED;
-    if (ref($replroot) eq "B::GV") {
-	$gv = $replroot;
-    } elsif (!ref($replroot) and $replroot > 0) {
-	$gv = $self->padval($replroot);
-    } elsif ($kid->targ) {
-	$ary = $self->padname($kid->targ)
-    } elsif ($stacked) {
-	$ary_info = $self->deparse($op->last, 7, $op);
-	push @body, $ary_info;
-	$ary = $ary_info->{text};
+    $kid = $op->first;
+    $kid = $kid->sibling if $kid->name eq 'regcomp';
+    for (; !null($kid); $kid = $kid->sibling) {
+	push @exprs, $self->deparse($kid, 6, $op);
     }
-    $ary_info = $self->maybe_local(@_,
+
+    unshift @exprs, $self->matchop($op, $cx, "m", "/");
+
+    if ($op->private & OPpSPLIT_ASSIGN) {
+        # With C<@array = split(/pat/, str);>,
+        #  array is stored in split's pmreplroot; either
+        # as an integer index into the pad (for a lexical array)
+        # or as GV for a package array (which will be a pad index
+        # on threaded builds)
+        # With my/our @array = split(/pat/, str), the array is instead
+        # accessed via an extra padav/rv2av op at the end of the
+        # split's kid ops.
+
+        if ($stacked) {
+            $ary = pop @exprs;
+        }
+        else {
+            if ($op->private & OPpSPLIT_LEX) {
+                $ary = $self->padname($op->pmreplroot);
+            }
+            else {
+                # union with op_pmtargetoff, op_pmtargetgv
+                my $gv = $op->pmreplroot;
+                $gv = $self->padval($gv) if !ref($gv);
+                $ary = $self->maybe_local(@_,
 			      $self->stash_variable('@',
 						     $self->gv_name($gv),
 						     $cx))
-	if $gv;
-
-    # Skip the last kid when OPf_STACKED is set, since it is the array
-    # on the left.
-    for (; !null($stacked ? $kid->sibling : $kid); $kid = $kid->sibling) {
-	push @exprs, $self->deparse($kid, 6, $op);
+            }
+            if ($op->private & OPpLVAL_INTRO) {
+                $ary = $op->private & OPpSPLIT_LEX ? "my $ary" : "local $ary";
+            }
+        }
     }
 
     push @body, @exprs;
     my $opts = {body => \@exprs};
 
-    my @args_texts = map $_->{text}, @exprs;
     # handle special case of split(), and split(' ') that compiles to /\s+/
-    # Under 5.10, the reflags may be undef if the split regexp isn't a constant
-    # Under 5.17.5-5.17.9, the special flag is on split itself.
-    $kid = $op->first;
-    if ( $op->flags & OPf_SPECIAL ) {
-	$exprs[0]->{text} = "' '";
+    if (($op->reflags // 0) & RXf_SKIPWHITE()) {
+	my $expr0 = $exprs[0];
+	my $expr0b0 = $expr0->{body}[0];
+	my $bsep = $expr0b0->{sep};
+	my $sep = $expr0->{sep};
+	$expr0b0->{texts}[1] = ' ';
+	substr($expr0b0->{text}, 1, 0) = ' ';
+	substr($expr0->{texts}[0], 1, 0) = ' ';
+	substr($expr0->{text}, 1, 0) = ' ';
     }
+    my @args_texts = map $_->{text}, @exprs;
 
     my $sep = '';
     my $type;
