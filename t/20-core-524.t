@@ -34,7 +34,7 @@ BEGIN {
     }
     use Test::More;
     if ($] < 5.024 || $] > 5.0249) {
-	plan skip_all => 'Customized to Perl 5.42 interpreter';
+	plan skip_all => 'Customized to Perl 5.24 interpreter';
     }
 }
 
