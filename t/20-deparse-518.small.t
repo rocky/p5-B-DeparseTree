@@ -284,14 +284,6 @@ x(); z()
 .
 EOCODH
 
-# literal big chars under 'use utf8'
-is($deparse->coderef2text(sub{ use utf8; /€/; }),
-'{
-    /\x{20ac}/;
-}',
-"qr/euro/");
-
-
 done_testing();
 
 __DATA__
@@ -375,12 +367,6 @@ print /$main::a/;
 ####
 # y///r
 tr/a/b/r;
-####
-# [perl #91008]
-# CONTEXT no warnings 'experimental::autoderef';
-each $@;
-keys $~;
-values $!;
 ####
 # readpipe with complex expression
 readpipe $a + $b;
