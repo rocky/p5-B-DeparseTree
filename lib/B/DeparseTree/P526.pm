@@ -1,4 +1,4 @@
-# B::DeparseTree::P522.pm
+# B::DeparseTree::P526.pm
 # Copyright (c) 1998-2000, 2002, 2003, 2004, 2005, 2006 Stephen McCamant.
 # Copyright (c) 2015 Rocky Bernstein
 # All rights reserved.
@@ -12,11 +12,11 @@
 # B::Parse in turn is based on the module of the same name by Malcolm Beattie,
 # but essentially none of his code remains.
 
-use v5.22;
+use v5.26;
 
 use rlib '../..';
 
-package B::DeparseTree::P522;
+package B::DeparseTree::P526;
 use Carp;
 use B qw(class opnumber
     OPf_WANT OPf_WANT_VOID OPf_WANT_SCALAR OPf_WANT_LIST
@@ -25,6 +25,7 @@ use B qw(class opnumber
     OPpTRANS_SQUASH OPpTRANS_DELETE OPpTRANS_COMPLEMENT OPpTARGET_MY
     OPpSORT_NUMERIC OPpSORT_INTEGER OPpREPEAT_DOLIST
     OPpSORT_REVERSE OPpMULTIDEREF_EXISTS OPpMULTIDEREF_DELETE
+    OPpSPLIT_ASSIGN OPpSPLIT_LEX
     SVf_IOK SVf_NOK SVf_ROK SVf_POK SVpad_OUR SVf_FAKE SVs_RMG SVs_SMG
     SVs_PADTMP SVpad_TYPED
     CVf_METHOD CVf_LVALUE
@@ -75,10 +76,10 @@ BEGIN {
     # be to fake up a dummy constant that will never actually be true.
     foreach (qw(OPpSORT_INPLACE OPpSORT_DESCEND OPpITER_REVERSED OPpCONST_NOVER
 		OPpPAD_STATE PMf_SKIPWHITE RXf_SKIPWHITE
-		RXf_PMf_CHARSET RXf_PMf_KEEPCOPY CVf_ANONCONST
+		PMf_CHARSET PMf_KEEPCOPY PMf_NOCAPTURE CVf_ANONCONST
 		CVf_LOCKED OPpREVERSE_INPLACE OPpSUBSTR_REPL_FIRST
 		PMf_NONDESTRUCT OPpCONST_ARYBASE OPpEVAL_BYTES)) {
-	eval { import B $_ };
+	eval { B->import B($_) };
 	no strict 'refs';
 	*{$_} = sub () {0} unless *{$_}{CODE};
     }
@@ -89,7 +90,7 @@ BEGIN {
 # In order to test modulie, we run this over Perl test suite.
 # Then we run the test on the deparsed code. Slick, eh?
 
-# Here are B::DeparseTree failure notes:
+# Here are B::Deparse failure notes:
 
 # Current test.deparse failures
 # comp/hints 6 - location of BEGIN blocks wrt. block openings
@@ -1319,7 +1320,9 @@ sub pp_readline {
     my($op, $cx) = @_;
     my $kid = $op->first;
     $kid = $kid->first if $kid->name eq "rv2gv"; # <$fh>
-    if (is_scalar($kid)) {
+    if (is_scalar($kid)
+	and $op->flags & OPf_SPECIAL
+	and $self->deparse($kid, 1) eq 'ARGV') {
 	my $body = [$self->deparse($kid, 1, $op)];
 	return info_from_list(['<', $body->[0]{text}, '>'], '',
 			      'readline_scalar', {body=>$body});
@@ -4250,8 +4253,9 @@ sub re_flags
     $flags .= "o" if $pmflags & PMf_KEEP;
     $flags .= "s" if $pmflags & PMf_SINGLELINE;
     $flags .= "x" if $pmflags & PMf_EXTENDED;
-    $flags .= "p" if $pmflags & RXf_PMf_KEEPCOPY;
-    if (my $charset = $pmflags & RXf_PMf_CHARSET) {
+    $flags .= "p" if $pmflags & PMf_KEEPCOPY;
+    $flags .= "n" if $pmflags & PMf_NOCAPTURE;
+    if (my $charset = $pmflags & PMf_CHARSET) {
 	# Hardcoding this is fragile, but B does not yet export the
 	# constants we need.
 	$flags .= qw(d l u a aa)[$charset >> 5]
@@ -4263,10 +4267,8 @@ sub re_flags
 	or $self->{hints} & $feature::hint_mask
 	  && ($self->{hints} & $feature::hint_mask)
 	       != $feature::hint_mask
-	  && do {
-		$self->{hints} & $feature::hint_uni8bit;
-	     }
-  ) {
+	  && $self->{hints} & $feature::hint_uni8bit
+	) {
 	$flags .= 'd';
     }
     $flags;
