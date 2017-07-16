@@ -21,6 +21,11 @@ t/20-core-522.t
 t/20-deparse-520-small.t
 t/20-deparse-522-small.t
 t/20-deparse-524-small.t
+t/testdata/README.pod
+t/testdata/P520.pm
+t/testdata/P522.pm
+t/testdata/P524.pm
+t/testdata/P526.pm
 testdata/base/cond.t
 testdata/base/if.t
 testdata/base/lex.t
