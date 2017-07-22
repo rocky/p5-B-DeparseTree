@@ -1130,7 +1130,7 @@ $a x= $b;
 # @_ with padrange
 my($a, $b, $c) = @_;
 ####
-# SKIP ?$] < 5.017004 && "lexical subs not implemented on this Perl version"
+# SKIP 
 # TODO unimplemented in B::Deparse; RT #116553
 # lexical subroutine
 use feature 'lexical_subs';
