@@ -1,9 +1,0 @@
-checkout:
-  post:
-    - sudo apt-get -y install cpanminus
-    - sudo cpanm rlib Module::Build
-
-test:
-  override:
-    - perl ./Build.PL
-    - make check
