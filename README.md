@@ -30,4 +30,4 @@ To install this Devel::Trepan, run the following commands:
 LICENSE AND COPYRIGHT
 ---------------------
 
-Copyright (C) 2015 Rocky Bernstein <rocky@cpan.org>
+Copyright (C) 2015, 2017 Rocky Bernstein <rocky@cpan.org>

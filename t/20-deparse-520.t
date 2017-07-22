@@ -4,6 +4,10 @@ use Test::More;
 use English;
 use File::Basename;
 
+if ($] < 5.020 || $] > 5.0209) {
+    plan skip_all => 'Customized to Perl 5.20 interpreter';
+}
+
 my $tests = 20; # not counting those in the __DATA__ section
 
 use B::Deparse;
