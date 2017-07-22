@@ -88,3 +88,4 @@
 how-to-make-a-release\.txt
 testdata/benchtests\.pl
 testdata/check\.pl
+git2cl

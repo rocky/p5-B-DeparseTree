@@ -11,6 +11,7 @@ after_failure:
 install:
   # Prerequisites
   - "cpanm $PREREQS"
+  - "make ChangeLog distmeta distcheck"
 
 perl:
   - "5.18"
