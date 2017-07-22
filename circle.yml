@@ -7,4 +7,4 @@ test:
   override:
     - perl ./Build.PL
     - perl ./Build installdeps
-    - make check make ChangeLog make distmeta distcheck
+    - make check ChangeLog distmeta distcheck
