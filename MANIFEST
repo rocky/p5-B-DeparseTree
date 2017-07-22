@@ -29,6 +29,7 @@ t/20-core-526.t
 t/20-deparse-518.small.t
 t/20-deparse-520.t
 t/20-deparse-522-small.t
+t/20-deparse-522.t
 t/20-deparse-524-small.t
 t/20-deparse-526-small.t
 t/testdata/P520.pm
