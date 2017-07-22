@@ -7,4 +7,4 @@ test:
   override:
     - perl ./Build.PL
     - perl ./Build installdeps
-    - make check ChangeLog distmeta distcheck
+    - GIT2CL=./git2cl make check ChangeLog distmeta distcheck
