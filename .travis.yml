@@ -3,7 +3,7 @@ language: perl
 sudo: false
 
 env:
-  - AUTOMATED_TESTING=1 PREREQS="rlib Text::Diff Test::Simple"
+  - AUTOMATED_TESTING=1 PREREQS="rlib Text::Diff Test::Simple LEONT/Module-Build-0.4224.tar.gz"
 
 after_failure:
   - cat /home/travis/.cpanm/work/*/build.log
@@ -11,7 +11,8 @@ after_failure:
 install:
   # Prerequisites
   - "cpanm $PREREQS"
-  - "make ChangeLog distmeta distcheck"
+  - perl ./Build.PL
+  - "GIT2CL='./git2cl' make ChangeLog distmeta distcheck"
 
 perl:
   - "5.18"
