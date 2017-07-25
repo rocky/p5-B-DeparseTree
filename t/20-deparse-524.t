@@ -4,18 +4,18 @@ use Test::More;
 use English;
 use File::Basename;
 
-if ($] < 5.022 || $] > 5.0229) {
-    plan skip_all => 'Customized to Perl 5.22 interpreter';
+if ($] < 5.024 || $] > 5.0249) {
+    plan skip_all => 'Customized to Perl 5.24 interpreter';
 }
 
-my $tests = 26; # not counting those in the __DATA__ section
+my $tests = 27; # not counting those in the __DATA__ section
 
 use B::Deparse;
 my $deparse = B::Deparse->new();
 isa_ok($deparse, 'B::Deparse', 'instantiate a B::Deparse object');
 my %deparse;
 
-my $data_file = File::Basename::dirname(__FILE__) . '/testdata/P522.pm';
+my $data_file = File::Basename::dirname(__FILE__) . '/testdata/P524.pm';
 
 local $INPUT_RECORD_SEPARATOR = "\n";
 open(my $fh, '<', $data_file) or die $!;
@@ -133,7 +133,7 @@ $b = quotemeta <<'EOF';
 BEGIN { $^I = ".bak"; }
 BEGIN { $^W = 1; }
 BEGIN { $/ = "\n"; $\ = "\n"; }
-LINE: while (defined($_ = <ARGV>)) {
+LINE: while (defined($_ = readline ARGV)) {
     chomp $_;
     our(@F) = split(' ', $_, 0);
     '???';
@@ -384,9 +384,9 @@ $a = readpipe qq`$^X $path "-MO=Deparse" -Xe `
 like($a, qr/my sub __DATA__;\n.*\nCORE::__DATA__/s,
     'CORE::__DATA__ after my sub __DATA__');
 
-# # sub declarations
-# $a = readpipe qq`$^X $path "-MO=Deparse" -e "sub foo{}" 2>&1`;
-# like($a, qr/sub foo\s*\{\s+\}/, 'sub declarations');
+# sub declarations
+$a = readpipe qq`$^X $path "-MO=Deparse" -e "sub foo{}" 2>&1`;
+like($a, qr/sub foo\s*\{\s+\}/, 'sub declarations');
 # like runperl(stderr => 1, switches => [ '-MO=-qq,Deparse', $path ],
 #            prog => 'sub f($); sub f($){}'),
 #      qr/sub f\s*\(\$\)\s*\{\s*\}/,
