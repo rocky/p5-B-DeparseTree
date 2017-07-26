@@ -8,7 +8,7 @@ $VERSION = '2.1.5';
 
 my $module;
 if ($] >= 5.016 and $] < 5.018) {
-    $module = "P516";
+    $module = "P520";
 } elsif ($] >= 5.018 and $] < 5.022) {
     # For now 5.18 and 5.20 are the same.  If in the future they
     # should be different, we can deal with that here.

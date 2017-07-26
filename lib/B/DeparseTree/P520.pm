@@ -14,7 +14,7 @@
 
 # For now 5.18 and 5.20 are the same.  If in the future they should be
 # different, # we can deal with that here.
-use v5.18;
+use v5.16;
 
 use rlib '../..';
 
