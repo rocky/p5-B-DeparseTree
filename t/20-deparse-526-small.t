@@ -88,7 +88,12 @@ EOC
 	is($@, "", "compilation of $desc");
     }
     else {
-	my $deparsed = $deparse->coderef2text( $coderef );
+	my $deparsed;
+	$deparsed = $deparse->coderef2text( $coderef );
+	if ($@) {
+	    print($@, "\n");
+	    last;
+	}
 	# Something is funky with testing against final }.
 	if (substr($expected, -1) eq '}') {
 	    $expected = substr($expected, 0, -1);
@@ -244,18 +249,6 @@ $a =
 like($a, qr/-e syntax OK/,
     "Deparse does not hang when traversing stash circularities");
 
-# FIXME rocky
-# # [perl #93990]
-# @] = ();
-# is($deparse->coderef2text(sub{ print "@{]}" }),
-# q<{
-#     print "@{]}";
-# }>, 'curly around to interpolate "@{]}"');
-# is($deparse->coderef2text(sub{ print "@{-}" }),
-# q<{
-#     print "@-";
-# }>, 'no need to curly around to interpolate "@-"');
-
 # Strict hints in %^H are mercilessly suppressed
 $a =
   `$^X $path "-MO=Deparse" -e "use strict; print;" 2>&1`;
@@ -304,11 +297,19 @@ __DATA__
 1;
 ####
 # Constants in a block
+# CONTEXT no warnings;
 {
-    no warnings;
     '???';
     2;
 }
+####
+# List of constants in void context
+# CONTEXT no warnings;
+(1,2,3);
+0;
+>>>>
+'???', '???', '???';
+0;
 ####
 # Lexical and simple arithmetic
 my $test;
@@ -320,34 +321,36 @@ $test /= 2 if ++$test;
 # list x
 -((1, 2) x 2);
 ####
-# lvalue sub
-{
-    my $test = sub : lvalue {
-	my $x;
-    };
-}
-####
-# method
-{
-    my $test = sub : method {
-	my $x;
-    };
-}
 ####
 # lexical and package scalars
 my $x;
 print $main::x;
 ####
-# lexical and package arrays
-my @x;
-print $main::x[1];
-####
+# # FIXME:
+# # lexical and package arrays
+# my @x;
+# print $main::x[1];
+# print \my @a;
+# ####
 # lexical and package hashes
 my %x;
 $x{warn()};
 ####
-# \x{}
-my $foo = "Ab\x{100}\200\x{200}\237Cd\000Ef\x{1000}\cA\x{2000}\cZ";
+# our (LIST)
+our($foo, $bar, $baz);
+####
+# <>
+my $foo;
+$_ .= <> . <ARGV> . <$foo>;
+<$foo>;
+<${foo}>;
+<$ foo>;
+>>>>
+my $foo;
+$_ .= readline(ARGV) . readline(ARGV) . readline($foo);
+readline $foo;
+glob $foo;
+glob $foo;
 ####
 # block
 { my $x; }
@@ -355,24 +358,221 @@ my $foo = "Ab\x{100}\200\x{200}\237Cd\000Ef\x{1000}\cA\x{2000}\cZ";
 # while 1
 while (1) { my $k; }
 ####
-# reverse sort
-my @x;
-print reverse sort(@x);
+# constants as method names
+'Foo'->bar('orz');
+####
+# constants as method names without ()
+'Foo'->bar;
+####
+# SKIP ?$] < 5.010 && "say not implemented on this Perl version"
+# CONTEXT use feature ':5.10';
+# say
+say 'foo';
+####
+# SKIP ?$] < 5.010 && "say not implemented on this Perl version"
+# CONTEXT use 5.10.0;
+# say in the context of use 5.10.0
+say 'foo';
+####
+# SKIP ?$] < 5.010 && "say not implemented on this Perl version"
+# say with use 5.10.0
+use 5.10.0;
+say 'foo';
+>>>>
+no feature ':all';
+use feature ':5.10';
+say 'foo';
+####
+# SKIP ?$] < 5.010 && "say not implemented on this Perl version"
+# say with use feature ':5.10';
+use feature ':5.10';
+say 'foo';
+>>>>
+use feature 'say', 'state', 'switch';
+say 'foo';
+####
+# SKIP ?$] < 5.010 && "say not implemented on this Perl version"
+# CONTEXT use feature ':5.10';
+# say with use 5.10.0 in the context of use feature
+use 5.10.0;
+say 'foo';
+>>>>
+no feature ':all';
+use feature ':5.10';
+say 'foo';
+####
+# SKIP ?$] < 5.010 && "say not implemented on this Perl version"
+# CONTEXT use 5.10.0;
+# say with use feature ':5.10' in the context of use 5.10.0
+use feature ':5.10';
+say 'foo';
+>>>>
+say 'foo';
+####
+# SKIP ?$] < 5.015 && "__SUB__ not implemented on this Perl version"
+# CONTEXT use feature ':5.15';
+# __SUB__
+__SUB__;
+####
+# SKIP ?$] < 5.015 && "__SUB__ not implemented on this Perl version"
+# CONTEXT use 5.15.0;
+# __SUB__ in the context of use 5.15.0
+__SUB__;
+####
+# SKIP ?$] < 5.015 && "__SUB__ not implemented on this Perl version"
+# __SUB__ with use 5.15.0
+use 5.15.0;
+__SUB__;
+>>>>
+no feature ':all';
+use feature ':5.16';
+__SUB__;
+####
+# SKIP ?$] < 5.015 && "__SUB__ not implemented on this Perl version"
+# __SUB__ with use feature ':5.15';
+use feature ':5.15';
+__SUB__;
+>>>>
+use feature 'current_sub', 'evalbytes', 'fc', 'say', 'state', 'switch', 'unicode_strings', 'unicode_eval';
+__SUB__;
+####
+# SKIP ?$] < 5.015 && "__SUB__ not implemented on this Perl version"
+# CONTEXT use feature ':5.15';
+# __SUB__ with use 5.15.0 in the context of use feature
+use 5.15.0;
+__SUB__;
+>>>>
+no feature ':all';
+use feature ':5.16';
+__SUB__;
+####
+# SKIP ?$] < 5.015 && "__SUB__ not implemented on this Perl version"
+# CONTEXT use 5.15.0;
+# __SUB__ with use feature ':5.15' in the context of use 5.15.0
+use feature ':5.15';
+__SUB__;
+>>>>
+__SUB__;
+####
+# SKIP ?$] < 5.010 && "state vars not implemented on this Perl version"
+# CONTEXT use feature ':5.10';
+# state vars
+state $x = 42;
+####
+# tests with not, not optimized
+my $c;
+x() unless $a;
+x() if not $a and $b;
+x() if $a and not $b;
+x() unless not $a and $b;
+x() unless $a and not $b;
+x() if not $a or $b;
+x() if $a or not $b;
+x() unless not $a or $b;
+x() unless $a or not $b;
+x() if $a and not $b and $c;
+x() if not $a and $b and not $c;
+x() unless $a and not $b and $c;
+x() unless not $a and $b and not $c;
+x() if $a or not $b or $c;
+x() if not $a or $b or not $c;
+x() unless $a or not $b or $c;
+x() unless not $a or $b or not $c;
+####
+# tests with not, optimized
+my $c;
+x() if not $a;
+x() unless not $a;
+x() if not $a and not $b;
+x() unless not $a and not $b;
+x() if not $a or not $b;
+x() unless not $a or not $b;
+x() if not $a and not $b and $c;
+x() unless not $a and not $b and $c;
+x() if not $a or not $b or $c;
+x() unless not $a or not $b or $c;
+x() if not $a and not $b and not $c;
+x() unless not $a and not $b and not $c;
+x() if not $a or not $b or not $c;
+x() unless not $a or not $b or not $c;
+x() unless not $a or not $b or not $c;
+>>>>
+my $c;
+x() unless $a;
+x() if $a;
+x() unless $a or $b;
+x() if $a or $b;
+x() unless $a and $b;
+x() if $a and $b;
+x() if not $a || $b and $c;
+x() unless not $a || $b and $c;
+x() if not $a && $b or $c;
+x() unless not $a && $b or $c;
+x() unless $a or $b or $c;
+x() if $a or $b or $c;
+x() unless $a and $b and $c;
+x() if $a and $b and $c;
+x() unless not $a && $b && $c;
+####
+# no attribute list
+my $pi = 4;
+####
+# SKIP ?$] > 5.013006 && ":= is now a syntax error"
+# := treated as an empty attribute list
+no warnings;
+my $pi := 4;
+>>>>
+no warnings;
+my $pi = 4;
+####
+# : = empty attribute list
+my $pi : = 4;
+>>>>
+my $pi = 4;
+####
+# shift optimisation
+shift;
+>>>>
+shift();
+####
+# shift optimisation
+shift @_;
+####
+# shift optimisation
+pop;
+>>>>
+pop();
+####
+# shift optimisation
+pop @_;
+####
+#[perl #20444]
+"foo" =~ (1 ? /foo/ : /bar/);
+"foo" =~ (1 ? y/foo// : /bar/);
+"foo" =~ (1 ? y/foo//r : /bar/);
+"foo" =~ (1 ? s/foo// : /bar/);
+>>>>
+'foo' =~ ($_ =~ /foo/);
+'foo' =~ ($_ =~ tr/fo//);
+'foo' =~ ($_ =~ tr/fo//r);
+'foo' =~ ($_ =~ s/foo//);
+# ####
+# # The fix for [perl #20444] broke this.
+# 'foo' =~ do { () };
 ####
 # [perl #81424] match against aelemfast_lex
 my @s;
 print /$s[1]/;
 ####
-# SKIP ROCKY fixme
-# /$#a/
-print /$main::a/;
+# all the flags (tr///)
+tr/X/Y/c;
+tr/X//d;
+tr/X//s;
+tr/X//r;
 ####
-# y///r
-tr/a/b/r;
-####
-# SKIP ROCKY fixme
 # [perl #91008]
-# CONTEXT no warnings';
+# SKIP ?$] >= 5.023 && "autoderef deleted in this Perl version"
+# CONTEXT no warnings 'experimental::autoderef';
 each $@;
 keys $~;
 values $!;
@@ -387,38 +587,24 @@ $b::a[0] = 1;
 my @a;
 $a[0] = 1;
 ####
-# Feature hints
-use feature 'current_sub', 'evalbytes';
-print;
-use 1;
-print;
-use 5.014;
-print;
-no feature 'unicode_strings';
-print;
->>>>
-use feature 'current_sub', 'evalbytes';
-print $_;
-no feature;
-use feature ':default';
-print $_;
-no feature;
-use feature ':5.12';
-print $_;
-no feature 'unicode_strings';
-print $_;
-####
 # $#- $#+ $#{%} etc.
 my @x;
 @x = ($#{`}, $#{~}, $#{!}, $#{@}, $#{$}, $#{%}, $#{^}, $#{&}, $#{*});
 @x = ($#{(}, $#{)}, $#{[}, $#{{}, $#{]}, $#{}}, $#{'}, $#{"}, $#{,});
 @x = ($#{<}, $#{.}, $#{>}, $#{/}, $#{?}, $#{=}, $#+, $#{\}, $#{|}, $#-);
-@x = ($#{;}, $#{:});
+@x = ($#{;}, $#{:}, $#{1}), $#_;
 ####
 # ${#} interpolated
 # It's a known TODO that warnings are deparsed as bits, not textually.
 no warnings;
 () = "${#}a";
+# ####
+# # [perl #86060] $( $| $) in regexps need braces
+# /${(}/;
+# /${|}/;
+# /${)}/;
+# /${(}${|}${)}/;
+# /@{+}@{-}/;
 ####
 # ()[...]
 my(@a) = ()[()];
@@ -434,6 +620,36 @@ print sort(foo('bar'));
 # substr assignment
 substr(my $a, 0, 0) = (foo(), bar());
 $a++;
+# ####
+# # This following line works around an unfixed bug that we are not trying to
+# # test for here:
+# # CONTEXT BEGIN { $^H{a} = "b"; delete $^H{a} } # make %^H localised
+# # hint hash
+# BEGIN { $^H{'foo'} = undef; }
+# {
+#  BEGIN { $^H{'bar'} = undef; }
+#  {
+#   BEGIN { $^H{'baz'} = undef; }
+#   {
+#    print $_;
+#   }
+#   print $_;
+#  }
+#  print $_;
+# }
+# BEGIN { $^H{q[']} = '('; }
+# print $_;
+# ####
+# # This following line works around an unfixed bug that we are not trying to
+# # test for here:
+# # CONTEXT BEGIN { $^H{a} = "b"; delete $^H{a} } # make %^H localised
+# # hint hash changes that serialise the same way with sort %hh
+# BEGIN { $^H{'a'} = 'b'; }
+# {
+#  BEGIN { $^H{'b'} = 'a'; delete $^H{'a'}; }
+#  print $_;
+# }
+# print $_;
 ####
 # Precedence conundrums with argument-less function calls
 () = (eof) + 1;
@@ -465,9 +681,9 @@ my($m7, undef, $m8) = (1, 2, 3);
 ($m7, undef, $m8) = (1, 2, 3);
 ####
 # 'our/local' works with padrange op
-no strict;
 our($z, @z);
 our $o1;
+no strict;
 local $o11;
 $o1 = 1;
 local $o1 = 1;
@@ -487,8 +703,7 @@ our($o7, undef, $o8) = (1, 2, 3);
 local($o7, undef, $o8) = (1, 2, 3);
 ####
 # 'state' works with padrange op
-no strict;
-use feature 'state';
+# CONTEXT no strict; use feature 'state';
 state($z, @z);
 state $s1;
 $s1 = 1;
@@ -509,32 +724,24 @@ my(@x, %y);
 @x = @x[$a, $b];
 @x = @y{$a, $b};
 ####
+# binops with padrange
+my($a, $b, $c);
+$c = $a cmp $b;
+$c = $a + $b;
+$a += $b;
+$c = $a - $b;
+$a -= $b;
+$c = my $a1 cmp $b;
+$c = my $a2 + $b;
+$a += my $b1;
+$c = my $a3 - $b;
+$a -= my $b2;
+####
 # @_ with padrange
 my($a, $b, $c) = @_;
 ####
-# SKIP ?($] < 5.017004 or $] >= 5.0240) and "lexical subs not implemented on this Perl version"
-# TODO unimplemented in B::Deparse; RT #116553
-# lexical subroutine
-use feature 'lexical_subs';
-no warnings "experimental::lexical_subs";
-my sub f {}
-print f();
 # Elements of %# should not be confused with $#{ array }
 () = ${#}{'foo'};
 ####
-# SKIP ?($] < 5.017004 or $] >= 5.0240) and "lexical subs not implemented on this Perl version"
-# TODO unimplemented in B::Deparse; RT #116553
-# lexical "state" subroutine
-use feature 'state', 'lexical_subs';
-no warnings 'experimental::lexical_subs';
-state sub f {}
-print f();
-####
-# [perl #121050] Prototypes with whitespace
-sub _121050(\$ \$) { }
-_121050($a,$b);
-sub _121050empty( ) {}
-() = _121050empty() + 1;
->>>>
-_121050 $a, $b;
-() = _121050empty + 1;
+# coderef2text and prototyped sub calls [perl #123435]
+is 'foo', 'oo';

@@ -108,8 +108,8 @@ sub testit {
 			    or die "$@ in $expr";
 	}
 
-	my $got_text_tree = $deparse_tree->coderef2text($code_ref);
 	my $got_text = $deparse->coderef2text($code_ref);
+	# my $got_text_tree = $deparse_tree->coderef2text($code_ref);
 
 	unless ($got_text =~ /
     package (?:lexsub)?test;
@@ -221,72 +221,73 @@ sub do_std_keyword {
     }
 }
 
+# while (<DATA>) {
+#     chomp;
+#     s/#.*//;
+#     next unless /\S/;
 
-while (<DATA>) {
-    chomp;
-    s/#.*//;
-    next unless /\S/;
+#     my @fields = split;
+#     die "not 3 fields" unless @fields == 3;
+#     my ($keyword, $args, $flags) = @fields;
 
-    my @fields = split;
-    die "not 3 fields" unless @fields == 3;
-    my ($keyword, $args, $flags) = @fields;
+#     $args = '012' if $args eq '@';
 
-    $args = '012' if $args eq '@';
+#     my $parens  = $flags =~ s/p//;
+#     my $invert1 = $flags =~ s/1//;
+#     my $dollar  = $flags =~ s/\$//;
+#     my $strong  = $flags =~ s/\+//;
+#     die "unrecognised flag(s): '$flags'" unless $flags =~ /^-?$/;
 
-    my $parens  = $flags =~ s/p//;
-    my $invert1 = $flags =~ s/1//;
-    my $dollar  = $flags =~ s/\$//;
-    my $strong  = $flags =~ s/\+//;
-    die "unrecognised flag(s): '$flags'" unless $flags =~ /^-?$/;
-
-    if ($args eq 'B') { # binary infix
-	die "$keyword: binary (B) op can't have '\$' flag\\n" if $dollar;
-	die "$keyword: binary (B) op can't have '1' flag\\n" if $invert1;
-	do_infix_keyword($keyword, $parens, $strong);
-    }
-    else {
-	my @narg = split //, $args;
-	for my $n (0..$#narg) {
-	    my $narg = $narg[$n];
-	    my $p = $parens;
-	    $p = !$p if ($n == 0 && $invert1);
-	    do_std_keyword($keyword, $narg, $p, (!$n && $dollar), $strong);
-	}
-    }
-}
+#     if ($args eq 'B') { # binary infix
+# 	die "$keyword: binary (B) op can't have '\$' flag\\n" if $dollar;
+# 	die "$keyword: binary (B) op can't have '1' flag\\n" if $invert1;
+# 	do_infix_keyword($keyword, $parens, $strong);
+#     }
+#     else {
+# 	my @narg = split //, $args;
+# 	for my $n (0..$#narg) {
+# 	    my $narg = $narg[$n];
+# 	    my $p = $parens;
+# 	    $p = !$p if ($n == 0 && $invert1);
+# 	    do_std_keyword($keyword, $narg, $p, (!$n && $dollar), $strong);
+# 	}
+#     }
+# }
 
 
 # Special cases
 
-testit dbmopen  => 'CORE::dbmopen(%foo, $bar, $baz);';
-testit dbmclose => 'CORE::dbmclose %foo;';
+# testit dbmopen  => 'CORE::dbmopen(%foo, $bar, $baz);';
+# testit dbmclose => 'CORE::dbmclose %foo;';
 
-testit delete   => 'CORE::delete $h{\'foo\'};', 'delete $h{\'foo\'};';
-testit delete   => 'CORE::delete $h{\'foo\'};', undef, 1;
-testit delete   => 'CORE::delete @h{\'foo\'};', undef, 1;
-testit delete   => 'CORE::delete $h[0];', undef, 1;
-testit delete   => 'CORE::delete @h[0];', undef, 1;
-testit delete   => 'delete $h{\'foo\'};',       'delete $h{\'foo\'};';
+# testit delete   => 'CORE::delete $h{\'foo\'};', 'delete $h{\'foo\'};';
+# testit delete   => 'CORE::delete $h{\'foo\'};', undef, 1;
+# testit delete   => 'CORE::delete @h{\'foo\'};', undef, 1;
+# testit delete   => 'CORE::delete $h[0];', undef, 1;
+# testit delete   => 'CORE::delete @h[0];', undef, 1;
+# testit delete   => 'delete $h{\'foo\'};',       'delete $h{\'foo\'};';
 
-# do is listed as strong, but only do { block } is strong;
-# do $file is weak,  so test it separately here
-testit do       => 'CORE::do $a;';
-testit do       => 'do $a;',                    'test::do($a);';
-testit do       => 'CORE::do { 1 }',
-		   "do {\n        1\n    };";
-testit do       => 'CORE::do { 1 }',
-		   "CORE::do {\n        1\n    };", 1;
-testit do       => 'do { 1 };',
-		   "do {\n        1\n    };";
+# # do is listed as strong, but only do { block } is strong;
+# # do $file is weak,  so test it separately here
+# testit do       => 'CORE::do $a;';
+# testit do       => 'do $a;',                    'test::do($a);';
+# testit do       => 'CORE::do { 1 }',
+# 		   "do {\n        1\n    };";
+# testit do       => 'CORE::do { 1 }',
+# 		   "CORE::do {\n        1\n    };", 1;
+# testit do       => 'do { 1 };',
+# 		   "do {\n        1\n    };";
 
-testit each     => 'CORE::each %bar;';
-testit each     => 'CORE::each @foo;';
+# testit each     => 'CORE::each %bar;';
+# testit each     => 'CORE::each @foo;';
 
-testit eof      => 'CORE::eof();';
+# testit eof      => 'CORE::eof();';
 
-testit exists   => 'CORE::exists $h{\'foo\'};', 'exists $h{\'foo\'};';
-testit exists   => 'CORE::exists $h{\'foo\'};', undef, 1;
+# testit exists   => 'CORE::exists $h{\'foo\'};', 'exists $h{\'foo\'};';
+# testit exists   => 'CORE::exists $h{\'foo\'};', undef, 1;
+
 testit exists   => 'CORE::exists &foo;', undef, 1;
+
 testit exists   => 'CORE::exists $h[0];', undef, 1;
 testit exists   => 'exists $h{\'foo\'};',       'exists $h{\'foo\'};';
 

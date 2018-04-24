@@ -1053,6 +1053,17 @@ my %strong_proto_keywords = map { $_ => 1 } qw(
     undef
 );
 
+sub feature_enabled {
+	my($self,$name) = @_;
+	my $hh;
+	my $hints = $self->{hints} & $feature::hint_mask;
+	if ($hints && $hints != $feature::hint_mask) {
+	    $hh = _features_from_bundle($hints);
+	}
+	elsif ($hints) { $hh = $self->{'hinthash'} }
+	return $hh && $hh->{"feature_$feature_keywords{$name}"}
+}
+
 sub keyword {
     my $self = shift;
     my $name = shift;

@@ -1020,20 +1020,36 @@ my %strong_proto_keywords = map { $_ => 1 } qw(
     undef
 );
 
-sub keyword {
-    my $self = shift;
-    my $name = shift;
-    return $name if $name =~ /^CORE::/; # just in case
-    if (exists $feature_keywords{$name}) {
+sub feature_enabled {
+	my($self,$name) = @_;
 	my $hh;
 	my $hints = $self->{hints} & $feature::hint_mask;
 	if ($hints && $hints != $feature::hint_mask) {
 	    $hh = _features_from_bundle($hints);
 	}
 	elsif ($hints) { $hh = $self->{'hinthash'} }
-	return "CORE::$name"
-	 if !$hh
-	 || !$hh->{"feature_$feature_keywords{$name}"}
+	return $hh && $hh->{"feature_$feature_keywords{$name}"}
+}
+
+sub keyword {
+    my $self = shift;
+    my $name = shift;
+    return $name if $name =~ /^CORE::/; # just in case
+    if (exists $feature_keywords{$name}) {
+	return "CORE::$name" if not $self->feature_enabled($name);
+    }
+    # This sub may be called for a program that has no nextstate ops.  In
+    # that case we may have a lexical sub named no/use/sub in scope but
+    # but $self->lex_in_scope will return false because it depends on the
+    # current nextstate op.  So we need this alternate method if there is
+    # no current cop.
+    if (!$self->{'curcop'}) {
+	$self->populate_curcvlex() if !defined $self->{'curcvlex'};
+	return "CORE::$name" if exists $self->{'curcvlex'}{"m&$name"}
+			     || exists $self->{'curcvlex'}{"o&$name"};
+    } elsif ($self->lex_in_scope("&$name")
+	  || $self->lex_in_scope("&$name", 1)) {
+	return "CORE::$name";
     }
     if ($strong_proto_keywords{$name}
         || ($name !~ /^(?:chom?p|do|exec|glob|s(?:elect|ystem))\z/
@@ -1048,6 +1064,7 @@ sub keyword {
     }
     return $name;
 }
+
 
 sub pp_negate { maybe_targmy(@_, \&real_negate) }
 sub real_negate {

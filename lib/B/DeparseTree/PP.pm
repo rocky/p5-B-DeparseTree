@@ -164,9 +164,8 @@ sub pp_exists
 	# Checking for the existence of a subroutine
 	$info = $self->pp_rv2cv($op->first, 16);
 	$type = 'exists_sub';
-    }
-    if ($op->flags & OPf_SPECIAL) {
-	# Array element
+    } elsif ($op->flags & OPf_SPECIAL) {
+	# Array element, not hash helement
 	$info = $self->pp_aelem($op->first, 16);
 	$type = 'info_array';
     } else {
