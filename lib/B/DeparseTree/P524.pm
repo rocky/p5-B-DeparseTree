@@ -283,7 +283,7 @@ sub deparse_format($$$)
 		= @$self{qw'curstash warnings hints hinthash'};
     my $op = $form->ROOT;
     local $B::overlay = {};
-    $self->pessimize($op, $form->START);
+    $self->pessimise($op, $form->START);
     my $info = {
 	op  => $op,
 	parent => $parent,
@@ -328,7 +328,7 @@ sub begin_is_use
     my $root = $cv->ROOT;
     local @$self{qw'curcv curcvlex'} = ($cv);
     local $B::overlay = {};
-    $self->pessimize($root, $cv->START);
+    $self->pessimise($root, $cv->START);
     # require B::Debug;
     # B::walkoptree($cv->ROOT, "debug");
     my $lineseq = $root->first;

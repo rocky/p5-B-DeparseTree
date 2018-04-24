@@ -1,6 +1,6 @@
 # B::DeparseTree::P526.pm
 # Copyright (c) 1998-2000, 2002, 2003, 2004, 2005, 2006 Stephen McCamant.
-# Copyright (c) 2015, 2017 Rocky Bernstein
+# Copyright (c) 2015, 2017, 2018 Rocky Bernstein
 # All rights reserved.
 # This module is free software; you can redistribute and/or modify
 # it under the same terms as Perl itself.
@@ -18,43 +18,45 @@ use rlib '../..';
 
 package B::DeparseTree::P526;
 use Carp;
-use B qw(class opnumber
-    OPf_WANT OPf_WANT_VOID OPf_WANT_SCALAR OPf_WANT_LIST
-    OPf_KIDS OPf_REF OPf_STACKED OPf_SPECIAL OPf_MOD OPf_PARENS
-    OPpLVAL_INTRO OPpOUR_INTRO OPpENTERSUB_AMPER OPpSLICE OPpCONST_BARE
-    OPpTRANS_SQUASH OPpTRANS_DELETE OPpTRANS_COMPLEMENT OPpTARGET_MY
-    OPpSORT_NUMERIC OPpSORT_INTEGER OPpREPEAT_DOLIST
-    OPpSORT_REVERSE OPpMULTIDEREF_EXISTS OPpMULTIDEREF_DELETE
-    OPpSPLIT_ASSIGN OPpSPLIT_LEX
-    SVf_IOK SVf_NOK SVf_ROK SVf_POK SVpad_OUR SVf_FAKE SVs_RMG SVs_SMG
-    SVs_PADTMP SVpad_TYPED
-    CVf_METHOD CVf_LVALUE
-    PMf_KEEP PMf_GLOBAL PMf_CONTINUE PMf_EVAL PMf_ONCE
-    PMf_MULTILINE PMf_SINGLELINE PMf_FOLD PMf_EXTENDED PMf_EXTENDED_MORE
-    PADNAMEt_OUTER
-    MDEREF_reload
-    MDEREF_AV_pop_rv2av_aelem
-    MDEREF_AV_gvsv_vivify_rv2av_aelem
-    MDEREF_AV_padsv_vivify_rv2av_aelem
-    MDEREF_AV_vivify_rv2av_aelem
-    MDEREF_AV_padav_aelem
-    MDEREF_AV_gvav_aelem
-    MDEREF_HV_pop_rv2hv_helem
-    MDEREF_HV_gvsv_vivify_rv2hv_helem
-    MDEREF_HV_padsv_vivify_rv2hv_helem
-    MDEREF_HV_vivify_rv2hv_helem
-    MDEREF_HV_padhv_helem
-    MDEREF_HV_gvhv_helem
-    MDEREF_ACTION_MASK
-    MDEREF_INDEX_none
-    MDEREF_INDEX_const
-    MDEREF_INDEX_padsv
-    MDEREF_INDEX_gvsv
-    MDEREF_INDEX_MASK
-    MDEREF_FLAG_last
-    MDEREF_MASK
-    MDEREF_SHIFT
-);
+
+use B qw(class main_root main_start main_cv svref_2object opnumber perlstring
+	 OPf_WANT OPf_WANT_VOID OPf_WANT_SCALAR OPf_WANT_LIST
+	 OPf_KIDS OPf_REF OPf_STACKED OPf_SPECIAL OPf_MOD OPf_PARENS
+	 OPpLVAL_INTRO OPpOUR_INTRO OPpENTERSUB_AMPER OPpSLICE OPpCONST_BARE
+	 OPpTRANS_SQUASH OPpTRANS_DELETE OPpTRANS_COMPLEMENT OPpTARGET_MY
+	 OPpEXISTS_SUB OPpSORT_NUMERIC OPpSORT_INTEGER OPpREPEAT_DOLIST
+	 OPpSORT_REVERSE OPpMULTIDEREF_EXISTS OPpMULTIDEREF_DELETE
+         OPpPADRANGE_COUNTSHIFT
+         OPpSPLIT_ASSIGN OPpSPLIT_LEX
+	 SVf_IOK SVf_NOK SVf_ROK SVf_POK SVpad_OUR SVf_FAKE SVs_RMG SVs_SMG
+	 SVs_PADTMP SVpad_TYPED
+         CVf_METHOD CVf_LVALUE
+	 PMf_KEEP PMf_GLOBAL PMf_CONTINUE PMf_EVAL PMf_ONCE
+	 PMf_MULTILINE PMf_SINGLELINE PMf_FOLD PMf_EXTENDED PMf_EXTENDED_MORE
+	 PADNAMEt_OUTER
+         MDEREF_reload
+         MDEREF_AV_pop_rv2av_aelem
+         MDEREF_AV_gvsv_vivify_rv2av_aelem
+         MDEREF_AV_padsv_vivify_rv2av_aelem
+         MDEREF_AV_vivify_rv2av_aelem
+         MDEREF_AV_padav_aelem
+         MDEREF_AV_gvav_aelem
+         MDEREF_HV_pop_rv2hv_helem
+         MDEREF_HV_gvsv_vivify_rv2hv_helem
+         MDEREF_HV_padsv_vivify_rv2hv_helem
+         MDEREF_HV_vivify_rv2hv_helem
+         MDEREF_HV_padhv_helem
+         MDEREF_HV_gvhv_helem
+         MDEREF_ACTION_MASK
+         MDEREF_INDEX_none
+         MDEREF_INDEX_const
+         MDEREF_INDEX_padsv
+         MDEREF_INDEX_gvsv
+         MDEREF_INDEX_MASK
+         MDEREF_FLAG_last
+         MDEREF_MASK
+         MDEREF_SHIFT
+    );
 
 use B::DeparseTree::Common;
 use B::DeparseTree::PP;
@@ -78,8 +80,10 @@ BEGIN {
 		OPpPAD_STATE PMf_SKIPWHITE RXf_SKIPWHITE
 		PMf_CHARSET PMf_KEEPCOPY PMf_NOCAPTURE CVf_ANONCONST
 		CVf_LOCKED OPpREVERSE_INPLACE OPpSUBSTR_REPL_FIRST
-		PMf_NONDESTRUCT OPpCONST_ARYBASE OPpEVAL_BYTES)) {
-	eval { import B $_ };
+		PMf_NONDESTRUCT OPpCONST_ARYBASE OPpEVAL_BYTES
+		OPpLVREF_TYPE OPpLVREF_SV OPpLVREF_AV OPpLVREF_HV
+		OPpLVREF_CV OPpLVREF_ELEM SVpad_STATE)) {
+	eval { B->import($_) };
 	no strict 'refs';
 	*{$_} = sub () {0} unless *{$_}{CODE};
     }
@@ -90,8 +94,27 @@ BEGIN {
 # In order to test modulie, we run this over Perl test suite.
 # Then we run the test on the deparsed code. Slick, eh?
 
-# Here are B::DeparseTree failure notes:
+# Todo:
+#  (See also BUGS section at the end of this file)
+#
+# - cperl: AELEM_U, AELEMFAST_LEX_U, PERL_FAKE_SIGNATURE
+# - finish tr/// changes
+# - add option for even more parens (generalize \&foo change)
+# - left/right context
+# - copy comments (look at real text with $^P?)
+# - avoid semis in one-statement blocks
+# - associativity of &&=, ||=, ?:
+# - ',' => '=>' (auto-unquote?)
+# - break long lines ("\r" as discretionary break?)
+# - configurable syntax highlighting: ANSI color, HTML, TeX, etc.
+# - more style options: brace style, hex vs. octal, quotes, ...
+# - print big ints as hex/octal instead of decimal (heuristic?)
+# - handle 'my $x if 0'?
+# - version using op_next instead of op_first/sibling?
+# - avoid string copies (pass arrays, one big join?)
+# - here-docs?
 
+# Here are B::DeparseTree failure notes:
 # Current test.deparse failures
 # comp/hints 6 - location of BEGIN blocks wrt. block openings
 # run/switchI 1 - missing -I switches entirely
@@ -120,7 +143,7 @@ BEGIN {
 # ext/PerlIO/t/encoding compile
 # ext/POSIX/t/posix 6
 # ext/Socket/Socket 8
-# ext/Storable/t/croak compile
+# dist/Storable/t/croak compile
 # lib/Attribute/Handlers/t/multi compile
 # lib/bignum/ several
 # lib/charnames 35
@@ -187,9 +210,6 @@ BEGIN {
 # That means we can omit parentheses from the arguments. It also means we
 # need to put CORE:: on core functions of the same name.
 #
-# subs_deparsed
-# Keeps track of fully qualified names of all deparsed subs.
-#
 # in_subst_repl
 # True when deparsing the replacement part of a substitution.
 #
@@ -198,8 +218,9 @@ BEGIN {
 #
 # parens: -p
 # linenums: -l
-# opaddr: -a
 # unquote: -q
+# cuddle: ' ' or '\n', depending on -sC
+# indent_size: -si
 # use_tabs: -sT
 # ex_const: -sv
 
@@ -273,7 +294,7 @@ BEGIN { for (qw[ const stringify rv2sv list glob pushmark null aelem
     eval "sub OP_\U$_ () { " . opnumber($_) . "}"
 }}
 
-sub deparse_format($$$)
+sub deparse_format
 {
     my ($self, $form, $parent) = @_;
     my @texts;
@@ -284,7 +305,7 @@ sub deparse_format($$$)
 		= @$self{qw'curstash warnings hints hinthash'};
     my $op = $form->ROOT;
     local $B::overlay = {};
-    $self->pessimize($op, $form->START);
+    $self->pessimise($op, $form->START);
     my $info = {
 	op  => $op,
 	parent => $parent,
@@ -329,7 +350,7 @@ sub begin_is_use
     my $root = $cv->ROOT;
     local @$self{qw'curcv curcvlex'} = ($cv);
     local $B::overlay = {};
-    $self->pessimize($root, $cv->START);
+    $self->pessimise($root, $cv->START);
     # require B::Debug;
     # B::walkoptree($cv->ROOT, "debug");
     my $lineseq = $root->first;
@@ -382,7 +403,7 @@ sub begin_is_use
 	return "use $module $version ();\n" if defined $version;
 	return "use $module ();\n";
     }
-    return if $entersub->name ne "entersub";
+    return if $entersub->name !~ /^enter(xs)?sub/;
 
     # See if there are import arguments
     my $args = '';
@@ -391,7 +412,7 @@ sub begin_is_use
     return unless $self->const_sv($svop)->PV eq $module;
 
     # Pull out the arguments
-    for ($svop=$svop->sibling; $svop->name ne "method_named";
+    for ($svop=$svop->sibling; index($svop->name, "method_") != 0;
 		$svop = $svop->sibling) {
 	$args .= ", " if length($args);
 	$args .= $self->deparse($svop, 6, $root);
@@ -581,7 +602,7 @@ sub maybe_parens_unop($self, $name, $op, $cx, $parent)
     Carp::confess("unhandled condition in maybe_parens_unop");
 }
 
-sub maybe_parens_func($$$$$)
+sub maybe_parens_func
 {
     my($self, $func, $params, $cx, $prec) = @_;
     if ($prec <= $cx or substr($params, 0, 1) eq "(" or $self->{'parens'}) {
@@ -603,7 +624,7 @@ sub dedup_parens_func
     }
 }
 
-sub maybe_local_str($$$$)
+sub maybe_local_str
 {
     my($self, $op, $cx, $text) = @_;
     my $our_intro = ($op->name =~ /^(gv|rv2)[ash]v$/) ? OPpOUR_INTRO : 0;
@@ -626,6 +647,50 @@ sub maybe_local_str($$$$)
 	}
     } else {
 	return info_from_text($text, 'maybe_local', {});
+    }
+}
+
+sub maybe_local {
+    my $self = shift;
+    my($op, $cx, $text) = @_;
+    my $name = $op->name;
+    my $our_intro = ($name =~ /^(?:(?:gv|rv2)[ash]v|split|refassign
+				  |lv(?:av)?ref)$/x)
+			? OPpOUR_INTRO
+			: 0;
+    my $lval_intro = $name eq 'split' ? 0 : OPpLVAL_INTRO;
+    # The @a in \(@a) isn't in ref context, but only when the
+    # parens are there.
+    my $need_parens = $self->{'in_refgen'} && $name =~ /[ah]v\z/
+		   && ($op->flags & (OPf_PARENS|OPf_REF)) == OPf_PARENS;
+    if ((my $priv = $op->private) & ($lval_intro|$our_intro)) {
+	my @our_local;
+	push @our_local, "local" if $priv & $lval_intro;
+	push @our_local, "our"   if $priv & $our_intro;
+	my $our_local = join " ", map $self->keyword($_), @our_local;
+	if( $our_local[-1] eq 'our' ) {
+	    if ( $text !~ /^\W(\w+::)*\w+\z/
+	     and !utf8::decode($text) || $text !~ /^\W(\w+::)*\w+\z/
+	    ) {
+		die "Unexpected our($text)\n";
+	    }
+	    $text =~ s/(\w+::)+//;
+
+	    if (my $type = $self->find_our_type($text)) {
+		$our_local .= ' ' . $type;
+	    }
+	}
+	return $need_parens ? "($text)" : $text
+	    if $self->{'avoid_local'}{$$op};
+	if ($need_parens) {
+	    return "$our_local($text)";
+	} elsif (want_scalar($op)) {
+	    return "$our_local $text";
+	} else {
+	    return $self->maybe_parens_func("$our_local", $text, $cx, 16);
+	}
+    } else {
+	return $need_parens ? "($text)" : $text;
     }
 }
 
@@ -666,7 +731,9 @@ sub maybe_my {
 
 sub AUTOLOAD {
     if ($AUTOLOAD =~ s/^.*::pp_//) {
-	warn "unexpected OP_".uc $AUTOLOAD;
+	warn "unexpected OP_".
+	  ($_[1]->type == OP_CUSTOM ? "CUSTOM ($AUTOLOAD)" : uc $AUTOLOAD);
+	return "XXX";
     } else {
 	Carp::confess "Undefined subroutine $AUTOLOAD called";
     }
@@ -1018,6 +1085,7 @@ sub unop
 	my $builtinname = $name;
 	$builtinname =~ /^CORE::/ or $builtinname = "CORE::$name";
 	if (defined prototype($builtinname)
+	   && $builtinname ne 'CORE::readline'
 	   && prototype($builtinname) =~ /^;?\*/
 	   && $kid->name eq "rv2gv") {
 	    $kid = $kid->first;
@@ -1100,6 +1168,18 @@ sub pp_tell { unop(@_, "tell") }
 sub pp_getsockname { unop(@_, "getsockname") }
 sub pp_getpeername { unop(@_, "getpeername") }
 
+sub pp_chdir {
+    my ($self, $op, $cx) = @_;
+    if (($op->flags & (OPf_SPECIAL|OPf_KIDS)) == (OPf_SPECIAL|OPf_KIDS)) {
+	my $kw = $self->keyword("chdir");
+	my $kid = $self->const_sv($op->first)->PV;
+	my $code = $kw
+		 . ($cx >= 16 || $self->{'parens'} ? "($kid)" : " $kid");
+	maybe_targmy(@_, sub { $_[3] }, $code);
+    } else {
+	maybe_targmy(@_, \&unop, "chdir")
+    }
+}
 
 sub pp_chroot { maybe_targmy(@_, \&unop, "chroot") }
 sub pp_readlink { unop(@_, "readlink") }
@@ -1114,11 +1194,16 @@ sub pp_gmtime { unop(@_, "gmtime") }
 sub pp_alarm { unop(@_, "alarm") }
 sub pp_sleep { maybe_targmy(@_, \&unop, "sleep") }
 
-sub pp_dofile
-{
+sub pp_dofile {
     my $code = unop(@_, "do", 1); # llafr does not apply
     if ($code =~ s/^((?:CORE::)?do) \{/$1({/) { $code .= ')' }
     $code;
+}
+sub pp_entereval {
+    unop(
+      @_,
+      $_[1]->private & OPpEVAL_BYTES ? 'evalbytes' : "eval"
+    )
 }
 
 sub pp_ghbyname { unop(@_, "gethostbyname") }
@@ -1272,7 +1357,7 @@ sub pp_anonlist {
 
 *pp_anonhash = \&pp_anonlist;
 
-sub e_anoncode($$)
+sub e_anoncode
 {
     my ($self, $info) = @_;
     my $sub_info = $self->deparse_sub($info->{code});
@@ -1296,7 +1381,7 @@ sub pp_refgen
             return $self->e_anoncode({ code => $self->padval($anoncode->targ) });
 	} elsif ($kid->name eq "pushmark") {
             my $sib_name = $kid->sibling->name;
-            if ($sib_name eq 'entersub') {
+            if ($sib_name =~ /^enter(xs)?sub/) {
                 my $kid_info = $self->deparse($kid->sibling, 1, $op);
                 # Always show parens for \(&func()), but only with -p otherwise
 		my @texts = ('\\', $kid_info->{text});
@@ -1515,13 +1600,14 @@ BEGIN {
 	      'multiply=' => 7, 'i_multiply=' => 7,
 	      'divide=' => 7, 'i_divide=' => 7,
 	      'modulo=' => 7, 'i_modulo=' => 7,
-	      'repeat=' => 7,
+	      'repeat=' => 7, 'refassign' => 7, 'refassign=' => 7,
 	      'add=' => 7, 'i_add=' => 7,
 	      'subtract=' => 7, 'i_subtract=' => 7,
 	      'concat=' => 7,
 	      'left_shift=' => 7, 'right_shift=' => 7,
-	      'bit_and=' => 7,
-	      'bit_or=' => 7, 'bit_xor=' => 7,
+	      'bit_and=' => 7, 'sbit_and=' => 7, 'nbit_and=' => 7,
+	      'nbit_or=' => 7, 'nbit_xor=' => 7,
+	      'sbit_or=' => 7, 'sbit_xor=' => 7,
 	      'andassign' => 7,
 	      'orassign' => 7,
 	     );
@@ -1581,6 +1667,12 @@ sub pp_right_shift { maybe_targmy(@_, \&binop, ">>", 17, ASSIGN) }
 sub pp_bit_and { maybe_targmy(@_, \&binop, "&", 13, ASSIGN) }
 sub pp_bit_or { maybe_targmy(@_, \&binop, "|", 12, ASSIGN) }
 sub pp_bit_xor { maybe_targmy(@_, \&binop, "^", 12, ASSIGN) }
+*pp_nbit_and = *pp_bit_and;
+*pp_nbit_or  = *pp_bit_or;
+*pp_nbit_xor = *pp_bit_xor;
+sub pp_sbit_and { maybe_targmy(@_, \&binop, "&.", 13, ASSIGN) }
+sub pp_sbit_or { maybe_targmy(@_, \&binop, "|.", 12, ASSIGN) }
+sub pp_sbit_xor { maybe_targmy(@_, \&binop, "^.", 12, ASSIGN) }
 
 sub pp_eq { binop(@_, "==", 14) }
 sub pp_ne { binop(@_, "!=", 14) }
@@ -1588,14 +1680,14 @@ sub pp_lt { binop(@_, "<", 15) }
 sub pp_gt { binop(@_, ">", 15) }
 sub pp_ge { binop(@_, ">=", 15) }
 sub pp_le { binop(@_, "<=", 15) }
-sub pp_ncmp { binop(@_, "<=>", 14) }
+sub pp_cmp { binop(@_, "<=>", 14) }
 sub pp_i_eq { binop(@_, "==", 14) }
 sub pp_i_ne { binop(@_, "!=", 14) }
 sub pp_i_lt { binop(@_, "<", 15) }
 sub pp_i_gt { binop(@_, ">", 15) }
 sub pp_i_ge { binop(@_, ">=", 15) }
 sub pp_i_le { binop(@_, "<=", 15) }
-sub pp_i_ncmp { binop(@_, "<=>", 14) }
+sub pp_i_cmp { maybe_targmy(@_, \&binop, "<=>", 14) }
 
 sub pp_seq { binop(@_, "eq", 14) }
 sub pp_sne { binop(@_, "ne", 14) }

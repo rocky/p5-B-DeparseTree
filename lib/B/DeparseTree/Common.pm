@@ -1,12 +1,12 @@
-# Copyright (c) 2015 Rocky Bernstein
+# Copyright (c) 2015-2018 Rocky Bernstein
 use strict; use warnings;
 
 package B::DeparseTree::Common;
 
 use B qw(class
          main_cv main_root main_start
-         opnumber OPpLVAL_INTRO OPf_SPECIAL OPf_KIDS SVf_ROK
-         SVf_POK CVf_LVALUE CVf_METHOD
+         opnumber OPpLVAL_INTRO OPf_SPECIAL OPf_KIDS
+         SVf_IOK SVf_POK SVf_ROK SVs_PADTMP CVf_LVALUE CVf_METHOD
          OPf_STACKED OPpCONST_BARE OPpSORT_NUMERIC OPpSORT_INTEGER
          OPpSORT_REVERSE OPpTARGET_MY svref_2object perlstring);
 use Carp;
@@ -22,7 +22,7 @@ $VERSION = '1.1.0';
             _features_from_bundle ambiant_pragmas maybe_qualify
             %globalnames gv_name is_scope logop maybe_targmy is_state
             POSTFIX baseop mapop pfixop indirop
-            deparse_sub deparse_subname next_todo
+            deparse_sub deparse_subname next_todo pragmata
             );
 
 BEGIN {
@@ -40,18 +40,10 @@ BEGIN {
     }
 }
 
-our %strict_bits = do {
-    local $^H;
-    map +($_ => strict::bits($_)), qw/refs subs vars/
-};
-
-BEGIN { for (qw[ pushmark ]) {
-    eval "sub OP_\U$_ () { " . opnumber($_) . "}"
-}}
-
 sub new {
     my $class = shift;
     my $self = bless {}, $class;
+    $self->{'cuddle'} = "\n";
     $self->{'curcop'} = undef;
     $self->{'curstash'} = "main";
     $self->{'ex_const'} = "'???'";
@@ -114,11 +106,10 @@ sub new {
     }
 }
 
-# Initialize the contextual information, either from
+# Initialise the contextual information, either from
 # defaults provided with the ambient_pragmas method,
 # or from perl's own defaults otherwise.
-sub init($)
-{
+sub init {
     my $self = shift;
 
     $self->{'arybase'}  = $self->{'ambient_arybase'};
@@ -126,21 +117,31 @@ sub init($)
 				? $self->{'ambient_warnings'} & WARN_MASK
 				: undef;
     $self->{'hints'}    = $self->{'ambient_hints'};
+    $self->{'hints'} &= 0xFF if $] < 5.009;
     $self->{'hinthash'} = $self->{'ambient_hinthash'};
 
     # also a convenient place to clear out subs_declared
     delete $self->{'subs_declared'};
 }
 
-sub main2info($)
+my %strict_bits = do {
+    local $^H;
+    map +($_ => strict::bits($_)), qw/refs subs vars/
+};
+
+BEGIN { for (qw[ pushmark ]) {
+    eval "sub OP_\U$_ () { " . opnumber($_) . "}"
+}}
+
+sub main2info
 {
     my $self = shift;
     $self->{'curcv'} = B::main_cv;
-    $self->pessimize(B::main_root, B::main_start);
+    $self->pessimise(B::main_root, B::main_start);
     return $self->deparse_root(B::main_root);
 }
 
-sub coderef2info($$)
+sub coderef2info
 {
     my ($self, $coderef) = @_;
     croak "Usage: ->coderef2info(CODEREF)" unless UNIVERSAL::isa($coderef, "CODE");
@@ -148,7 +149,7 @@ sub coderef2info($$)
     return $self->deparse_sub(svref_2object($coderef));
 }
 
-sub coderef2text($$)
+sub coderef2text
 {
     my ($self, $func) = @_;
     croak "Usage: ->coderef2text(CODEREF)" unless UNIVERSAL::isa($func, "CODE");
@@ -156,36 +157,6 @@ sub coderef2text($$)
     $self->init();
     my $info = $self->coderef2info($func);
     return $self->indent($info->{text});
-}
-
-sub print_protos($)
-{
-    my $self = shift;
-    my $ar;
-    my @ret;
-    foreach $ar (@{$self->{'protos_todo'}}) {
-	my $proto = (defined $ar->[1] ? " (". $ar->[1] . ")" : "");
-	push @ret, "sub " . $ar->[0] .  "$proto;\n";
-    }
-    delete $self->{'protos_todo'};
-    return @ret;
-}
-
-sub style_opts($$)
-{
-    my ($self, $opts) = @_;
-    my $opt;
-    while (length($opt = substr($opts, 0, 1))) {
-	if ($opt eq "T") {
-	    $self->{'use_tabs'} = 1;
-	    $opts = substr($opts, 1);
-	} elsif ($opt eq "v") {
-	    $opts =~ s/^v([^.]*)(.|$)//;
-	    $self->{'ex_const'} = $1;
-	} else {
-	    $opts = substr($opts, 1);
-	}
-    }
 }
 
 sub null
@@ -264,7 +235,7 @@ sub is_for_loop($)
 }
 
 # Create an info structure from a list of strings
-sub info_from_list($$$$)
+sub info_from_list
 {
     my ($texts, $sep, $type, $opts) = @_;
     my $text = join($sep, @$texts);
@@ -435,11 +406,10 @@ sub todo
     push @{$self->{'subs_todo'}}, [$seq, $cv, $is_form, $name];
 }
 
-# _pessimize_walk(): recursively walk the optree of a sub,
+# _pessimise_walk(): recursively walk the optree of a sub,
 # possibly undoing optimisations along the way.
 
-sub _pessimize_walk($$)
-{
+sub _pessimise_walk {
     my ($self, $startop) = @_;
 
     return unless $$startop;
@@ -467,24 +437,21 @@ sub _pessimize_walk($$)
 		    type => OP_PUSHMARK,
 		    name => 'pushmark',
 		    private => ($op->private & OPpLVAL_INTRO),
-		    next    => ($op->flags & OPf_SPECIAL)
-				    ? $op->sibling->first
-				    : $op->sibling,
 	    };
 	}
 
-	# pessimizations end here
+	# pessimisations end here
 
 	if (class($op) eq 'PMOP'
 	    && ref($op->pmreplroot)
 	    && ${$op->pmreplroot}
 	    && $op->pmreplroot->isa( 'B::OP' ))
 	{
-	    $self-> _pessimize_walk($op->pmreplroot);
+	    $self-> _pessimise_walk($op->pmreplroot);
 	}
 
 	if ($op->flags & OPf_KIDS) {
-	    $self-> _pessimize_walk($op->first);
+	    $self-> _pessimise_walk($op->first);
 	}
 
     }
@@ -494,8 +461,7 @@ sub _pessimize_walk($$)
 # _pessimise_walk_exe(): recursively walk the op_next chain of a sub,
 # possibly undoing optimisations along the way.
 
-sub _pessimize_walk_exe
-{
+sub _pessimise_walk_exe {
     my ($self, $startop, $visited) = @_;
 
     return unless $$startop;
@@ -510,37 +476,38 @@ sub _pessimize_walk_exe
 	    # entertry is also a logop, but its op_other invariably points
 	    # into the same chain as the main execution path, so we skip it
 	) {
-	    $self->_pessimize_walk_exe($op->other, $visited);
+	    $self->_pessimise_walk_exe($op->other, $visited);
 	}
 	elsif ($ppname eq "subst") {
-	    $self->_pessimize_walk_exe($op->pmreplstart, $visited);
+	    $self->_pessimise_walk_exe($op->pmreplstart, $visited);
 	}
 	elsif ($ppname =~ /^(enter(loop|iter))$/) {
 	    # redoop and nextop will already be covered by the main block
 	    # of the loop
-	    $self->_pessimize_walk_exe($op->lastop, $visited);
+	    $self->_pessimise_walk_exe($op->lastop, $visited);
 	}
 
-	# pessimizations start here
+	# pessimisations start here
     }
 }
 
 # Go through an optree and "remove" some optimisations by using an
 # overlay to selectively modify or un-null some ops. Deparsing in the
-# absence of those optimizations is then easier.
+# absence of those optimisations is then easier.
 #
-# Note that older optimizations are not removed, as Deparse was already
-# written to recognise them before the pessimize/overlay system was added.
+# Note that older optimisations are not removed, as Deparse was already
+# written to recognise them before the pessimise/overlay system was added.
 
-sub pessimize {
+sub pessimise {
     my ($self, $root, $start) = @_;
 
+    no warnings 'recursion';
     # walk tree in root-to-branch order
-    $self->_pessimize_walk($root);
+    $self->_pessimise_walk($root);
 
     my %visited;
     # walk tree in execution order
-    $self->_pessimize_walk_exe($start, \%visited);
+    $self->_pessimise_walk_exe($start, \%visited);
 }
 
 sub stash_subs {
@@ -561,8 +528,31 @@ sub stash_subs {
 	   }++;
     my %stash = svref_2object($stash)->ARRAY;
     while (my ($key, $val) = each %stash) {
-	my $class = class($val);
-	if ($class eq "PV") {
+	my $flags = $val->FLAGS;
+	if ($flags & SVf_ROK) {
+	    # A reference.  Dump this if it is a reference to a CV.  If it
+	    # is a constant acting as a proxy for a full subroutine, then
+	    # we may or may not have to dump it.  If some form of perl-
+	    # space visible code must have created it, be it a use
+	    # statement, or some direct symbol-table manipulation code that
+	    # we will deparse, then we don’t want to dump it.  If it is the
+	    # result of a declaration like sub f () { 42 } then we *do*
+	    # want to dump it.  The only way to distinguish these seems
+	    # to be the SVs_PADTMP flag on the constant, which is admit-
+	    # tedly a hack.
+	    my $class = class(my $referent = $val->RV);
+	    if ($class eq "CV") {
+		$self->todo($referent, 0);
+	    } elsif (
+		$class !~ /^(AV|HV|CV|FM|IO|SPECIAL)\z/
+		# A more robust way to write that would be this, but B does
+		# not provide the SVt_ constants:
+		# ($referent->FLAGS & B::SVTYPEMASK) < B::SVt_PVAV
+		and $referent->FLAGS & SVs_PADTMP
+	    ) {
+		push @{$self->{'protos_todo'}}, [$pack . $key, $val];
+	    }
+	} elsif ($flags & (SVf_POK|SVf_IOK)) {
 	    # Just a prototype. As an ugly but fairly effective way
 	    # to find out if it belongs here is to see if the AUTOLOAD
 	    # (if any) for the stash was defined in one of our files.
@@ -572,20 +562,9 @@ sub stash_subs {
 		my $AF = $A->FILE;
 		next unless $AF eq $0 || exists $self->{'files'}{$AF};
 	    }
-	    push @{$self->{'protos_todo'}}, [$pack . $key, $val->PV];
-	} elsif ($class eq "IV" && !($val->FLAGS & SVf_ROK)) {
-	    # Just a name. As above.
-	    # But skip proxy constant subroutines, as some form of perl-space
-	    # visible code must have created them, be it a use statement, or
-	    # some direct symbol-table manipulation code that we will Deparse
-	    my $A = $stash{"AUTOLOAD"};
-	    if (defined ($A) && class($A) eq "GV" && defined($A->CV)
-		&& class($A->CV) eq "CV") {
-		my $AF = $A->FILE;
-		next unless $AF eq $0 || exists $self->{'files'}{$AF};
-	    }
-	    push @{$self->{'protos_todo'}}, [$pack . $key, undef];
-	} elsif ($class eq "GV") {
+	    push @{$self->{'protos_todo'}},
+		 [$pack . $key, $flags & SVf_POK ? $val->PV: undef];
+	} elsif (class($val) eq "GV") {
 	    if (class(my $cv = $val->CV) ne "SPECIAL") {
 		next if $self->{'subs_done'}{$$val}++;
 		next if $$val != ${$cv->GV};   # Ignore imposters
@@ -599,6 +578,43 @@ sub stash_subs {
 	    if (class($val->HV) ne "SPECIAL" && $key =~ /::$/) {
 		$self->stash_subs($pack . $key, $seen);
 	    }
+	}
+    }
+}
+
+sub print_protos {
+    my $self = shift;
+    my $ar;
+    my @ret;
+    foreach $ar (@{$self->{'protos_todo'}}) {
+	my $proto = defined $ar->[1]
+		? ref $ar->[1]
+		    ? " () {\n    " . $self->const($ar->[1]->RV,0) . ";\n}"
+		    : " (". $ar->[1] . ");"
+		: ";";
+	push @ret, "sub " . $ar->[0] .  "$proto\n";
+    }
+    delete $self->{'protos_todo'};
+    return @ret;
+}
+
+sub style_opts
+{
+    my ($self, $opts) = @_;
+    my $opt;
+    while (length($opt = substr($opts, 0, 1))) {
+	if ($opt eq "C") {
+	    $self->{'cuddle'} = " ";
+	    $opts = substr($opts, 1);
+	} elsif ($opt eq "i") {
+	    $opts =~ s/^i(\d+)//;
+	    $self->{'indent_size'} = $1;
+	} elsif ($opt eq "T") {
+	    $self->{'use_tabs'} = 1;
+	    $opts = substr($opts, 1);
+	} elsif ($opt eq "v") {
+	    $opts =~ s/^v([^.]*)(.|$)//;
+	    $self->{'ex_const'} = $1;
 	}
     }
 }
@@ -626,8 +642,13 @@ sub compile {
 	my @CHECKs  = B::check_av->isa("B::AV") ? B::check_av->ARRAY : ();
 	my @INITs   = B::init_av->isa("B::AV") ? B::init_av->ARRAY : ();
 	my @ENDs    = B::end_av->isa("B::AV") ? B::end_av->ARRAY : ();
-	for my $block (@BEGINs, @UNITCHECKs, @CHECKs, @INITs, @ENDs) {
-	    $self->todo($block, 0);
+	my @names = qw(BEGIN UNITCHECK CHECK INIT END);
+	my @blocks = \(@BEGINs, @UNITCHECKs, @CHECKs, @INITs, @ENDs);
+	while (@names) {
+	    my ($name, $blocks) = (shift @names, shift @blocks);
+	    for my $block (@$blocks) {
+		$self->todo($block, 0, $name);
+	    }
 	}
 	$self->stash_subs();
 	local($SIG{"__DIE__"}) =
@@ -646,36 +667,60 @@ sub compile {
 	my $root = main_root;
 	local $B::overlay = {};
 	unless (null $root) {
-	    $self->pessimize($root, main_start);
-	    my $deparsed = $self->deparse_root($root);
-	    print $self->indent_info($deparsed), "\n";
+	    $self->pad_subs($self->{'curcv'});
+	    # Check for a stub-followed-by-ex-cop, resulting from a program
+	    # consisting solely of sub declarations.  For backward-compati-
+	    # bility (and sane output) we don’t want to emit the stub.
+	    #   leave
+	    #     enter
+	    #     stub
+	    #     ex-nextstate (or ex-dbstate)
+	    my $kid;
+	    if ( $root->name eq 'leave'
+	     and ($kid = $root->first)->name eq 'enter'
+	     and !null($kid = $kid->sibling) and $kid->name eq 'stub'
+	     and !null($kid = $kid->sibling) and $kid->name eq 'null'
+	     and class($kid) eq 'COP' and null $kid->sibling )
+	    {
+		# ignore
+	    } else {
+		$self->pessimise($root, main_start);
+		print $self->indent($self->deparse_root($root)), "\n";
+	    }
 	}
-	my @texts;
+	my @text;
 	while (scalar(@{$self->{'subs_todo'}})) {
-	    push @texts, $self->next_todo;
+	    push @text, $self->next_todo;
 	}
-	print $self->indent(join("", @texts)), "\n" if @texts;
+	print $self->indent(join("", @text)), "\n" if @text;
 
 	# Print __DATA__ section, if necessary
 	no strict 'refs';
 	my $laststash = defined $self->{'curcop'}
 	    ? $self->{'curcop'}->stash->NAME : $self->{'curstash'};
 	if (defined *{$laststash."::DATA"}{IO}) {
-	    print "package $laststash;\n"
+	    print $self->keyword("package") . " $laststash;\n"
 		unless $laststash eq $self->{'curstash'};
-	    print "__DATA__\n";
+	    print $self->keyword("__DATA__") . "\n";
 	    print readline(*{$laststash."::DATA"});
 	}
     }
 }
 
 # This method is the inner loop, so try to keep it simple
-sub deparse($$$$)
+sub deparse
 {
     my($self, $op, $cx, $parent) = @_;
 
     Carp::confess("Null op in deparse") if !defined($op)
-					|| class($op) eq "NULL";
+	|| class($op) eq "NULL";
+
+    eval {
+	my $meth = "pp_" . $op->name;
+    };
+    if ($@) {
+	return;
+    }
     my $meth = "pp_" . $op->name;
     # print "YYY $meth\n";
     my $info = $self->$meth($op, $cx);
@@ -734,7 +779,7 @@ sub deparse_sub($$$)
 
     local $B::overlay = {};
     if (not null $root) {
-	$self->pessimize($root, $cv->START);
+	$self->pessimise($root, $cv->START);
 	my $lineseq = $root->first;
 	if ($lineseq->name eq "lineseq") {
 	    my @ops;
@@ -920,9 +965,9 @@ sub scopeop
 	    my $top = $kid->first;
 	    my $name = $top->name;
 	    if ($name eq "and") {
-		$name = "while";
+		$name = $self->keyword("while");
 	    } elsif ($name eq "or") {
-		$name = "until";
+		$name = $self->keyword("until");
 	    } else { # no conditional -> while 1 or until 0
 		my $body = [$self->deparse($top->first, 1, $top)];
 		return info_from_list([$body->{text}, 'while', '1'],
@@ -969,8 +1014,7 @@ sub scopeop
     }
 }
 
-sub hint_pragmas($)
-{
+sub hint_pragmas {
     my ($bits) = @_;
     my (@pragmas, @strict);
     push @pragmas, "integer" if $bits & 0x1;
@@ -987,17 +1031,17 @@ sub hint_pragmas($)
     return @pragmas;
 }
 
-sub declare_hints($$)
+sub declare_hints
 {
-    my ($from, $to) = @_;
+    my ($self, $from, $to) = @_;
     my $use = $to   & ~$from;
     my $no  = $from & ~$to;
     my $decls = "";
     for my $pragma (hint_pragmas($use)) {
-	$decls .= "use $pragma;\n";
+	$decls .= $self->keyword("use") . " $pragma;\n";
     }
     for my $pragma (hint_pragmas($no)) {
-        $decls .= "no $pragma;\n";
+        $decls .= $self->keyword("no") . " $pragma;\n";
     }
     return $decls;
 }
@@ -1015,9 +1059,8 @@ my %ignored_hints = (
 
 my %rev_feature;
 
-sub declare_hinthash
-{
-    my ($from, $to, $indent, $hints) = @_;
+sub declare_hinthash {
+    my ($self, $from, $to, $indent, $hints) = @_;
     my $doing_features =
 	($hints & $feature::hint_mask) == $feature::hint_mask;
     my @decls;
@@ -1030,10 +1073,10 @@ sub declare_hinthash
 	if (!exists $from->{$key} or $from->{$key} ne $to->{$key}) {
 	    push(@features, $key), next if $is_feature;
 	    push @decls,
-		qq(\$^H{) . single_delim("q", "'", $key) . qq(} = )
+		qq(\$^H{) . single_delim("q", "'", $key, $self) . qq(} = )
 	      . (
 		   defined $to->{$key}
-			? single_delim("q", "'", $to->{$key})
+			? single_delim("q", "'", $to->{$key}, $self)
 			: 'undef'
 		)
 	      . qq(;);
@@ -1053,39 +1096,133 @@ sub declare_hinthash
 	if (!%rev_feature) { %rev_feature = reverse %feature::feature }
     }
     if (@features) {
-	push @ret, "use feature "
-		 . join(", ", map "'$rev_feature{$_}'", @features) . ";\n";
+    	push @ret, $self->keyword("use") . " feature "
+    		 . join(", ", map "'$rev_feature{$_}'", @features) . ";\n";
     }
     if (@unfeatures) {
-	push @ret, "no feature "
+	push @ret, $self->keyword("no") . " feature "
 		 . join(", ", map "'$rev_feature{$_}'", @unfeatures)
 		 . ";\n";
     }
     @decls and
 	push @ret,
-	     join("\n" . (" " x $indent), "BEGIN {", @decls) . "\n}\n";
+	     join("\n" . (" " x $indent), "BEGIN {", @decls) . "\n}\n\cK";
     return @ret;
 }
 
 sub _features_from_bundle
 {
     my ($hints, $hh) = @_;
+    no warnings 'once';
     foreach (@{$feature::feature_bundle{@feature::hint_bundles[$hints >> $feature::hint_shift]}}) {
 	$hh->{$feature::feature{$_}} = 1;
     }
     return $hh;
 }
 
+# generate any pragmas, 'package foo' etc needed to synchronise
+# with the given cop
+
+sub pragmata {
+    my $self = shift;
+    my($op) = @_;
+
+    my @text;
+
+    my $stash = $op->stashpv;
+    if ($stash ne $self->{'curstash'}) {
+	push @text, $self->keyword("package") . " $stash;\n";
+	$self->{'curstash'} = $stash;
+    }
+
+    if (OPpCONST_ARYBASE && $self->{'arybase'} != $op->arybase) {
+	push @text, '$[ = '. $op->arybase .";\n";
+	$self->{'arybase'} = $op->arybase;
+    }
+
+    my $warnings = $op->warnings;
+    my $warning_bits;
+    if ($warnings->isa("B::SPECIAL") && $$warnings == 4) {
+	$warning_bits = $warnings::Bits{"all"} & WARN_MASK;
+    }
+    elsif ($warnings->isa("B::SPECIAL") && $$warnings == 5) {
+        $warning_bits = $warnings::NONE;
+    }
+    elsif ($warnings->isa("B::SPECIAL")) {
+	$warning_bits = undef;
+    }
+    else {
+	$warning_bits = $warnings->PV & WARN_MASK;
+    }
+
+    if (defined ($warning_bits) and
+       !defined($self->{warnings}) || $self->{'warnings'} ne $warning_bits) {
+	push @text,
+	    $self->declare_warnings($self->{'warnings'}, $warning_bits);
+	$self->{'warnings'} = $warning_bits;
+    }
+
+    my $hints = $] < 5.008009 ? $op->private : $op->hints;
+    my $old_hints = $self->{'hints'};
+    if ($self->{'hints'} != $hints) {
+	push @text, $self->declare_hints($self->{'hints'}, $hints);
+	$self->{'hints'} = $hints;
+    }
+
+    my $newhh;
+    if ($] > 5.009) {
+	$newhh = $op->hints_hash->HASH;
+    }
+
+    if ($] >= 5.015006) {
+	# feature bundle hints
+	my $from = $old_hints & $feature::hint_mask;
+	my $to   = $    hints & $feature::hint_mask;
+	if ($from != $to) {
+	    if ($to == $feature::hint_mask) {
+		if ($self->{'hinthash'}) {
+		    delete $self->{'hinthash'}{$_}
+			for grep /^feature_/, keys %{$self->{'hinthash'}};
+		}
+		else { $self->{'hinthash'} = {} }
+		$self->{'hinthash'}
+		    = _features_from_bundle($from, $self->{'hinthash'});
+	    }
+	    else {
+		my $bundle =
+		    $feature::hint_bundles[$to >> $feature::hint_shift];
+		$bundle =~ s/(\d[13579])\z/$1+1/e; # 5.11 => 5.12
+		push @text,
+		    $self->keyword("no") . " feature ':all';\n",
+		    $self->keyword("use") . " feature ':$bundle';\n";
+	    }
+	}
+    }
+
+    if ($] > 5.009) {
+	push @text, $self->declare_hinthash(
+	    $self->{'hinthash'}, $newhh,
+	    $self->{indent_size}, $self->{hints},
+	);
+	$self->{'hinthash'} = $newhh;
+    }
+
+    return join("", @text);
+}
+
+
 sub declare_warnings
 {
-    my ($from, $to) = @_;
+    my ($self, $from, $to) = @_;
     if (($to & WARN_MASK) eq (warnings::bits("all") & WARN_MASK)) {
-	return "use warnings;\n";
+	return $self->keyword("use") . " warnings;\n";
     }
     elsif (($to & WARN_MASK) eq ("\0"x length($to) & WARN_MASK)) {
-	return "no warnings;\n";
+	return $self->keyword("no") . " warnings;\n";
     }
-    return "BEGIN {\${^WARNING_BITS} = ".perlstring($to)."}\n";
+    return "BEGIN {\${^WARNING_BITS} = \""
+           . join("", map { sprintf("\\x%02x", ord $_) } split "", $to)
+           . "\"}\n\cK";
 }
 
 sub is_scope {
