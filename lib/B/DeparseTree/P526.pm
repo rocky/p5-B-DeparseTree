@@ -3543,13 +3543,12 @@ sub escape_str { # ASCII, UTF8
     return $str;
 }
 
-# For regexes with the /x modifier.
-# Leave whitespace unmangled.
-sub escape_extended_re {
+# For regexes.  Leave whitespace unmangled in case of /x or (?x).
+sub escape_re {
     my($str) = @_;
     $str =~ s/(.)/ord($1) > 255 ? sprintf("\\x{%x}", ord($1)) : $1/eg;
     $str =~ s/([[:^print:]])/
-	($1 =~ y! \t\n!!) ? $1 : sprintf("\\%03o", ord($1))/ge;
+	($1 =~ y! \t\n!!) ? $1 : sprintf("\\%03o", ord($1))/age;
     $str =~ s/\n/\n\f/g;
     return $str;
 }
@@ -4206,56 +4205,37 @@ sub re_dq_disambiguate {
 # Like dq(), but different
 sub re_dq {
     my $self = shift;
-    my ($op, $extended) = @_;
+    my ($op) = @_;
 
     my $type = $op->name;
-    my ($re, @texts, $type);
-    my $opts = {};
     if ($type eq "const") {
-	return info_from_text('$[', 're_dq_const', {})
-	    if $op->private & OPpCONST_ARYBASE;
+	return '$[' if $op->private & OPpCONST_ARYBASE;
 	my $unbacked = re_unback($self->const_sv($op)->as_string);
-	return re_uninterp_extended(escape_extended_re($unbacked))
-	    if $extended;
-	return re_uninterp(escape_str($unbacked));
+	return re_uninterp(escape_re($unbacked));
     } elsif ($type eq "concat") {
-	my $first = $self->re_dq($op->first, $extended);
-	my $last  = $self->re_dq($op->last,  $extended);
+	my $first = $self->re_dq($op->first);
+	my $last  = $self->re_dq($op->last);
 	return re_dq_disambiguate($first, $last);
     } elsif ($type eq "uc") {
-	$re = $self->re_dq($op->first->sibling, $extended);
-	@texts = ['\U', $re->{text},'\E'];
-	$type = 're_dq_U';
+	return '\U' . $self->re_dq($op->first->sibling) . '\E';
     } elsif ($type eq "lc") {
-	$re = $self->re_dq($op->first->sibling, $extended);
-	@texts = ['\L', $re->{text},'\E'];
-	$type = 're_dq_L';
+	return '\L' . $self->re_dq($op->first->sibling) . '\E';
     } elsif ($type eq "ucfirst") {
-	$re = $self->re_dq($op->first->sibling, $extended);
-	@texts = ['\u', $re->{text}];
-	$type = 're_dq_u';
+	return '\u' . $self->re_dq($op->first->sibling);
     } elsif ($type eq "lcfirst") {
-	$re = $self->re_dq($op->first->sibling, $extended);
-	@texts = ['\l', $re->{text}];
-	$type = 're_dq_l';
+	return '\l' . $self->re_dq($op->first->sibling);
     } elsif ($type eq "quotemeta") {
-	$re = $self->re_dq($op->first->sibling, $extended);
-	@texts = ['\Q', $re->{text},'\E'];
-	$type = 're_dq_Q';
+	return '\Q' . $self->re_dq($op->first->sibling) . '\E';
     } elsif ($type eq "fc") {
-	$re = $self->re_dq($op->first->sibling, $extended);
-	@texts = ['\F', $re->{text},'\E'];
-	$type = 're_dq_Q';
+	return '\F' . $self->re_dq($op->first->sibling) . '\E';
     } elsif ($type eq "join") {
-	return $self->deparse($op->last, 26, $op); # was join($", @ary)
+	return $self->deparse($op->last, 26); # was join($", @ary)
     } else {
-	my $info = $self->deparse($op, 26, $op);
-	$info->{type} = 're_dq';
-	$info->{text} =~ s/^\$([(|)])\z/\${$1}/; # $( $| $) need braces
-	return $info;
+	my $ret = $self->deparse($op, 26);
+	$ret =~ s/^\$([(|)])\z/\${$1}/ # $( $| $) need braces
+	or $ret =~ s/^\@([-+])\z/\@{$1}/; # @- @+ need braces
+	return $ret;
     }
-    $opts->{body} = [$re];
-    return info_from_list(\@texts, '', $type, $opts);
 }
 
 sub pure_string {
@@ -4351,23 +4331,29 @@ sub pp_regcomp
     return (($self->regcomp($op, $cx, 0))[0]);
 }
 
-sub re_flags
-{
+sub re_flags {
     my ($self, $op) = @_;
     my $flags = '';
     my $pmflags = $op->pmflags;
+    if (!$pmflags) {
+	my $re = $op->pmregexp;
+	if ($$re) {
+	    $pmflags = $re->compflags;
+	}
+    }
     $flags .= "g" if $pmflags & PMf_GLOBAL;
     $flags .= "i" if $pmflags & PMf_FOLD;
     $flags .= "m" if $pmflags & PMf_MULTILINE;
     $flags .= "o" if $pmflags & PMf_KEEP;
     $flags .= "s" if $pmflags & PMf_SINGLELINE;
     $flags .= "x" if $pmflags & PMf_EXTENDED;
+    $flags .= "x" if $pmflags & PMf_EXTENDED_MORE;
     $flags .= "p" if $pmflags & PMf_KEEPCOPY;
     $flags .= "n" if $pmflags & PMf_NOCAPTURE;
     if (my $charset = $pmflags & PMf_CHARSET) {
 	# Hardcoding this is fragile, but B does not yet export the
 	# constants we need.
-	$flags .= qw(d l u a aa)[$charset >> 5]
+	$flags .= qw(d l u a aa)[$charset >> 7]
     }
     # The /d flag is indicated by 0; only show it if necessary.
     elsif ($self->{hinthash} and
@@ -4377,7 +4363,7 @@ sub re_flags
 	  && ($self->{hints} & $feature::hint_mask)
 	       != $feature::hint_mask
 	  && $self->{hints} & $feature::hint_uni8bit
-	) {
+    ) {
 	$flags .= 'd';
     }
     $flags;
@@ -4578,6 +4564,10 @@ sub pp_subst
 	$var = $self->deparse($kid, 20, $op);
 	$kid = $kid->sibling;
     }
+    elsif (my $targ = $op->targ) {
+	$binop = 1;
+	$var = $self->padname($targ);
+    }
     my $flags = "";
     my $pmflags = $op->pmflags;
     if (null($op->pmreplroot)) {
@@ -4600,17 +4590,12 @@ sub pp_subst
 	    $repl_info = $self->dq($repl);
 	}
     }
-    my $extended = ($pmflags & PMf_EXTENDED);
-    if (null $kid) {
-	my $unbacked = re_unback($op->precomp);
-	if ($extended) {
-	    $re = re_uninterp_extended(escape_extended_re($unbacked));
-	}
-	else {
-	    $re = re_uninterp(escape_str($unbacked));
-	}
+    if (not null my $code_list = $op->code_list) {
+	$re = $self->code_list($code_list);
+    } elsif (null $kid) {
+	$re = re_uninterp(escape_re(re_unback($op->precomp)));
     } else {
-	my ($re_info, $junk) = $self->regcomp($kid, 1, $extended);
+	my ($re_info, $junk) = $self->regcomp($kid, 1);
 	push @body, $re_info;
 	$re = $re_info->{text};
     }
@@ -4619,17 +4604,19 @@ sub pp_subst
     $flags .= $self->re_flags($op);
     $flags = join '', sort split //, $flags;
     $flags = $substwords{$flags} if $substwords{$flags};
+    my $core_s = $self->keyword("s"); # maybe CORE::s
     my $info;
     push @body, $repl_info;
     my $repl_text = $repl_info->{text};
     my $opts = {body => \@body};
     $opts->{other_ops} = \@other_ops if @other_ops;
     if ($binop) {
-	my @texts = ($var->{text}, " ", "=~", " ", "s", double_delim($re, $repl_text), $flags);
+	my @texts = ($var->{text}, " ", "=~", " ", "s",
+		     double_delim($re, $repl_text), $flags);
 	$opts->{maybe_parens} = [$self, $cx, 20];
 	return info_from_list(\@texts, '', 'subst_binop', $opts);
     } else {
-	return info_from_list(['s', double_delim($re, $repl_text)], '', 'subst',
+	return info_from_list(["$core_s", double_delim($re, $repl_text), $flags], '', 'subst',
 			      $opts);
     }
     Carp::confess("unhandled condition in pp_subst");

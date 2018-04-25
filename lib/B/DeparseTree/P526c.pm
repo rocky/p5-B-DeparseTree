@@ -3570,13 +3570,12 @@ sub escape_str { # ASCII, UTF8
     return $str;
 }
 
-# For regexes with the /x modifier.
-# Leave whitespace unmangled.
-sub escape_extended_re {
+# For regexes.  Leave whitespace unmangled in case of /x or (?x).
+sub escape_re {
     my($str) = @_;
     $str =~ s/(.)/ord($1) > 255 ? sprintf("\\x{%x}", ord($1)) : $1/eg;
     $str =~ s/([[:^print:]])/
-	($1 =~ y! \t\n!!) ? $1 : sprintf("\\%03o", ord($1))/ge;
+	($1 =~ y! \t\n!!) ? $1 : sprintf("\\%03o", ord($1))/age;
     $str =~ s/\n/\n\f/g;
     return $str;
 }
