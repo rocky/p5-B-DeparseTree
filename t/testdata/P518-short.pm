@@ -1,4 +1,4 @@
-# Adapted from Perl 5.18.4's lib/B/Deparse.t
+# Adapted from Perl 5.18's lib/B/Deparse.t
 1;
 __DATA__
 # A constant
@@ -84,6 +84,27 @@ $b::a[0] = 1;
 # aelemfast for a lexical
 my @a;
 $a[0] = 1;
+####
+# Feature hints
+use feature 'current_sub', 'evalbytes';
+print;
+use 1;
+print;
+use 5.014;
+print;
+no feature 'unicode_strings';
+print;
+>>>>
+use feature 'current_sub', 'evalbytes';
+print $_;
+no feature ':all';
+use feature ':default';
+print $_;
+no feature ':all';
+use feature ':5.12';
+print $_;
+no feature 'unicode_strings';
+print $_;
 ####
 # $#- $#+ $#{%} etc.
 my @x;
