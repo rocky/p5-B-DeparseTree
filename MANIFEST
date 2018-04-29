@@ -13,6 +13,7 @@ example/multiline.pl
 lib/B/DeparseTree.pm
 lib/B/DeparseTree.pod
 lib/B/DeparseTree/Common.pm
+lib/B/DeparseTree/Node.pm
 lib/B/DeparseTree/P520.pm
 lib/B/DeparseTree/P522.pm
 lib/B/DeparseTree/P524.pm
