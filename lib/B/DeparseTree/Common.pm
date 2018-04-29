@@ -11,6 +11,8 @@ use B qw(class
          OPpSORT_REVERSE OPpTARGET_MY svref_2object perlstring);
 use Carp;
 
+use B::DeparseTree::Node;
+
 our($VERSION, @EXPORT, @ISA);
 $VERSION = '1.1.0';
 @ISA = qw(Exporter);
@@ -239,15 +241,7 @@ sub info_from_list
 {
     my ($texts, $sep, $type, $opts) = @_;
     my $text = join($sep, @$texts);
-    my $info = {
-	text => $text,
-	texts => $texts,
-	type => $type,
-	sep => $sep,
-    };
-    foreach my $optname (qw(body other_ops)) {
-	$info->{$optname} = $opts->{$optname} if $opts->{$optname};
-    }
+    my $info = B::DeparseTree::Node->new($texts, $sep, $type, $opts);
     if ($opts->{maybe_parens}) {
 	my ($self, $cx, $prec) = @{$opts->{maybe_parens}};
 	$info->{text} = $self->maybe_parens($info->{text}, $cx, $prec);
