@@ -83,8 +83,10 @@ sub parens_test($$$)
 
 sub new($$$$$)
 {
-    my ($class, $texts, $sep, $type, $opts) = @_;
+    my ($class, $op, $deparse, $texts, $sep, $type, $opts) = @_;
     my $self = bless {
+	op => $op,
+	deparse => $deparse,
 	texts => $texts,
 	type => $type,
 	sep => $sep,
@@ -109,15 +111,15 @@ sub new($$$$$)
 }
 
 # Simplified class constructors
-sub from_str($$$)
+sub from_str($$$$$)
 {
-    my ($str, $type, $opts) = @_;
+    my ($op, $self, $str, $type, $opts) = @_;
     __PACKAGE__->new({body=>[$str]}, '', $type, $opts);
 }
 
-sub from_list($$$$)
+sub from_list($$$$$$)
 {
-    my ($list, $sep, $type, $opts) = @_;
+    my ($op, $self, $list, $sep, $type, $opts) = @_;
     __PACKAGE__->new({body=>$list}, $sep, $type, $opts);
 }
 
@@ -175,12 +177,13 @@ sub maybe_parens($$$$)
 }
 
 unless(caller) {
+    my $deparse = undef;
     *fs = \&B::DeparseTree::Node::from_str;
     *fl = \&B::DeparseTree::Node::from_list;
     my @list = ();
-    push @list, fs("X", 'string', {}),
-	fl(['A', 'B'], ':', 'simple-list', {});
-    push @list, fl(\@list, '||', 'compound-list', {});
+    push @list, fs('root', undef, "X", 'string', {}),
+	fl('root', undef, ['A', 'B'], ':', 'simple-list', {});
+    push @list, fl('root', undef, \@list, '||', 'compound-list', {});
     foreach my $item (@list) {
 	print $item->text, "\n";
     }

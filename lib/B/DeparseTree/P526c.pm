@@ -3625,8 +3625,7 @@ sub balanced_delim {
     return ("", $str);
 }
 
-sub single_delim {
-    my($q, $default, $str) = @_;
+sub single_delim($self, $q, $default, $str) {
     return info_from_list([$default, $str, $default], '', 'single_delim_default', {})
 	if $default and index($str, $default) == -1;
     if ($q ne 'qr') {
@@ -3783,7 +3782,7 @@ sub const {
 	    for (my $mg = $ref->MAGIC; $mg; $mg = $mg->MOREMAGIC) {
 		if ($mg->TYPE eq 'r') {
 		    my $re = re_uninterp(escape_str(re_unback($mg->precomp)));
-		    return single_delim("qr", "", $re);
+		    return single_delim($self, "qr", "", $re);
 		}
 	    }
 	}
@@ -3800,9 +3799,9 @@ sub const {
     } elsif ($sv->FLAGS & SVf_POK) {
 	my $str = $sv->PV;
 	if ($str =~ /[[:^print:]]/) {
-	    return single_delim("qq", '"', uninterp escape_str unback $str);
+	    return single_delim($self, "qq", '"', uninterp escape_str unback $str);
 	} else {
-	    return single_delim("q", "'", unback $str);
+	    return single_delim($self, "q", "'", unback $str);
 	}
     } else {
 	return info_from_text("undef", 'const_undef', {});
@@ -3922,7 +3921,7 @@ sub pp_backtick
     my $child = $op->first->sibling->isa('B::NULL')
 	? $op->first : $op->first->sibling;
     if ($self->pure_string($child)) {
-	return single_delim("qx", '`', $self->dq($child, 1)->{text});
+	return single_delim($self, "qx", '`', $self->dq($child, 1)->{text});
     }
     unop($self, $op, $cx, "readpipe");
 }
@@ -3933,7 +3932,7 @@ sub dquote
     my $kid = $op->first->sibling; # skip ex-stringify, pushmark
     return $self->deparse($kid, $cx, $op) if $self->{'unquote'};
     $self->maybe_targmy($kid, $cx,
-			sub {single_delim("qq", '"', $self->dq($_[1])->{text})});
+			sub {single_delim($self, "qq", '"', $self->dq($_[1])->{text})});
 }
 
 # OP_STRINGIFY is a listop, but it only ever has one arg
@@ -4466,7 +4465,7 @@ sub matchop
 	$re_str =~ s/\?/\\?/g;
 	$re_str = "?$re_str?";
     } elsif ($quote) {
-	my $re = single_delim($name, $delim, $re_str);
+	my $re = single_delim($self, $name, $delim, $re_str);
 	push @body, $re;
 	$re_str = $re->{text};
     }

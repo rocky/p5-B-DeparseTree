@@ -153,7 +153,10 @@ sub pp_i_predec { pfixop(@_, "--", 23) }
 # FIXME:
 # Different between 5.20 and 5.20. We've used 5.22 tough
 # Go over and make sure this is okay.
-sub pp_stub {info_from_list(["(", ")"], '', 'stub', {})};
+sub pp_stub {
+    my ($self, $op) = @_;
+    info_from_list($op, $self, ["(", ")"], '', 'stub', {})
+};
 
 sub pp_exists
 {
@@ -173,5 +176,5 @@ sub pp_exists
 	$type = 'info_hash';
     }
     my @texts = $self->maybe_parens_func($name, $info->{text}, $cx, 16);
-    return info_from_list(\@texts, '', $type, {body=>[$info]});
+    return info_from_list($op, $self, \@texts, '', $type, {body=>[$info]});
 }

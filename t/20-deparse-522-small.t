@@ -35,7 +35,8 @@ my %deparse;
 $/ = "\n####\n";
 my $eval_but_skip = $tests+1;
 
-my $test_data = File::Spec->catfile(data_dir, 'P522-short.pm');
+my $short_name = $ARGV[0] || 'P522-short.pm';
+my $test_data = File::Spec->catfile(data_dir, $short_name);
 open(my $data_fh, "<", $test_data) || die "Can't open $test_data: $!";
 # Skip 1st line
 ok <$data_fh> =~ /__DATA__/;

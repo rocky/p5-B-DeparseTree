@@ -110,7 +110,7 @@ sub new {
 
 # Initialise the contextual information, either from
 # defaults provided with the ambient_pragmas method,
-# or from perl's own defaults otherwise.
+# or from Perl's own defaults otherwise.
 sub init {
     my $self = shift;
 
@@ -237,11 +237,11 @@ sub is_for_loop($)
 }
 
 # Create an info structure from a list of strings
-sub info_from_list
+sub info_from_list($$$$$$)
 {
-    my ($texts, $sep, $type, $opts) = @_;
+    my ($op, $deparse, $texts, $sep, $type, $opts) = @_;
     my $text = join($sep, @$texts);
-    my $info = B::DeparseTree::Node->new($texts, $sep, $type, $opts);
+    my $info = B::DeparseTree::Node->new($op, $deparse, $texts, $sep, $type, $opts);
     if ($opts->{maybe_parens}) {
 	my ($self, $cx, $prec) = @{$opts->{maybe_parens}};
 	$info->{text} = $self->maybe_parens($info->{text}, $cx, $prec);
@@ -251,10 +251,10 @@ sub info_from_list
 }
 
 # Create an info structure from a single string
-sub info_from_text($$$)
+sub info_from_text($$$$$)
 {
-    my ($text, $type, $opts) = @_;
-    return info_from_list([$text], '', $type, $opts)
+    my ($op, $deparse, $text, $type, $opts) = @_;
+    return info_from_list($op, $deparse, [$text], '', $type, $opts)
 }
 
 sub walk_lineseq
@@ -289,7 +289,7 @@ sub walk_lineseq
     # assume will always be the last line in the text and start after a \n.
     my @texts = map { $_->{text} =~ /(?:\n#)|^\s*$/ ?
 			  $_->{text} : $_->{text} . ';' } @body;
-    my $info = info_from_list(\@texts, "\n", 'lineseq',
+    my $info = info_from_list($op, $self, \@texts, "\n", 'lineseq',
 			      {op => $op, body => \@body});
     $self->{optree}{$$op} = $info if $op;
     return $info;
@@ -352,7 +352,7 @@ sub maybe_targmy
     if ($op->private & OPpTARGET_MY) {
 	my $var = $self->padname($op->targ);
 	my $val = $func->($self, $op, 7, @args);
-	return info_from_list([$var, '=', $val->{text}],
+	return info_from_list($op, $self, [$var, '=', $val->{text}],
 			      ' ', 'maybe_targmy',
 			      {maybe_parens => [$self, $cx, 7]});
     } else {
@@ -788,7 +788,7 @@ sub deparse_sub($$$)
 	}
 	my @texts = ("{\n\t", $body->{text}, "\n\b}");
 	unshift @texts, $proto if $proto;
-	$info = info_from_list(\@texts, '', 'sub',
+	$info = info_from_list($root, $self, \@texts, '', 'sub',
 			       {body =>[$body],
 			        other_ops =>[$lineseq]});
 	$self->{optree}{$$lineseq} = $info;
@@ -799,11 +799,11 @@ sub deparse_sub($$$)
 	    # uh-oh. inlinable sub... format it differently
 	    my @texts = ("{", $self->const($sv, 0)->{text}, "}");
 	    unshift @texts, $proto if $proto;
-	    $info = info_from_list \@texts, '', 'sub_const', {};
+	    $info = info_from_list $sv, $self, \@texts, '', 'sub_const', {};
 	} else { # XSUB? (or just a declaration)
 	    my @texts = ();
 	    @texts = push @texts, $proto if $proto;
-	    $info = info_from_list \@texts, ' ', 'sub_decl', {};
+	    $info = info_from_list $root, $self, \@texts, ' ', 'sub_decl', {};
 	}
     }
 
@@ -859,7 +859,7 @@ sub next_todo
 	}
 	my $info = $self->deparse_sub($cv, $parent);
 	push @texts, $info->{text};
-	return info_from_list(\@texts, ' ', 'sub_todo', {body=>[$info]})
+	return info_from_list($self, $cv, \@texts, ' ', 'sub_todo', {body=>[$info]})
     }
 }
 
@@ -869,7 +869,7 @@ sub deparse_subname($$$)
     my ($self, $funcname, $parent) = @_;
     my $cv = svref_2object(\&$funcname);
     my $info = $self->deparse_sub($cv, $parent);
-    return info_from_list(['sub', $funcname, $info->{text}], ' ',
+    return info_from_list($cv, $self, ['sub', $funcname, $info->{text}], ' ',
 			  'deparse_subname', {body=>[$info]})
 }
 
@@ -964,8 +964,8 @@ sub scopeop
 		$name = $self->keyword("until");
 	    } else { # no conditional -> while 1 or until 0
 		my $body = [$self->deparse($top->first, 1, $top)];
-		return info_from_list([$body->{text}, 'while', '1'],
-				      ' ', 'while_1', {body =>$body});
+		return info_from_list $op, $self, [$body->{text}, 'while', '1'],
+				      ' ', 'while_1', {body =>$body};
 	    }
 	    my $cond = $top->first;
 	    my $other_ops = [$cond->sibling];
@@ -1004,7 +1004,7 @@ sub scopeop
     } else {
 	my $ls = $self->lineseq($op, $cx, @kids);
 	my $text = $ls->{text};
-	return info_from_text($text, 'scopeop', {});
+	return info_from_text($op, $self, $text, 'scopeop', {});
     }
 }
 
@@ -1067,10 +1067,10 @@ sub declare_hinthash {
 	if (!exists $from->{$key} or $from->{$key} ne $to->{$key}) {
 	    push(@features, $key), next if $is_feature;
 	    push @decls,
-		qq(\$^H{) . single_delim("q", "'", $key, $self) . qq(} = )
+		qq(\$^H{) . single_delim($self, "q", "'", $key, $self) . qq(} = )
 	      . (
 		   defined $to->{$key}
-			? single_delim("q", "'", $to->{$key}, $self)
+			? single_delim($self, "q", "'", $to->{$key}, $self)
 			: 'undef'
 		)
 	      . qq(;);
@@ -1290,7 +1290,7 @@ sub indirop
     my $indir = scalar @indir ? (join('', @indir) . ' ') : '';
     if ($name eq "sort" && ($op->private & OPpSORT_INPLACE)) {
 	my @texts = ($exprs[0]->{text}, '=', $name2, $indir, $exprs[0]->{text});
-	return info_from_list(\@texts, '', 'sort_inplace', $opts);
+	return info_from_list $op, $self, \@texts, '', 'sort_inplace', $opts;
     }
 
     my @texts;
@@ -1326,7 +1326,13 @@ sub indirop
 	    push(@texts, '(', ')') if (7 < $cx);
 	}
     }
-    return info_from_list(\@texts, '', $type, $opts);
+    return info_from_list($op, $self, \@texts, '', $type, $opts);
+}
+
+sub pp_unstack {
+    my ($self, $op) = @_;
+    # see also leaveloop
+    return info_from_text($op, $self, '', 'unstack', {});
 }
 
 # Logical ops, if/until, &&, and
@@ -1372,13 +1378,13 @@ sub logop
 	$opts = {maybe_parens => [$self, $cx, $lowprec]};
     }
     $opts->{block} = [$lhs, $rhs];
-    return info_from_list($texts, $sep, $type, $opts);
+    return info_from_list($op, $self, $texts, $sep, $type, $opts);
 }
 
 sub baseop
 {
     my($self, $op, $cx, $name) = @_;
-    return info_from_text($self->keyword($name), 'baseop', {});
+    return info_from_text($op, $self, $self->keyword($name), 'baseop', {});
 }
 
 sub POSTFIX () { 1 }
@@ -1405,8 +1411,8 @@ sub pfixop
 	@texts = ($name, $kid->{text});
     }
 
-    return info_from_list(\@texts, '', $type,
-			  {maybe_parens => [$self, $cx, $prec]});
+    return info_from_list $op, $self, \@texts, '', $type,
+			  {maybe_parens => [$self, $cx, $prec]} ;
 }
 
 sub mapop
@@ -1449,7 +1455,7 @@ sub mapop
     my $params = join(', ', @exprs_texts);
     $params = join(" ", @block_texts) . ' ' . $params if @block_texts;
     my @texts = $self->maybe_parens_func($name, $params, $cx, 5);
-    return info_from_list(\@texts, '', 'mapop', $opts)
+    return info_from_list $op, $self, \@texts, '', 'mapop', $opts;
 }
 
 1;
