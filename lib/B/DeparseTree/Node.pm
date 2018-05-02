@@ -94,7 +94,7 @@ sub new($$$$$)
 
     $self->{text} = $self->combine($sep, $texts);
 
-    foreach my $optname (qw(other_ops body parent_ops)) {
+    foreach my $optname (qw(other_ops body parent_ops child_pos)) {
 	$self->{$optname} = $opts->{$optname} if $opts->{$optname};
     }
     if ($opts->{maybe_parens}) {

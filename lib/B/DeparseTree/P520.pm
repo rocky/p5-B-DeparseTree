@@ -1604,8 +1604,10 @@ sub pp_repeat {
 	# list repeat; count is inside left-side ex-list
 	$other_ops = [$left->first];
 	my $kid = $left->first->sibling; # skip pushmark
-	for (; !null($kid->sibling); $kid = $kid->sibling) {
-	    push @exprs, $self->deparse($kid, 6, $op);
+	for (my $i=0; !null($kid->sibling); $kid = $kid->sibling) {
+	    my $expr = $self->deparse($kid, 6, $op);
+	    $expr->{child_pos} = $i++;
+	    push @exprs, ;
 	}
 	$right = $kid;
 	@body = @exprs;
@@ -1717,6 +1719,7 @@ sub listop
     }
     $first->{text} = "+" + $first->{text}
 	if not $parens and not $nollafr and substr($first->{text}, 0, 1) eq "(";
+    $first->{child_pos} = 0;
     push @exprs, $first;
     $kid = $kid->sibling;
     if (defined $proto && $proto =~ /^\*\*/ && $kid->name eq "rv2gv"
@@ -1725,8 +1728,10 @@ sub listop
 	push @exprs, $first;
 	$kid = $kid->sibling;
     }
-    for (; !null($kid); $kid = $kid->sibling) {
-	push @exprs, $self->deparse($kid, 6, $op);
+    for (my $i=1; !null($kid); $kid = $kid->sibling) {
+	my $expr = $self->deparse($kid, 6, $op);
+	$expr->{child_pos} = $i++;
+	push @exprs, $expr;
     }
 
     if ($name eq "reverse" && ($op->private & OPpREVERSE_INPLACE)) {
@@ -1983,7 +1988,7 @@ sub pp_list
     }
 
     my @body = ();
-    for (; !null($kid); $kid = $kid->sibling) {
+    for (my $i=0; !null($kid); $kid = $kid->sibling) {
 	if ($local) {
 	    if (class($kid) eq "UNOP" and $kid->first->name eq "gvsv") {
 		$lop = $kid->first;
@@ -1996,6 +2001,7 @@ sub pp_list
 	} else {
 	    $expr = $self->deparse($kid, 6, $op);
 	}
+	$expr->{child_pos} = $i++;
 	push @exprs, $expr;
     }
     push @body, @exprs;
