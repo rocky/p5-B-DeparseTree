@@ -1816,7 +1816,7 @@ sub pp_repeat {
 	for (my $i=0; !null($kid->sibling); $kid = $kid->sibling) {
 	    my $expr = $self->deparse($kid, 6, $op);
 	    $expr->{child_pos} = $i++;
-	    push @exprs, ;
+	    push @exprs, $expr;
 	}
 	$right = $kid;
 	@body = @exprs;

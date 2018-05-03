@@ -1676,8 +1676,10 @@ sub pp_repeat {
 	# list repeat; count is inside left-side ex-list
 	$other_ops = [$left->first];
 	my $kid = $left->first->sibling; # skip pushmark
-	for (; !null($kid->sibling); $kid = $kid->sibling) {
-	    push @exprs, $self->deparse($kid, 6, $op);
+	for (my $i=0; !null($kid->sibling); $kid = $kid->sibling) {
+	    my $expr = $self->deparse($kid, 6, $op);
+	    $expr->{child_pos} = $i++;
+	    push @exprs, $expr;
 	}
 	$right = $kid;
 	@body = @exprs;
