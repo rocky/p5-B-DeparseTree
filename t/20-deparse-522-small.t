@@ -124,7 +124,7 @@ EOC
 	    print diff \$deparsed, \$expected, { STYLE => "Context" };
 	    print "\n", '=' x 30, "\n"
 	}
-	ok 1, $desc;
+	ok $tests, $desc;
     }
 }
 

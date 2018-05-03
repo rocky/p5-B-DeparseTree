@@ -1,8 +1,16 @@
+#!./perl
+# Adapted from Deparse.t
+use File::Basename qw(dirname basename); use File::Spec;
+use English;
+
 use warnings;
 use strict;
+use Text::Diff;
+use rlib '../lib';
+
+use constant data_dir => File::Spec->catfile(dirname(__FILE__), 'testdata');
+
 use Test::More;
-use English;
-use File::Basename;
 
 if ($] < 5.020 || $] > 5.0209) {
     plan skip_all => 'Customized to Perl 5.20 interpreter';
@@ -11,14 +19,17 @@ if ($] < 5.020 || $] > 5.0209) {
 my $tests = 20; # not counting those in the __DATA__ section
 
 use B::Deparse;
+use B::DeparseTree;
+my $deparse_orig = B::Deparse->new();
 my $deparse = B::Deparse->new();
-isa_ok($deparse, 'B::Deparse', 'instantiate a B::Deparse object');
+isa_ok($deparse, 'B::DeparseTree', 'instantiate a B::DeparseTree object');
 my %deparse;
 
-my $data_file = File::Basename::dirname(__FILE__) . '/testdata/P520.pm';
+my $short_name = $ARGV[0] || 'P518-short.pm';
+my $test_data = File::Spec->catfile(data_dir, $short_name);
 
 local $INPUT_RECORD_SEPARATOR = "\n";
-open(my $fh, '<', $data_file) or die $!;
+open(my $fh, '<', $test_data) or die "Can't open $test_data: $!";
 while (<$fh>) {
     chomp;
     last if $_ eq '__DATA__'
@@ -182,10 +193,10 @@ $a = `$^X $path "-MO=Deparse" -e "sub ::::{}sub ::::::{}" 2>&1`;
 $a =~ s/-e syntax OK\n//g;
 is($a, <<'EOCODG', "sub :::: and sub ::::::");
 sub :::: {
-    
+
 }
 sub :::::: {
-    
+
 }
 EOCODG
 
