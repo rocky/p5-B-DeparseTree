@@ -122,7 +122,7 @@ EOC
 	local $::TODO = $meta{todo};
 	unless(like($deparsed, qr/$regex/, $desc)) {
 	    print diff \$deparsed, \$expected, { STYLE => "Context" };
-	    print "\n", '=' x 30, "\n"
+	    print "\n", '=' x 30, "\n";
 	}
 	ok $tests, $desc;
     }

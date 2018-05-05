@@ -17,6 +17,7 @@ our($VERSION, @EXPORT, @ISA);
 $VERSION = '1.1.0';
 @ISA = qw(Exporter);
 @EXPORT = qw(maybe_parens info_from_list info_from_text null new WARN_MASK
+            map_texts
             indent_list indent indent_info parens_test print_protos
             style_opts scopeop declare_hints hint_pragmas
             is_miniwhile is_lexical_subs %strict_bits
@@ -131,6 +132,49 @@ my %strict_bits = do {
     map +($_ => strict::bits($_)), qw/refs subs vars/
 };
 
+sub map_texts($$)
+{
+    my ($self, $args) = @_;
+    my @result ;
+    foreach my $expr (@$args) {
+	if (ref $expr eq 'ARRAY' and scalar(@$expr) == 2) {
+	    # First item is hash and second item is op address.
+	    push @result, [$expr->[0]{text}, $expr->[1]];
+	} else {
+	    push @result, [$expr->{text}, $expr->{addr}];
+	}
+    }
+    return @result;
+}
+
+
+sub combine($$)
+{
+    my ($self, $sep, $items) = @_;
+    # FIXME: loop over $item, testing type.
+    Carp::confess("should be a reference to a arry: is $items") unless
+	ref $items eq 'ARRAY';
+    my @result = ();
+    my $last = scalar(@{$items})-1;
+    for (my $i=0; $i <= $last; $i++) {
+	my $item = $items->[$i];
+	my $add;
+	if (ref $item) {
+	    if (ref $item eq 'ARRAY' and scalar(@$item) == 2) {
+		# First item is text and second item is op address.
+		$add = [$item->[0], $item->[1]];
+	    } else {
+		$add = $self->{text};
+	    }
+	} else {
+	    $add = $item;
+	}
+	push @result, $add;
+	push @result, $sep unless $i == $last;
+    }
+    return @result;
+}
+
 BEGIN { for (qw[ pushmark ]) {
     eval "sub OP_\U$_ () { " . opnumber($_) . "}"
 }}
@@ -240,7 +284,14 @@ sub is_for_loop($)
 sub info_from_list($$$$$$)
 {
     my ($op, $deparse, $texts, $sep, $type, $opts) = @_;
-    my $text = join($sep, @$texts);
+    my $text = '';
+    foreach my $item (@$texts) {
+	if(ref($item) eq 'ARRAY'){
+	    $text .= $item->[0];
+	} else {
+	    $text .= $item;
+	}
+    }
     my $info = B::DeparseTree::Node->new($op, $deparse, $texts, $sep, $type, $opts);
     if ($opts->{maybe_parens}) {
 	my ($self, $cx, $prec) = @{$opts->{maybe_parens}};
@@ -254,7 +305,11 @@ sub info_from_list($$$$$$)
 sub info_from_text($$$$$)
 {
     my ($op, $deparse, $text, $type, $opts) = @_;
-    return info_from_list($op, $deparse, [$text], '', $type, $opts)
+    if (ref($op)) {
+	return info_from_list($op, $deparse, [[$text, $$op]], '', $type, $opts)
+    } else {
+	return info_from_list($op, $deparse, [$text], '', $type, $opts)
+    }
 }
 
 sub walk_lineseq
@@ -334,7 +389,7 @@ sub lineseq {
 	    foreach my $bod (@{$info->{body}}) {
 		if (!ref($bod)) {
 		    Carp::carp(sprintf "nonref body: %s, op: %s", $bod, $op->name)
-		} else {
+		} elsif (ref($bod) eq 'HASH') {
 		    $bod->{parent} = $$op;
 		}
 	    }
@@ -1457,5 +1512,18 @@ sub mapop
     my @texts = $self->maybe_parens_func($name, $params, $cx, 5);
     return info_from_list $op, $self, \@texts, '', 'mapop', $opts;
 }
+
+
+# Demo code
+unless(caller) {
+    my @texts = ('a', 'b', 'c');
+    my $info; # = info_from_list('op', 'deparse',\@texts, ', ', 'test', {});
+    use Data::Printer;
+    # p $info;
+    @texts = (['a', 1], ['b', 2], 'c');
+    $info = info_from_list('op', 'deparse',\@texts, ', ', 'test', {});
+    p $info;
+}
+
 
 1;

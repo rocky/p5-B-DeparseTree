@@ -1,6 +1,6 @@
 # The underlying node structure of the abstract code tree built
 # that is built.
-# Copyright (c) 2015 Rocky Bernstein
+# Copyright (c) 2015, 2018 Rocky Bernstein
 use strict; use warnings;
 package B::DeparseTree::Node;
 use Carp;
@@ -84,7 +84,9 @@ sub parens_test($$$)
 sub new($$$$$)
 {
     my ($class, $op, $deparse, $texts, $sep, $type, $opts) = @_;
+    my $addr = eval { $$op } || -1;
     my $self = bless {
+	addr => $addr,
 	op => $op,
 	deparse => $deparse,
 	texts => $texts,
@@ -134,7 +136,12 @@ sub combine($$$)
     foreach my $item (@{$items}) {
 	my $add;
 	if (ref $item) {
-	    $add = $self->combine($item->{sep}, $item->{texts});
+	    if (ref $item eq 'ARRAY' and scalar(@$item) == 2) {
+		# First item is text and second item is op address.
+		$add = $item->[0];
+	    } else {
+		$add = $self->combine($item->{sep}, $item->{texts});
+	    }
 	} else {
 	    $add = $item;
 	}
@@ -176,6 +183,7 @@ sub maybe_parens($$$$)
     }
 }
 
+# Demo code
 unless(caller) {
     my $deparse = undef;
     *fs = \&B::DeparseTree::Node::from_str;

@@ -316,7 +316,7 @@ sub deparse_format($$$)
 	$op = $op->sibling;
     }
 
-    $info->{text} = join("", @texts) . "\f.";
+    $info->{text} = $self->combine("", \@texts) . "\f.";
     $info->{texts} = \@texts;
     return $info;
 }
@@ -592,13 +592,15 @@ sub maybe_parens_func($$$$$)
 
 sub dedup_parens_func
 {
+    my $self = shift;
     my $sub_name = shift;
-    my @args = @_;
+    my ($args_ref) = @_;
+    my @args = @$args_ref;
     if (scalar @args == 1 && substr($args[0], 0, 1) eq '(' &&
 	substr($args[0], -1, 1) eq ')') {
-	return ($sub_name, $args[0]);
+	return ($sub_name, $self->combine(', ', \@args), );
     } else {
-	return ($sub_name, '(', join(', ', @args), ')', );
+	return ($sub_name, '(', $self->combine(', ', \@args), ')', );
     }
 }
 
@@ -1244,13 +1246,13 @@ sub anon_hash_or_list
     $op = $op->first->sibling; # skip pushmark
     for (; !null($op); $op = $op->sibling) {
 	$expr = $self->deparse($op, 6, $op);
-	push @exprs, $expr;
+	push @exprs, [$expr, $op];
     }
     if ($pre eq "{" and $cx < 1) {
 	# Disambiguate that it's not a block
 	$pre = "+{";
     }
-    my $texts = [$pre, join(", ", map($_->{text}, @exprs), $post)];
+    my $texts = [$pre, $self->combine(", ", \@exprs), $post];
     return info_from_list($op, $self, $texts, '', $name,
 			  {body => \@exprs,
 			   other_ops => $other_ops
@@ -2072,20 +2074,22 @@ sub pp_list
 	    $expr = $self->deparse($kid, 6, $op);
 	}
 	$expr->{child_pos} = $i++;
-	push @exprs, $expr;
+	push @exprs, [$expr, $$kid];
     }
     push @body, @exprs;
-    my @args = map $_->{text}, @exprs;
+
+    my @args = $self->map_texts(\@exprs);
+
     my $opts = {
 	body => \@body,
 	other_ops => [$other_op],
     };
 
-    my @texts = ($local, '(', join(", ", @args), ')');
+    my @texts = ($local, '(', $self->combine(", ", \@args), ')');
     my $type = 'list_local';
     if (!$local) {
 	$type = 'list';
-	@texts = (join(", ", @args));
+	@texts = ($self->combine(", ", \@args));
 	$opts->{maybe_parens} = [$self, $cx, 6];
 
     }
@@ -2115,7 +2119,7 @@ sub pp_cond_expr
 	my $true_info = $self->deparse($true, 6, $op);
 	my $false_info = $self->deparse($false, 8, $op);
 	my @texts = ($cond_info->{text}, '?', $true_info->{text}, ':', $false_info->{text});
-	my $text = $self->maybe_parens(join(' ', @texts), $cx, 8);
+	my $text = $self->maybe_parens($self->combine(' ', \@texts), $cx, 8);
 	return {
 	    text => $text,
 	    texts => \@texts,
@@ -2145,8 +2149,7 @@ sub pp_cond_expr
 	my $newtrue_info = $self->deparse($newtrue, 0, $op);
 	push @body, $newcond_info;
 	push @body, $newtrue_info;
-	push @elsifs, ('', "elsif",
-		       "(", "$newcond_info->{text}", ")",
+	push @elsifs, ('', "elsif ($newcond_info->{text})",
 		       "{\n\t",
 		       $newtrue_info->{text},
 		       "\n\b}");
@@ -2298,7 +2301,7 @@ sub loop_common
 	    }
 	}
 	my $state = $body->first;
-	my $cuddle = $self->{'cuddle'};
+	my $cuddle = " ";
 	my @states;
 	for (; $$state != $$cont; $state = $state->sibling) {
 	    push @states, $state;
@@ -2345,8 +2348,8 @@ sub for_loop {
 }
 
 sub pp_leavetry {
-    my ($self, $op) = @_;
-    my $leave_info = $self->pp_leave(@_);
+    my ($self, $op, $cx) = @_;
+    my $leave_info = $self->pp_leave($op, $cx);
     return info_from_list($op, $self, ['eval', '{\n\t"', $leave_info->{text}, "\n\b}"],
 			  ' ', 'leavetry', {body=>[$leave_info]});
 }
@@ -2581,13 +2584,13 @@ sub list_const {
     my $self = shift;
     my($cx, @list) = @_;
     my @a = map $self->const($_, 6), @list;
-    my @texts = map $_->{text}, @a;
+    my @texts = $self->map_texts(\@a);
     my $type = 'list_const';
     my $prec = 6;
     if (@texts == 0) {
-	return info_from_list($cx, $self, ['(', ')'], '', 'list_const_null', {});
+	return info_from_list('const', $self, ['(', ')'], '', 'list_const_null', {});
     } elsif (@texts == 1) {
-	return info_from_text($cx, $self, $texts[0], 'list_const_one',
+	return info_from_text('const', $self, $texts[0], 'list_const_one',
 	    {body => \@a});
     } elsif ( @texts > 2 and !grep(!/^-?\d+$/, @texts)) {
 	# collapse (-1,0,1,2) into (-1..2)
@@ -2599,7 +2602,7 @@ sub list_const {
 	    $prec = 9;
 	}
     }
-    return info_from_list($cx, $self, \@texts,  '', $type,
+    return info_from_list('const', $self, \@texts,  '', $type,
 	{maybe_parens => [$self, $cx, $prec]});
 }
 
@@ -2924,7 +2927,7 @@ sub slice
     } else {
 	@elems = ($self->elem_or_slice_single_index($kid, $op));
     }
-    my $list = join(', ', map($_->{text}, @elems));
+    my $list = $self->combine(', ', \@elems);
     my $lead = '@';
     $lead = '%' if $op->name =~ /^kv/i;
     my (@texts, $type);
@@ -3264,7 +3267,9 @@ sub pp_entersub
     } else {
 	@body  = map($self->deparse($_, 6, $op), @exprs);
     }
-    my @arg_texts = map $_->{text}, @body;
+
+    my @arg_texts = $self->map_texts(\@body);
+
     if ($prefix or $amper) {
 	if ($sub_name eq '&') {
 	    # &{&} cannot be written as &&
@@ -3273,7 +3278,7 @@ sub pp_entersub
 	}
 	if ($op->flags & OPf_STACKED) {
 	    $type = 'entersub_prefix_or_amper_stacked';
-	    @texts = ($prefix, $amper, $sub_name, "(", join(', ', @arg_texts), ")");
+	    @texts = ($prefix, $amper, $sub_name, "(", $self->combine(', ', \@arg_texts), ")");
 	} else {
 	    $type = 'entersub_prefix_or_amper';
 	    @texts = ($prefix, $amper, $sub_name);
@@ -3286,7 +3291,7 @@ sub pp_entersub
 	my $dproto = defined($proto) ? $proto : "undefined";
         if (!$declared) {
 	    $type = 'entersub_not_declared';
-	    @texts = dedup_parens_func($sub_name, @arg_texts);
+	    @texts = dedup_parens_func($self, $sub_name, \@arg_texts);
 	} elsif ($dproto =~ /^\s*\z/) {
 	    $type = 'entersub_null_proto';
 	    @texts = ($sub_name);
@@ -3296,22 +3301,20 @@ sub pp_entersub
 	    # really, we should be comparing to the precedence of the
 	    # top operator of $exprs[0] (ala unop()), but that would
 	    # take some major code restructuring to do right.
-	    @texts = $self->maybe_parens_func($sub_name, join(', ', @arg_texts), $cx, 16);
+	    @texts = $self->maybe_parens_func($sub_name, $self->combine(', ', \@arg_texts), $cx, 16);
 	} elsif ($dproto ne '$' and defined($proto) || $simple) { #'
 	    $type = 'entersub_proto';
-	    @texts = $self->maybe_parens_func($sub_name, join(', ', @arg_texts), $cx, 5);
+	    @texts = $self->maybe_parens_func($sub_name, $self->combine(', ', \@arg_texts), $cx, 5);
 	} else {
 	    $type = 'entersub';
-	    @texts = dedup_parens_func($sub_name, @arg_texts);
+	    @texts = dedup_parens_func($self, $sub_name, \@arg_texts);
 	}
     }
-    return {
-	texts => \@texts,
-	body => \@body,
-	text => join('', @texts),
-	type => $type,
-	other_ops => $other_ops,
-    }
+    my $info = B::DeparseTree::Node->new($op, $self->{deparse}, \@texts,
+					 '', 'pp_entersub',
+					 {body => \@body,
+					  other_ops => $other_ops});
+    return $info;
 }
 
 sub pp_enterwrite { unop(@_, "write") }

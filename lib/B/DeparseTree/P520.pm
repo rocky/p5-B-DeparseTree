@@ -2228,7 +2228,7 @@ sub loop_common
 	    }
 	}
 	my $state = $body->first;
-	my $cuddle = $self->{'cuddle'};
+	my $cuddle = " ";
 	my @states;
 	for (; $$state != $$cont; $state = $state->sibling) {
 	    push @states, $state;
@@ -2275,8 +2275,8 @@ sub for_loop {
 }
 
 sub pp_leavetry {
-    my ($self, $op) = @_;
-    my $leave_info = $self->pp_leave(@_);
+    my ($self, $op, $cx) = @_;
+    my $leave_info = $self->pp_leave($op, $cx);
     return info_from_list($op, $self, ['eval', '{\n\t"', $leave_info->{text}, "\n\b}"],
 			  ' ', 'leavetry', {body=>[$leave_info]});
 }
