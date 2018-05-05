@@ -52,7 +52,7 @@ my $deparse = new B::DeparseTree;
 # my $deparse = new B::Deparse;
 
 my %SEEN;
-my %SEEN_STRENGH;
+my %SEEN_STRENGTH;
 
 # for a given keyword, create a sub of that name, then
 # deparse "() = $expr", and see if it matches $expected_expr
@@ -128,7 +128,7 @@ my %infix_map = qw(and && or ||);
 
 sub do_infix_keyword {
     my ($keyword, $parens, $strong) = @_;
-    $SEEN_STRENGH{$keyword} = $strong;
+    $SEEN_STRENGTH{$keyword} = $strong;
     my $expr = "(\$a $keyword \$b)";
     my $nkey = $infix_map{$keyword} // $keyword;
     my $expr = "(\$a $keyword \$b)";
@@ -154,7 +154,7 @@ sub do_infix_keyword {
 sub do_std_keyword {
     my ($keyword, $narg, $parens, $dollar, $strong) = @_;
 
-    $SEEN_STRENGH{$keyword} = $strong;
+    $SEEN_STRENGTH{$keyword} = $strong;
 
     for my $core (0,1) { # if true, add CORE:: to keyword being deparsed
 	my @code;
@@ -360,7 +360,7 @@ SKIP:
 		diag("keyword '$key' seen in $file, but not tested here!!");
 		$pass = 0;
 	    }
-	    if (exists $SEEN_STRENGH{$key} and $SEEN_STRENGH{$key} != $strength) {
+	    if (exists $SEEN_STRENGTH{$key} and $SEEN_STRENGTH{$key} != $strength) {
 		diag("keyword '$key' strengh as seen in $file doen't match here!!");
 		$pass = 0;
 	    }

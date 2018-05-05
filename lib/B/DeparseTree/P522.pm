@@ -316,7 +316,7 @@ sub deparse_format($$$)
 	$op = $op->sibling;
     }
 
-    $info->{text} = $self->combine("", \@texts) . "\f.";
+    $info->{text} = $self->combine2str(\@texts) . "\f.";
     $info->{texts} = \@texts;
     return $info;
 }
@@ -598,6 +598,7 @@ sub dedup_parens_func
     my @args = @$args_ref;
     if (scalar @args == 1 && substr($args[0], 0, 1) eq '(' &&
 	substr($args[0], -1, 1) eq ')') {
+	print "WOOT\n";
 	return ($sub_name, $self->combine(', ', \@args), );
     } else {
 	return ($sub_name, '(', $self->combine(', ', \@args), ')', );
@@ -791,7 +792,7 @@ sub stash_variable_name {
 	return $name, 0; # not quoted
     }
     else {
-	single_delim($self, "q", "'", $name, $self), 1;
+	$self->single_delim($gv, "q", "'", $name, $self), 1;
     }
 }
 
@@ -1557,11 +1558,9 @@ sub binop
     }
 
     my $rhs = $self->deparse_binop_right($op, $right, $prec);
-    return info_from_list($op,$self,
-			  [$lhs->{text}, "$opname$eq", $rhs->{text}],
-			  ' ', 'binop',
-			  {body => [$lhs, $rhs],
-			   maybe_parens_join => [$self, $cx, $prec]});
+    my @texts = ($lhs, "$opname$eq", $rhs);
+    return info_from_list($op, $self, \@texts, ' ', 'binop',
+			  {maybe_parens_join => [$self, $cx, $prec]});
 }
 
 sub pp_add { maybe_targmy(@_, \&binop, "+", 18, ASSIGN) }
@@ -1679,7 +1678,6 @@ sub pp_repeat {
 	my $kid = $left->first->sibling; # skip pushmark
 	for (my $i=0; !null($kid->sibling); $kid = $kid->sibling) {
 	    my $expr = $self->deparse($kid, 6, $op);
-	    $expr->{child_pos} = $i++;
 	    push @exprs, $expr;
 	}
 	$right = $kid;
@@ -1754,10 +1752,8 @@ sub listop
     my($self, $op, $cx, $name, $kid, $nollafr) = @_;
     my(@exprs);
     my $parens = ($cx >= 5) || $self->{'parens'};
-    my $other_ops = undef;
 
     unless ($kid) {
-	$other_ops = [$op->first];
 	$kid = $op->first->sibling;
     }
 
@@ -1787,11 +1783,10 @@ sub listop
 	$first = $self->deparse($kid, 6, $op);
     }
     if ($name eq "chmod" && $first->{text} =~ /^\d+$/) {
-	$first = info_from_text($op, $self, sprintf("%#o", $first), 'listop_chmod', {});
+	$first = info_from_text($first->{op}, $self, sprintf("%#o", $first->{text}), 'listop_chmod', {});
     }
     $first->{text} = "+" + $first->{text}
 	if not $parens and not $nollafr and substr($first->{text}, 0, 1) eq "(";
-    $first->{child_pos} = 0;
     push @exprs, $first;
     $kid = $kid->sibling;
     if (defined $proto && $proto =~ /^\*\*/ && $kid->name eq "rv2gv"
@@ -1800,41 +1795,42 @@ sub listop
 	push @exprs, $first;
 	$kid = $kid->sibling;
     }
-    for (my $i=1; !null($kid); $kid = $kid->sibling) {
+    for ( ; !null($kid); $kid = $kid->sibling) {
 	my $expr = $self->deparse($kid, 6, $op);
-	$expr->{child_pos} = $i++;
 	push @exprs, $expr;
     }
 
     if ($name eq "reverse" && ($op->private & OPpREVERSE_INPLACE)) {
 	my $texts =  [$exprs[0->{text}], '=',
 		      $fullname . ($parens ? "($exprs[0]->{text})" : " $exprs[0]->{text}")];
-	return info_from_list($op, $self, $texts, ' ', 'listop_reverse',
-			      {body => \@exprs});
+	return info_from_list($op, $self, $texts, ' ', 'listop_reverse', {});
     }
 
-    my $opts = {body => \@exprs};
-    $opts->{other_ops} = $other_ops if $other_ops;
-    my @texts = map { $_->{text} } @exprs ;
+    my $opts = {};
+    my @texts = @exprs;
 
     if ($name =~ /^(system|exec)$/
 	&& ($op->flags & OPf_STACKED)
 	&& @texts > 1)
     {
-	# handle the "system prog a1, a2, ..." form
+	# handle the "system(prog a1, a2, ...)" form
+	# where there is no ', ' between the first two arguments.
 	my $prog = shift @texts;
-	$texts[0] = "$prog $texts[0]";
+	my $first_arg = shift @texts;
+	my @two_args = ($prog, $first_arg);
+	unshift @texts, info_from_list($op, $self, [$prog, $first_arg],
+				       ' ', 'system|exec', {});
     }
 
     my $type;
     if ($parens && $nollafr) {
-	@texts = ('(', $fullname, " ", join(", ", @texts), ')');
+	@texts = ("($fullname ", $self->combine(', ', \@texts), ')');
 	$type = 'listop_parens_noallfr';
     } elsif ($parens) {
-	@texts = ($fullname, '(', join(", ", @texts), ')');
+	@texts = ("$fullname(", $self->combine(", ", \@texts), ')');
 	$type = 'listop_parens';
     } else {
-	@texts = ("$fullname ", join(", ", @texts));
+	@texts = ("$fullname ", $self->combine(', ', \@texts));
 	$type = 'listop';
     }
     return info_from_list($op, $self, \@texts, '', $type, $opts);
@@ -2059,8 +2055,7 @@ sub pp_list
 	return $info;
     }
 
-    my @body = ();
-    for (my $i=0; !null($kid); $kid = $kid->sibling) {
+    for (; !null($kid); $kid = $kid->sibling) {
 	if ($local) {
 	    if (class($kid) eq "UNOP" and $kid->first->name eq "gvsv") {
 		$lop = $kid->first;
@@ -2073,23 +2068,18 @@ sub pp_list
 	} else {
 	    $expr = $self->deparse($kid, 6, $op);
 	}
-	$expr->{child_pos} = $i++;
-	push @exprs, [$expr, $$kid];
+	push @exprs, $expr;
     }
-    push @body, @exprs;
 
-    my @args = $self->map_texts(\@exprs);
-
-    my $opts = {
-	body => \@body,
-	other_ops => [$other_op],
-    };
-
-    my @texts = ($local, '(', $self->combine(", ", \@args), ')');
-    my $type = 'list_local';
-    if (!$local) {
+    my $type;
+    my @texts;
+    my $opts = {};
+    if ($local) {
+	$type = 'list_local';
+	@texts = ($local, '(', $self->combine(", ", \@exprs), ')');
+    } else {
 	$type = 'list';
-	@texts = ($self->combine(", ", \@args));
+	@texts = ($self->combine(", ", \@exprs));
 	$opts->{maybe_parens} = [$self, $cx, 6];
 
     }
@@ -2927,7 +2917,7 @@ sub slice
     } else {
 	@elems = ($self->elem_or_slice_single_index($kid, $op));
     }
-    my $list = $self->combine(', ', \@elems);
+    my $list = join(', ', map($_->{text}, @elems));
     my $lead = '@';
     $lead = '%' if $op->name =~ /^kv/i;
     my (@texts, $type);
@@ -2942,7 +2932,6 @@ sub slice
 }
 
 sub pp_aslice { maybe_local(@_, slice(@_, "[", "]", "rv2av", "padav")) }
-sub pp_hslice { maybe_local(@_, slice(@_, "{", "}", "rv2hv", "padhv")) }
 sub pp_kvaslice {                 slice(@_, "[", "]", "rv2av", "padav")  }
 sub pp_hslice   { maybe_local(@_, slice(@_, "{", "}", "rv2hv", "padhv")) }
 sub pp_kvhslice {                 slice(@_, "{", "}", "rv2hv", "padhv")  }
@@ -3221,7 +3210,7 @@ sub pp_entersub
 	      }
 	    }
 	    if ($kid_info->{text} !~ /^(?:\w|::)(?:[\w\d]|::(?!\z))*\z/) {
-		$kid_info->{text} = single_delim($self, "q", "'", $kid) . '->';
+		$kid_info->{text} = $self->single_delim($$kid, "q", "'", $kid) . '->';
 	    }
 	}
     } elsif (is_scalar ($kid->first) && $kid->first->name ne 'rv2cv') {
@@ -3504,25 +3493,25 @@ sub balanced_delim {
 }
 
 sub single_delim($$$$) {
-    my($self, $q, $default, $str) = @_;
-    return info_from_list(undef, $self, [$default, $str, $default], '', 'single_delim_default', {})
+    my($self, $op, $q, $default, $str) = @_;
+    return info_from_list($op, $self, [$default, $str, $default], '', 'single_delim_default', {})
 	if $default and index($str, $default) == -1;
     if ($q ne 'qr') {
 	(my $succeed, $str) = balanced_delim($str);
 	return info_from_list(undef, $self, [$q, $str], '', 'single_delim', {}) if $succeed;
     }
     for my $delim ('/', '"', '#') {
-	return info_from_list(undef, $self, [$q, $delim, $str,
+	return info_from_list($op, $self, [$q, $delim, $str,
 			   $delim], '', 'single_delim_qr', {})
 	    if index($str, $delim) == -1;
     }
     if ($default) {
 	$str =~ s/$default/\\$default/g;
-	return info_from_list(undef, $self, [$default, $str, $default], '',
+	return info_from_list($op, $self, [$default, $str, $default], '',
 	    'single_delim_qr_esc', {});
     } else {
 	$str =~ s[/][\\/]g;
-	return info_from_list(undef, $self, [$q, '/', $str, '/'], '',
+	return info_from_list($op, $self, [$q, '/', $str, '/'], '',
 	    'single_delim_qr', {});
     }
 }
@@ -3661,7 +3650,7 @@ sub const {
 	    for (my $mg = $ref->MAGIC; $mg; $mg = $mg->MOREMAGIC) {
 		if ($mg->TYPE eq 'r') {
 		    my $re = re_uninterp(escape_str(re_unback($mg->precomp)));
-		    return single_delim($self, "qr", "", $re);
+		    return $self->single_delim($sv, "qr", "", $re);
 		}
 	    }
 	}
@@ -3678,12 +3667,12 @@ sub const {
     } elsif ($sv->FLAGS & SVf_POK) {
 	my $str = $sv->PV;
 	if ($str =~ /[[:^print:]]/) {
-	    return single_delim($self, "qq", '"', uninterp escape_str unback $str);
+	    return $self->single_delim($sv, "qq", '"', uninterp escape_str unback $str);
 	} else {
-	    return single_delim($self, "q", "'", unback $str);
+	    return $self->single_delim($sv, "q", "'", unback $str);
 	}
     } else {
-	return info_from_text($sv, $self, "undef", 'const_undef', {});
+	return $self->info_from_text($sv, "undef", 'const_undef', {});
     }
 }
 
@@ -3800,7 +3789,7 @@ sub pp_backtick
     my $child = $op->first->sibling->isa('B::NULL')
 	? $op->first : $op->first->sibling;
     if ($self->pure_string($child)) {
-	return single_delim($self, "qx", '`', $self->dq($child, 1)->{text});
+	return $self->single_delim($op, "qx", '`', $self->dq($child, 1)->{text});
     }
     unop($self, $op, $cx, "readpipe");
 }
@@ -3811,7 +3800,7 @@ sub dquote
     my $kid = $op->first->sibling; # skip ex-stringify, pushmark
     return $self->deparse($kid, $cx, $op) if $self->{'unquote'};
     $self->maybe_targmy($kid, $cx,
-			sub {single_delim($self, "qq", '"', $self->dq($_[1])->{text})});
+			sub {$self->single_delim($op, "qq", '"', $self->dq($_[1])->{text})});
 }
 
 # OP_STRINGIFY is a listop, but it only ever has one arg
@@ -4347,7 +4336,7 @@ sub matchop
 	$re_str =~ s/\?/\\?/g;
 	$re_str = "?$re_str?";
     } elsif ($quote) {
-	my $re = single_delim($self, $name, $delim, $re_str);
+	my $re = $self->single_delim($kid, $name, $delim, $re_str);
 	push @body, $re;
 	$re_str = $re->{text};
     }
@@ -4415,7 +4404,6 @@ sub pp_split
     # on the left.
     for (my $i=0; !null($stacked ? $kid->sibling : $kid); $kid = $kid->sibling) {
 	my $expr = $self->deparse($kid, 6, $op);
-	$expr->{child_pos} = $i++;
 	push @exprs, $expr;
     }
 

@@ -1,6 +1,6 @@
 # Common PP opcodes. Specifc Perl versions can override these.
 
-# Copyright (c) 2015 Rocky Bernstein
+# Copyright (c) 2015, 2018 Rocky Bernstein
 #
 use strict;
 use warnings ();
@@ -10,6 +10,7 @@ use rlib '../..';
 package B::DeparseTree::PP;
 
 use B::DeparseTree::Common;
+use B::DeparseTree::Node;
 
 use B qw(OPpEXISTS_SUB OPf_SPECIAL);
 
@@ -90,33 +91,31 @@ sub pp_nextstate {
     my($self, $op, $cx) = @_;
     $self->{'curcop'} = $op;
 
-    my @text;
+    my @texts = ();
 
     my @subs = $self->cop_subs($op);
     if (@subs) {
 	# Special marker to swallow up the semicolon
 	push @subs, "\cK";
+	push @texts, @subs;
     }
-    push @text, @subs;
 
-    push @text, $self->pragmata($op);
+    push @texts, $self->pragmata($op) if $self->pragmata($op);
 
 
     # This should go after of any branches that add statements, to
     # increase the chances that it refers to the same line it did in
     # the original program.
     if ($self->{'linenums'} && $cx != .5) { # $cx == .5 means in a format
-	push @text, "\f#line " . $op->line .
+	push @texts, "\f#line " . $op->line .
 	  ' "' . $op->file, qq'"\n';
     }
 
-    push @text, $op->label . ": " if $op->label;
+    push @texts, $op->label . ": " if $op->label;
 
-    return {
-	op => $op,
-	texts => \@text,
-	text => join("", @text)
-    }
+    my $info = B::DeparseTree::Node->new($op, $self->{deparse},
+					 \@texts, '', 'pp_nextstate', {});
+    return $info;
 }
 
 sub pp_print { indirop(@_, "print") }

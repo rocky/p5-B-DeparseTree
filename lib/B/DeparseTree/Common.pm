@@ -148,32 +148,53 @@ sub map_texts($$)
 }
 
 
-sub combine($$)
+sub combine($$$)
 {
     my ($self, $sep, $items) = @_;
     # FIXME: loop over $item, testing type.
     Carp::confess("should be a reference to a arry: is $items") unless
 	ref $items eq 'ARRAY';
     my @result = ();
-    my $last = scalar(@{$items})-1;
-    for (my $i=0; $i <= $last; $i++) {
-	my $item = $items->[$i];
+    foreach my $item (@$items) {
 	my $add;
 	if (ref $item) {
 	    if (ref $item eq 'ARRAY' and scalar(@$item) == 2) {
-		# First item is text and second item is op address.
 		$add = [$item->[0], $item->[1]];
+	    } elsif (eval{$item->isa("B::DeparseTree::Node")}) {
+		$add = [$item->{text}, $item->{addr}];
+		# First item is text and second item is op address.
 	    } else {
-		$add = $self->{text};
+		Carp::confess("don't know what to do with $item");
 	    }
 	} else {
 	    $add = $item;
 	}
+	push @result, $sep if @result && $sep;
 	push @result, $add;
-	push @result, $sep unless $i == $last;
     }
     return @result;
 }
+
+sub combine2str($$)
+{
+    my ($self, $sep, $items) = @_;
+    my $result = '';
+    foreach my $item (@$items) {
+	$result .= $sep if $result;
+	if (ref $item) {
+	    if (ref $item eq 'ARRAY' and scalar(@$item) == 2) {
+		# First item is text and second item is op address.
+		$result .= $item->[0];
+	    } else {
+		$result .= $self->{text};
+	    }
+	} else {
+	    $result .= $item;
+	}
+    }
+    return $result;
+}
+
 
 BEGIN { for (qw[ pushmark ]) {
     eval "sub OP_\U$_ () { " . opnumber($_) . "}"
@@ -305,11 +326,7 @@ sub info_from_list($$$$$$)
 sub info_from_text($$$$$)
 {
     my ($op, $deparse, $text, $type, $opts) = @_;
-    if (ref($op)) {
-	return info_from_list($op, $deparse, [[$text, $$op]], '', $type, $opts)
-    } else {
-	return info_from_list($op, $deparse, [$text], '', $type, $opts)
-    }
+    return info_from_list($op, $deparse, [[$text, $$op]], '', $type, $opts)
 }
 
 sub walk_lineseq
@@ -385,15 +402,6 @@ sub lineseq {
 	    Carp::confess("nonref parent, op: $op->name") if !ref($parent);
 	    $info->{parent} = $$parent ;
 	}
-	if ($info->{body}) {
-	    foreach my $bod (@{$info->{body}}) {
-		if (!ref($bod)) {
-		    Carp::carp(sprintf "nonref body: %s, op: %s", $bod, $op->name)
-		} elsif (ref($bod) eq 'HASH') {
-		    $bod->{parent} = $$op;
-		}
-	    }
-	}
 	$self->{optree}{$$op} = $info;
 	$info->{text} = $text;
 	push @$exprs, $info;
@@ -407,11 +415,13 @@ sub maybe_targmy
     if ($op->private & OPpTARGET_MY) {
 	my $var = $self->padname($op->targ);
 	my $val = $func->($self, $op, 7, @args);
-	return info_from_list($op, $self, [$var, '=', $val->{text}],
+	my @texts = ($var, '=', $val);
+	return info_from_list($op, $self, \@texts,
 			      ' ', 'maybe_targmy',
 			      {maybe_parens => [$self, $cx, 7]});
     } else {
-	return $func->($self, $op, $cx, @args);
+	my $info = $func->($self, $op, $cx, @args);
+	return $info;
     }
 }
 
@@ -841,11 +851,10 @@ sub deparse_sub($$$)
 	else {
 	    $body = $self->deparse($root->first, 0, $root);
 	}
-	my @texts = ("{\n\t", $body->{text}, "\n\b}");
+	my @texts = ("{\n\t", $body->{texts}, "\n\b}");
 	unshift @texts, $proto if $proto;
 	$info = info_from_list($root, $self, \@texts, '', 'sub',
-			       {body =>[$body],
-			        other_ops =>[$lineseq]});
+			       {other_ops =>[$lineseq]});
 	$self->{optree}{$$lineseq} = $info;
 
     } else {
@@ -1408,7 +1417,7 @@ sub logop
 	$lhs = $self->deparse($left, 1, $op);
 	$rhs = $self->deparse($right, 0, $op);
 	$sep = '';
-	$texts = [$blockname, ' ', '(', $lhs->{text}, ')', ' ',
+	$texts = [$blockname, ' (', $lhs->{text}, ') ',
 		  "{\n\t", $rhs->{text}, "\n\b}\cK"];
     } elsif ($cx < 1 and $blockname and not $self->{'parens'}
 	     and $self->{'expand'} < 7) { # $b if $a
@@ -1416,7 +1425,6 @@ sub logop
 	$rhs = $self->deparse($right, 1, $op);
 	$texts = [$rhs->{text}, $blockname, $lhs->{text}];
 	$sep = ' ';
-	$text = join(' ', @$texts);
     } elsif ($cx > $lowprec and $highop) {
 	# $a && $b
 	$lhs = $self->deparse_binop_left($op, $left, $highprec);
