@@ -1766,7 +1766,7 @@ sub listop
 	my $text = $nollafr
 	    ? $self->maybe_parens($self->keyword($name), $cx, 7)
 	    : $self->keyword($name) . '()' x (7 < $cx);
-	return {text => $text};
+	return info_from_text($op, $self, $text, 'null_listop', {});
     }
     my $first;
     my $fullname = $self->keyword($name);
@@ -2602,7 +2602,7 @@ sub pp_rv2av {
     my $kid = $op->first;
     if ($kid->name eq "const") { # constant list
 	my $av = $self->const_sv($kid);
-	return $self->list_const($cx, $av->ARRAY);
+	return $self->list_const($kid, $cx, $av->ARRAY);
     } else {
 	return $self->maybe_local($op, $cx, $self->rv2x($op, $cx, "\@"));
     }
@@ -3244,7 +3244,7 @@ sub pp_entersub
 	}
     }
 
-    my (@arg_texts, @texts, @body, $type);
+    my (@texts, @body, $type);
     @body = ();
     if ($declared and defined $proto and not $amper) {
 	my $args;
@@ -3623,7 +3623,7 @@ sub const {
     } elsif ($sv->FLAGS & SVf_ROK && $sv->can("RV")) {
 	my $ref = $sv->RV;
 	if (class($ref) eq "AV") {
-	    my $list_info = $self->list_const(2, $ref->ARRAY);
+	    my $list_info = $self->list_const($sv, 2, $ref->ARRAY);
 	    return info_from_list($sv, $self, ['[', $list_info->{text}, ']'], '', 'const_av',
 		{body => [$list_info]});
 	} elsif (class($ref) eq "HV") {

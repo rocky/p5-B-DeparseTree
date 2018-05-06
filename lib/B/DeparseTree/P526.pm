@@ -615,15 +615,14 @@ sub maybe_parens_func
 sub dedup_parens_func
 {
     my $self = shift;
-    my $sub_name = shift;
+    my $sub_info = shift;
     my ($args_ref) = @_;
     my @args = @$args_ref;
     if (scalar @args == 1 && substr($args[0], 0, 1) eq '(' &&
 	substr($args[0], -1, 1) eq ')') {
-	print "WOOT\n";
-	return ($sub_name, $self->combine(', ', \@args), );
+	return ($sub_info, $self->combine(', ', \@args), );
     } else {
-	return ($sub_name, '(', $self->combine(', ', \@args), ')', );
+	return ($sub_info, '(', $self->combine(', ', \@args), ')', );
     }
 }
 
@@ -1874,7 +1873,7 @@ sub listop
 	my $text = $nollafr
 	    ? $self->maybe_parens($self->keyword($name), $cx, 7)
 	    : $self->keyword($name) . '()' x (7 < $cx);
-	return {text => $text};
+	return info_from_text($op, $self, $text, 'null_listop', {});
     }
     my $first;
     my $fullname = $self->keyword($name);
@@ -2677,17 +2676,17 @@ sub pp_rv2cv {
     }
 }
 
-sub list_const {
+sub list_const($$$) {
     my $self = shift;
-    my($cx, @list) = @_;
+    my($op, $cx, @list) = @_;
     my @a = map $self->const($_, 6), @list;
     my @texts = $self->map_texts(\@a);
     my $type = 'list_const';
     my $prec = 6;
     if (@texts == 0) {
-	return info_from_list('const', $self, ['(', ')'], '', 'list_const_null', {});
+	return info_from_list($op, $self, ['(', ')'], '', 'list_const_null', {});
     } elsif (@texts == 1) {
-	return info_from_text('const', $self, $texts[0], 'list_const_one',
+	return info_from_text($op, $self, $texts[0], 'list_const_one',
 	    {body => \@a});
     } elsif ( @texts > 2 and !grep(!/^-?\d+$/, @texts)) {
 	# collapse (-1,0,1,2) into (-1..2)
@@ -2709,7 +2708,7 @@ sub pp_rv2av {
     my $kid = $op->first;
     if ($kid->name eq "const") { # constant list
 	my $av = $self->const_sv($kid);
-	return $self->list_const($cx, $av->ARRAY);
+	return $self->list_const($kid, $cx, $av->ARRAY);
     } else {
 	return $self->maybe_local($op, $cx, $self->rv2x($op, $cx, "\@"));
     }
@@ -3350,7 +3349,7 @@ sub pp_entersub
 	}
     }
 
-    my (@arg_texts, @texts, @body, $type);
+    my (@texts, @body, $type);
     @body = ();
     if ($declared and defined $proto and not $amper) {
 	my $args;
@@ -3364,8 +3363,6 @@ sub pp_entersub
 	@body  = map($self->deparse($_, 6, $op), @exprs);
     }
 
-    my @arg_texts = $self->map_texts(\@body);
-
     if ($prefix or $amper) {
 	if ($sub_name eq '&') {
 	    # &{&} cannot be written as &&
@@ -3374,10 +3371,10 @@ sub pp_entersub
 	}
 	if ($op->flags & OPf_STACKED) {
 	    $type = 'entersub_prefix_or_amper_stacked';
-	    @texts = ($prefix, $amper, $sub_name, "(", $self->combine(', ', \@arg_texts), ")");
+	    @texts = ($prefix, $amper, $kid, "(", $self->combine(', ', \@body), ")");
 	} else {
 	    $type = 'entersub_prefix_or_amper';
-	    @texts = ($prefix, $amper, $sub_name);
+	    @texts = ($prefix, $amper, $kid);
 	}
     } else {
 	# It's a syntax error to call CORE::GLOBAL::foo with a prefix,
@@ -3387,29 +3384,28 @@ sub pp_entersub
 	my $dproto = defined($proto) ? $proto : "undefined";
         if (!$declared) {
 	    $type = 'entersub_not_declared';
-	    @texts = dedup_parens_func($self, $sub_name, \@arg_texts);
+	    @texts = dedup_parens_func($self, $kid_info, \@body);
 	} elsif ($dproto =~ /^\s*\z/) {
 	    $type = 'entersub_null_proto';
-	    @texts = ($sub_name);
+	    @texts = ($kid);
 	} elsif ($dproto eq "\$" and is_scalar($exprs[0])) {
 	    $type = 'entersub_dollar_proto';
 	    # is_scalar is an excessively conservative test here:
 	    # really, we should be comparing to the precedence of the
 	    # top operator of $exprs[0] (ala unop()), but that would
 	    # take some major code restructuring to do right.
-	    @texts = $self->maybe_parens_func($sub_name, $self->combine(', ', \@arg_texts), $cx, 16);
+	    @texts = $self->maybe_parens_func($kid, $self->combine(', ', \@body), $cx, 16);
 	} elsif ($dproto ne '$' and defined($proto) || $simple) { #'
 	    $type = 'entersub_proto';
-	    @texts = $self->maybe_parens_func($sub_name, $self->combine(', ', \@arg_texts), $cx, 5);
+	    @texts = $self->maybe_parens_func($kid, $self->combine(', ', \@body), $cx, 5);
 	} else {
 	    $type = 'entersub';
-	    @texts = dedup_parens_func($self, $sub_name, \@arg_texts);
+	    @texts = dedup_parens_func($self, $kid_info, \@body);
 	}
     }
     my $info = B::DeparseTree::Node->new($op, $self->{deparse}, \@texts,
-					 '', 'pp_entersub',
-					 {body => \@body,
-					  other_ops => $other_ops});
+					 '', $type,
+					 {other_ops => $other_ops});
     return $info;
 }
 
@@ -3728,7 +3724,7 @@ sub const {
     } elsif ($sv->FLAGS & SVf_ROK && $sv->can("RV")) {
 	my $ref = $sv->RV;
 	if (class($ref) eq "AV") {
-	    my $list_info = $self->list_const(2, $ref->ARRAY);
+	    my $list_info = $self->list_const($sv, 2, $ref->ARRAY);
 	    return info_from_list($sv, $self, ['[', $list_info->{text}, ']'], '', 'const_av',
 		{body => [$list_info]});
 	} elsif (class($ref) eq "HV") {

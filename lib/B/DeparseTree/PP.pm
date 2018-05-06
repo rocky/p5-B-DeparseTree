@@ -134,7 +134,7 @@ sub pp_nextstate {
     my $hints = $] < 5.008009 ? $op->private : $op->hints;
     my $old_hints = $self->{'hints'};
     if ($self->{'hints'} != $hints) {
-	push @texts, declare_hints($self->{'hints'}, $hints);
+	push @texts, $self->declare_hints($self->{'hints'}, $hints);
 	$self->{'hints'} = $hints;
     }
 
