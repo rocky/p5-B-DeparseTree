@@ -371,7 +371,7 @@ sub deparse_format
 	$op = $op->sibling;
     }
 
-    $info->{text} = join("", @texts) . "\f.";
+    $info->{text} = $self->combine2str(\@texts) . "\f.";
     $info->{texts} = \@texts;
     return $info;
 }
@@ -647,13 +647,16 @@ sub maybe_parens_func
 
 sub dedup_parens_func
 {
+    my $self = shift;
     my $sub_name = shift;
-    my @args = @_;
+    my ($args_ref) = @_;
+    my @args = @$args_ref;
     if (scalar @args == 1 && substr($args[0], 0, 1) eq '(' &&
 	substr($args[0], -1, 1) eq ')') {
-	return ($sub_name, $args[0]);
+	print "WOOT\n";
+	return ($sub_name, $self->combine(', ', \@args), );
     } else {
-	return ($sub_name, '(', join(', ', @args), ')', );
+	return ($sub_name, '(', $self->combine(', ', \@args), ')', );
     }
 }
 
@@ -1815,7 +1818,6 @@ sub pp_repeat {
 	my $kid = $left->first->sibling; # skip pushmark
 	for (my $i=0; !null($kid->sibling); $kid = $kid->sibling) {
 	    my $expr = $self->deparse($kid, 6, $op);
-	    $expr->{child_pos} = $i++;
 	    push @exprs, $expr;
 	}
 	$right = $kid;
@@ -1887,10 +1889,8 @@ sub listop
     my($self, $op, $cx, $name, $kid, $nollafr) = @_;
     my(@exprs);
     my $parens = ($cx >= 5) || $self->{'parens'};
-    my $other_ops = undef;
 
     unless ($kid) {
-	$other_ops = [$op->first];
 	$kid = $op->first->sibling;
     }
 
@@ -2192,8 +2192,7 @@ sub pp_list
 	return $info;
     }
 
-    my @body = ();
-    for (my $i=0; !null($kid); $kid = $kid->sibling) {
+    for (; !null($kid); $kid = $kid->sibling) {
 	if ($local) {
 	    if (class($kid) eq "UNOP" and $kid->first->name eq "gvsv") {
 		$lop = $kid->first;
@@ -2206,21 +2205,18 @@ sub pp_list
 	} else {
 	    $expr = $self->deparse($kid, 6, $op);
 	}
-	$expr->{child_pos} = $i++;
 	push @exprs, $expr;
     }
-    push @body, @exprs;
-    my @args = map $_->{text}, @exprs;
-    my $opts = {
-	body => \@body,
-	other_ops => [$other_op],
-    };
 
-    my @texts = ($local, '(', join(", ", @args), ')');
-    my $type = 'list_local';
-    if (!$local) {
+    my $type;
+    my @texts;
+    my $opts = {};
+    if ($local) {
+	$type = 'list_local';
+	@texts = ($local, '(', $self->combine(", ", \@exprs), ')');
+    } else {
 	$type = 'list';
-	@texts = (join(", ", @args));
+	@texts = ($self->combine(", ", \@exprs));
 	$opts->{maybe_parens} = [$self, $cx, 6];
 
     }
@@ -2250,7 +2246,7 @@ sub pp_cond_expr
 	my $true_info = $self->deparse($true, 6, $op);
 	my $false_info = $self->deparse($false, 8, $op);
 	my @texts = ($cond_info->{text}, '?', $true_info->{text}, ':', $false_info->{text});
-	my $text = $self->maybe_parens(join(' ', @texts), $cx, 8);
+	my $text = $self->maybe_parens($self->combine(' ', \@texts), $cx, 8);
 	return {
 	    text => $text,
 	    texts => \@texts,
@@ -2280,8 +2276,7 @@ sub pp_cond_expr
 	my $newtrue_info = $self->deparse($newtrue, 0, $op);
 	push @body, $newcond_info;
 	push @body, $newtrue_info;
-	push @elsifs, ('', "elsif",
-		       "(", "$newcond_info->{text}", ")",
+	push @elsifs, ('', "elsif ($newcond_info->{text})",
 		       "{\n\t",
 		       $newtrue_info->{text},
 		       "\n\b}");
@@ -3071,7 +3066,6 @@ sub slice
 }
 
 sub pp_aslice { maybe_local(@_, slice(@_, "[", "]", "rv2av", "padav")) }
-sub pp_hslice { maybe_local(@_, slice(@_, "{", "}", "rv2hv", "padhv")) }
 sub pp_kvaslice {                 slice(@_, "[", "]", "rv2av", "padav")  }
 sub pp_hslice   { maybe_local(@_, slice(@_, "{", "}", "rv2hv", "padhv")) }
 sub pp_kvhslice {                 slice(@_, "{", "}", "rv2hv", "padhv")  }
@@ -3396,7 +3390,9 @@ sub pp_entersub
     } else {
 	@body  = map($self->deparse($_, 6, $op), @exprs);
     }
-    my @arg_texts = map $_->{text}, @body;
+
+    my @arg_texts = $self->map_texts(\@body);
+
     if ($prefix or $amper) {
 	if ($sub_name eq '&') {
 	    # &{&} cannot be written as &&
@@ -3405,7 +3401,7 @@ sub pp_entersub
 	}
 	if ($op->flags & OPf_STACKED) {
 	    $type = 'entersub_prefix_or_amper_stacked';
-	    @texts = ($prefix, $amper, $sub_name, "(", join(', ', @arg_texts), ")");
+	    @texts = ($prefix, $amper, $sub_name, "(", $self->combine(', ', \@arg_texts), ")");
 	} else {
 	    $type = 'entersub_prefix_or_amper';
 	    @texts = ($prefix, $amper, $sub_name);
@@ -3418,7 +3414,7 @@ sub pp_entersub
 	my $dproto = defined($proto) ? $proto : "undefined";
         if (!$declared) {
 	    $type = 'entersub_not_declared';
-	    @texts = dedup_parens_func($sub_name, @arg_texts);
+	    @texts = dedup_parens_func($self, $sub_name, \@arg_texts);
 	} elsif ($dproto =~ /^\s*\z/) {
 	    $type = 'entersub_null_proto';
 	    @texts = ($sub_name);
@@ -3428,22 +3424,20 @@ sub pp_entersub
 	    # really, we should be comparing to the precedence of the
 	    # top operator of $exprs[0] (ala unop()), but that would
 	    # take some major code restructuring to do right.
-	    @texts = $self->maybe_parens_func($sub_name, join(', ', @arg_texts), $cx, 16);
+	    @texts = $self->maybe_parens_func($sub_name, $self->combine(', ', \@arg_texts), $cx, 16);
 	} elsif ($dproto ne '$' and defined($proto) || $simple) { #'
 	    $type = 'entersub_proto';
-	    @texts = $self->maybe_parens_func($sub_name, join(', ', @arg_texts), $cx, 5);
+	    @texts = $self->maybe_parens_func($sub_name, $self->combine(', ', \@arg_texts), $cx, 5);
 	} else {
 	    $type = 'entersub';
-	    @texts = dedup_parens_func($sub_name, @arg_texts);
+	    @texts = dedup_parens_func($self, $sub_name, \@arg_texts);
 	}
     }
-    return {
-	texts => \@texts,
-	body => \@body,
-	text => join('', @texts),
-	type => $type,
-	other_ops => $other_ops,
-    }
+    my $info = B::DeparseTree::Node->new($op, $self->{deparse}, \@texts,
+					 '', 'pp_entersub',
+					 {body => \@body,
+					  other_ops => $other_ops});
+    return $info;
 }
 
 sub pp_enterwrite { unop(@_, "write") }
@@ -3788,7 +3782,7 @@ sub const {
 	    for (my $mg = $ref->MAGIC; $mg; $mg = $mg->MOREMAGIC) {
 		if ($mg->TYPE eq 'r') {
 		    my $re = re_uninterp(escape_str(re_unback($mg->precomp)));
-		    return single_delim($self, "qr", "", $re);
+		    return $self->single_delim($sv, "qr", "", $re);
 		}
 	    }
 	}
@@ -3927,7 +3921,7 @@ sub pp_backtick
     my $child = $op->first->sibling->isa('B::NULL')
 	? $op->first : $op->first->sibling;
     if ($self->pure_string($child)) {
-	return single_delim($self, "qx", '`', $self->dq($child, 1)->{text});
+	return $self->single_delim($op, "qx", '`', $self->dq($child, 1)->{text});
     }
     unop($self, $op, $cx, "readpipe");
 }
@@ -3938,7 +3932,7 @@ sub dquote
     my $kid = $op->first->sibling; # skip ex-stringify, pushmark
     return $self->deparse($kid, $cx, $op) if $self->{'unquote'};
     $self->maybe_targmy($kid, $cx,
-			sub {single_delim($self, "qq", '"', $self->dq($_[1])->{text})});
+			sub {$self->single_delim($op, "qq", '"', $self->dq($_[1])->{text})});
 }
 
 # OP_STRINGIFY is a listop, but it only ever has one arg
@@ -4471,7 +4465,7 @@ sub matchop
 	$re_str =~ s/\?/\\?/g;
 	$re_str = "?$re_str?";
     } elsif ($quote) {
-	my $re = single_delim($self, $name, $delim, $re_str);
+	my $re = $self->single_delim($kid, $name, $delim, $re_str);
 	push @body, $re;
 	$re_str = $re->{text};
     }
