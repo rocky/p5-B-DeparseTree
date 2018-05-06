@@ -103,7 +103,7 @@ EOC
     }
     else {
 	my ($deparsed, $deparsed_check);
-	# $deparsed_check = $deparse_orig->coderef2text( $coderef );
+	$deparsed_check = $deparse_orig->coderef2text( $coderef );
 	eval {
 	    $deparsed = $deparse_tree->coderef2text( $coderef );
 	};
@@ -120,9 +120,12 @@ EOC
 	$regex = '^\{\s*' . $regex;
 
 	local $::TODO = $meta{todo};
-	unless(like($deparsed, qr/$regex/, $desc)) {
-	    print diff \$deparsed, \$expected, { STYLE => "Context" };
-	    print "\n", '=' x 30, "\n";
+	if ($deparsed ne $deparsed_check) {
+	    unless(like($deparsed, qr/$regex/, $desc)) {
+		print "\n", '-' x 30, "\n";
+		print diff \$deparsed, \$expected, { STYLE => "Context" };
+		print "\n", '=' x 30, "\n";
+	    }
 	}
 	ok $tests, $desc;
     }

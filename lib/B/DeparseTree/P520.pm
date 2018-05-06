@@ -1695,7 +1695,7 @@ sub listop
 	my $text = $nollafr
 	    ? $self->maybe_parens($self->keyword($name), $cx, 7)
 	    : $self->keyword($name) . '()' x (7 < $cx);
-	return {text => $text};
+	return info_from_text($op, $self, $text, '', 'null_listop', {});
     }
     my $first;
     my $fullname = $self->keyword($name);

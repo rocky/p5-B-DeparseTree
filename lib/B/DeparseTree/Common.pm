@@ -306,14 +306,18 @@ sub info_from_list($$$$$$)
 {
     my ($op, $deparse, $texts, $sep, $type, $opts) = @_;
     my $text = '';
+    my $info = B::DeparseTree::Node->new($op, $deparse, $texts, $sep, $type, $opts);
     foreach my $item (@$texts) {
+	$text .= $sep if $text and $sep;
 	if(ref($item) eq 'ARRAY'){
 	    $text .= $item->[0];
+	} elsif (eval{$item->isa("B::DeparseTree::Node")}) {
+	    $text .= $item->{text};
 	} else {
 	    $text .= $item;
 	}
     }
-    my $info = B::DeparseTree::Node->new($op, $deparse, $texts, $sep, $type, $opts);
+    $info->{text} = $text;
     if ($opts->{maybe_parens}) {
 	my ($self, $cx, $prec) = @{$opts->{maybe_parens}};
 	$info->{text} = $self->maybe_parens($info->{text}, $cx, $prec);
@@ -851,7 +855,7 @@ sub deparse_sub($$$)
 	else {
 	    $body = $self->deparse($root->first, 0, $root);
 	}
-	my @texts = ("{\n\t", $body->{texts}, "\n\b}");
+	my @texts = ("{\n\t", $body, "\n\b}");
 	unshift @texts, $proto if $proto;
 	$info = info_from_list($root, $self, \@texts, '', 'sub',
 			       {other_ops =>[$lineseq]});

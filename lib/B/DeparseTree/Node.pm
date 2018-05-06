@@ -139,6 +139,9 @@ sub combine($$$)
 	    if (ref $item eq 'ARRAY' and scalar(@$item) == 2) {
 		# First item is text and second item is op address.
 		$add = $item->[0];
+	    } elsif (eval{$item->isa("B::DeparseTree::Node")}) {
+		$add = $item->{text};
+		# First item is text and second item is op address.
 	    } else {
 		$add = $self->combine($item->{sep}, $item->{texts});
 	    }

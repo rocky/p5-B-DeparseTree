@@ -78,7 +78,7 @@ sub extract_node_info($)
 		} else {
 		    $result .= $text->[0];
 		}
-	    } elsif (eval{$item->isa("B::DeparseTree::Node")}) {
+	    } elsif (eval{$text->isa("B::DeparseTree::Node")}) {
 		if ($text->{addr} == $child_addr) {
 		    my $parent_underline = ' ' x length($result);
 		    $result .= $text->{text};

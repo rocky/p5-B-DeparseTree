@@ -88,27 +88,102 @@ sub pp_scope { scopeop(0, @_); }
 # Notice how subs and formats are inserted between statements here;
 # also $[ assignments and pragmas.
 sub pp_nextstate {
-    my($self, $op, $cx) = @_;
+    my $self = shift;
+    my($op, $cx) = @_;
     $self->{'curcop'} = $op;
-
-    my @texts = ();
-
-    my @subs = $self->cop_subs($op);
-    if (@subs) {
+    my @texts;
+    push @texts, $self->cop_subs($op);
+    if (@texts) {
 	# Special marker to swallow up the semicolon
-	push @subs, "\cK";
-	push @texts, @subs;
+	push @texts, "\cK";
     }
 
-    push @texts, $self->pragmata($op) if $self->pragmata($op);
+    my $stash = $op->stashpv;
+    if ($stash ne $self->{'curstash'}) {
+	push @texts, $self->keyword("package") . " $stash;\n";
+	$self->{'curstash'} = $stash;
+    }
+
+    if (OPpCONST_ARYBASE && $self->{'arybase'} != $op->arybase) {
+	push @texts, '$[ = '. $op->arybase .";\n";
+	$self->{'arybase'} = $op->arybase;
+    }
+
+    my $warnings = $op->warnings;
+    my $warning_bits;
+    if ($warnings->isa("B::SPECIAL") && $$warnings == 4) {
+	$warning_bits = $warnings::Bits{"all"} & WARN_MASK;
+    }
+    elsif ($warnings->isa("B::SPECIAL") && $$warnings == 5) {
+        $warning_bits = $warnings::NONE;
+    }
+    elsif ($warnings->isa("B::SPECIAL")) {
+	$warning_bits = undef;
+    }
+    else {
+	$warning_bits = $warnings->PV & WARN_MASK;
+    }
+
+    if (defined ($warning_bits) and
+       !defined($self->{warnings}) || $self->{'warnings'} ne $warning_bits) {
+    	push @texts,
+    	    $self->declare_warnings($self->{'warnings'}, $warning_bits);
+    	$self->{'warnings'} = $warning_bits;
+    }
+
+    my $hints = $] < 5.008009 ? $op->private : $op->hints;
+    my $old_hints = $self->{'hints'};
+    if ($self->{'hints'} != $hints) {
+	push @texts, declare_hints($self->{'hints'}, $hints);
+	$self->{'hints'} = $hints;
+    }
+
+    my $newhh;
+    if ($] > 5.009) {
+	$newhh = $op->hints_hash->HASH;
+    }
+
+    if ($] >= 5.015006) {
+	# feature bundle hints
+	my $from = $old_hints & $feature::hint_mask;
+	my $to   = $    hints & $feature::hint_mask;
+	if ($from != $to) {
+	    if ($to == $feature::hint_mask) {
+		if ($self->{'hinthash'}) {
+		    delete $self->{'hinthash'}{$_}
+			for grep /^feature_/, keys %{$self->{'hinthash'}};
+		}
+		else { $self->{'hinthash'} = {} }
+		$self->{'hinthash'}
+		    = _features_from_bundle($from, $self->{'hinthash'});
+	    }
+	    else {
+		my $bundle =
+		    $feature::hint_bundles[$to >> $feature::hint_shift];
+		$bundle =~ s/(\d[13579])\z/$1+1/e; # 5.11 => 5.12
+		push @texts,
+		    $self->keyword("no") . " feature ':all';\n",
+		    $self->keyword("use") . " feature ':$bundle';\n";
+	    }
+	}
+    }
+
+    if ($] > 5.009) {
+	push @texts, $self->declare_hinthash(
+	    $self->{'hinthash'}, $newhh,
+	    $self->{indent_size}, $self->{hints},
+	);
+	$self->{'hinthash'} = $newhh;
+    }
 
 
     # This should go after of any branches that add statements, to
     # increase the chances that it refers to the same line it did in
     # the original program.
     if ($self->{'linenums'} && $cx != .5) { # $cx == .5 means in a format
-	push @texts, "\f#line " . $op->line .
-	  ' "' . $op->file, qq'"\n';
+	my $line = sprintf("\n# line %s '%s'", $op->line, $op->file);
+	$line .= sprintf(" 0x%x", $$op) if $self->{'opaddr'};
+	push @texts, $line . "\cK\n";
     }
 
     push @texts, $op->label . ": " if $op->label;
