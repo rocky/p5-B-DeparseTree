@@ -186,7 +186,7 @@ sub combine2str($$)
 		# First item is text and second item is op address.
 		$result .= $item->[0];
 	    } else {
-		$result .= $self->{text};
+		$result .= $item->{text};
 	    }
 	} else {
 	    $result .= $item;
