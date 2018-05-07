@@ -1474,7 +1474,7 @@ sub indirop
     }
     my $indir = scalar @indir ? (join('', @indir) . ' ') : '';
     if ($name eq "sort" && ($op->private & OPpSORT_INPLACE)) {
-	my @texts = ($exprs[0]->{text}, '=', $name2, $indir, $exprs[0]->{text});
+	my @texts = ($exprs[0], '=', $name2, $indir, $exprs[0]);
 	return info_from_list $op, $self, \@texts, '', 'sort_inplace', $opts;
     }
 
