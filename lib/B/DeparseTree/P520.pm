@@ -2009,8 +2009,8 @@ sub loop_common
 	    my $body_info = $self->deparse($body, 2, $op);
 	    push @head, $body_info;
 	    my @texts = ($body_info->{text}, "foreach", '(', @ary_text, ')');
-	    return info_from_list($body->{op}, $self, \@texts, ' ', 'loop_foreach_ary',
-				  {body => \@head, other_ops => \@other_ops});
+	    return info_from_list($op, $self, \@texts, ' ', 'loop_foreach_ary',
+				  {other_ops => \@other_ops});
 	}
 	@head_text = ("foreach", @var_text, '(', @ary_text, ')');
     } elsif ($kid->name eq "null") {
@@ -2653,10 +2653,10 @@ sub e_method {
 	return info_from_list($op, $self, \@texts, '', $type, $opts);
     }
     if (length $args) {
-	@texts = ($obj->{text}, '->', $meth, '(', $args, ')');
+	@texts = ($obj, '->', $meth_info, '(', $args, ')');
 	$type = 'e_method_args';
     } else {
-	@texts = ($obj->{text}, '->', $meth);
+	@texts = ($obj, '->', $meth_info);
 	$type = 'e_method_null';
     }
     return info_from_list($op, $self, \@texts, '', $type, $opts);
@@ -2770,58 +2770,6 @@ sub escape_extended_re {
 	($1 =~ y! \t\n!!) ? $1 : sprintf("\\%03o", ord($1))/ge;
     $str =~ s/\n/\n\f/g;
     return $str;
-}
-
-sub balanced_delim {
-    my($str) = @_;
-    my @str = split //, $str;
-    my($ar, $open, $close, $fail, $c, $cnt, $last_bs);
-    for $ar (['[',']'], ['(',')'], ['<','>'], ['{','}']) {
-	($open, $close) = @$ar;
-	$fail = 0; $cnt = 0; $last_bs = 0;
-	for $c (@str) {
-	    if ($c eq $open) {
-		$fail = 1 if $last_bs;
-		$cnt++;
-	    } elsif ($c eq $close) {
-		$fail = 1 if $last_bs;
-		$cnt--;
-		if ($cnt < 0) {
-		    # qq()() isn't ")("
-		    $fail = 1;
-		    last;
-		}
-	    }
-	    $last_bs = $c eq '\\';
-	}
-	$fail = 1 if $cnt != 0;
-	return ($open, "$open$str$close") if not $fail;
-    }
-    return ("", $str);
-}
-
-sub single_delim($$$$) {
-    my($self, $op, $q, $default, $str) = @_;
-    return info_from_list($op, $self, [$default, $str, $default], '', 'single_delim_default', {})
-	if $default and index($str, $default) == -1;
-    if ($q ne 'qr') {
-	(my $succeed, $str) = balanced_delim($str);
-	return info_from_list(undef, $self, [$q, $str], '', 'single_delim', {}) if $succeed;
-    }
-    for my $delim ('/', '"', '#') {
-	return info_from_list($op, $self, [$q, $delim, $str,
-			   $delim], '', 'single_delim_qr', {})
-	    if index($str, $delim) == -1;
-    }
-    if ($default) {
-	$str =~ s/$default/\\$default/g;
-	return info_from_list($op, $self, [$default, $str, $default], '',
-	    'single_delim_qr_esc', {});
-    } else {
-	$str =~ s[/][\\/]g;
-	return info_from_list($op, $self, [$q, '/', $str, '/'], '',
-	    'single_delim_qr', {});
-    }
 }
 
 my $max_prec;

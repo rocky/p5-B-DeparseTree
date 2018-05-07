@@ -1978,8 +1978,8 @@ sub loop_common
 	    my $body_info = $self->deparse($body, 2, $op);
 	    push @head, $body_info;
 	    my @texts = ($body_info->{text}, "foreach", '(', @ary_text, ')');
-	    return info_from_list($body->{op}, $self, \@texts, ' ', 'loop_foreach_ary',
-				  {body => \@head, other_ops => \@other_ops});
+	    return info_from_list($op, $self, \@texts, ' ', 'loop_foreach_ary',
+				  {other_ops => \@other_ops});
 	}
 	@head_text = ("foreach", @var_text, '(', @ary_text, ')');
     } elsif ($kid->name eq "null") {

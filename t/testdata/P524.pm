@@ -1408,7 +1408,7 @@ $a x= $b;
 # @_ with padrange
 my($a, $b, $c) = @_;
 ####
-# SKIP ?$] < 5.017004 && "lexical subs not implemented on this Perl version"
+# SKIP ?] < 5.28 || ?$] < 5.017004 && "lexical subs not implemented on this Perl version"
 # lexical subroutine
 use feature 'lexical_subs';
 no warnings "experimental::lexical_subs";

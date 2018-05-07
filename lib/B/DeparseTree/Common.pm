@@ -53,6 +53,7 @@ $VERSION = '1.1.0';
     POSTFIX baseop mapop pfixop indirop
     _features_from_bundle ambiant_pragmas maybe_qualify
     const
+    balanced_delim
     declare_hints
     dedup_parens_func
     deparse_sub
@@ -80,6 +81,7 @@ $VERSION = '1.1.0';
     re_uninterp
     re_uninterp_extended
     scopeop
+    single_delim
     style_opts
     unback
     uninterp
@@ -1161,7 +1163,7 @@ sub compile {
 	my $root = main_root;
         local $B::overlay = {};
 
-	if ($] < 5.020) {
+	if ($] < 5.021) {
 	    unless (null $root) {
 		$self->pessimise($root, main_start);
 		# Print deparsed program
@@ -1520,6 +1522,35 @@ sub scopeop
     }
 }
 
+sub balanced_delim
+{
+    my($str) = @_;
+    my @str = split //, $str;
+    my($ar, $open, $close, $fail, $c, $cnt, $last_bs);
+    for $ar (['[',']'], ['(',')'], ['<','>'], ['{','}']) {
+	($open, $close) = @$ar;
+	$fail = 0; $cnt = 0; $last_bs = 0;
+	for $c (@str) {
+	    if ($c eq $open) {
+		$fail = 1 if $last_bs;
+		$cnt++;
+	    } elsif ($c eq $close) {
+		$fail = 1 if $last_bs;
+		$cnt--;
+		if ($cnt < 0) {
+		    # qq()() isn't ")("
+		    $fail = 1;
+		    last;
+		}
+	    }
+	    $last_bs = $c eq '\\';
+	}
+	$fail = 1 if $cnt != 0;
+	return ($open, "$open$str$close") if not $fail;
+    }
+    return ("", $str);
+}
+
 sub hint_pragmas {
     my ($bits) = @_;
     my (@pragmas, @strict);
@@ -1579,10 +1610,10 @@ sub declare_hinthash {
 	if (!exists $from->{$key} or $from->{$key} ne $to->{$key}) {
 	    push(@features, $key), next if $is_feature;
 	    push @decls,
-		qq(\$^H{) . single_delim($self, "q", "'", $key, $self) . qq(} = )
+		qq(\$^H{) . single_delim($self, "q", "'", $key, "'") . qq(} = )
 	      . (
 		   defined $to->{$key}
-			? single_delim($self, "q", "'", $to->{$key}, $self)
+			? single_delim($self, "q", "'", $to->{$key}, "'")
 			: 'undef'
 		)
 	      . qq(;);
@@ -1968,6 +1999,30 @@ sub mapop
     return info_from_list $op, $self, \@texts, '', 'mapop', $opts;
 }
 
+
+sub single_delim($$$$$) {
+    my($self, $op, $q, $default, $str) = @_;
+    return info_from_list($op, $self, [$default, $str, $default], '', 'single_delim_default', {})
+	if $default and index($str, $default) == -1;
+    if ($q ne 'qr') {
+	(my $succeed, $str) = balanced_delim($str);
+	return info_from_list(undef, $self, [$q, $str], '', 'single_delim', {}) if $succeed;
+    }
+    for my $delim ('/', '"', '#') {
+	return info_from_list($op, $self, [$q, $delim, $str,
+			   $delim], '', 'single_delim_qr', {})
+	    if index($str, $delim) == -1;
+    }
+    if ($default) {
+	$str =~ s/$default/\\$default/g;
+	return info_from_list($op, $self, [$default, $str, $default], '',
+	    'single_delim_qr_esc', {});
+    } else {
+	$str =~ s[/][\\/]g;
+	return info_from_list($op, $self, [$q, '/', $str, '/'], '',
+	    'single_delim_qr', {});
+    }
+}
 
 # Demo code
 unless(caller) {
