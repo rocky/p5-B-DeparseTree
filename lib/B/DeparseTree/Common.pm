@@ -810,14 +810,20 @@ sub compile {
 	my @CHECKs  = B::check_av->isa("B::AV") ? B::check_av->ARRAY : ();
 	my @INITs   = B::init_av->isa("B::AV") ? B::init_av->ARRAY : ();
 	my @ENDs    = B::end_av->isa("B::AV") ? B::end_av->ARRAY : ();
-	my @names = qw(BEGIN UNITCHECK CHECK INIT END);
-	my @blocks = \(@BEGINs, @UNITCHECKs, @CHECKs, @INITs, @ENDs);
-	while (@names) {
-	    my ($name, $blocks) = (shift @names, shift @blocks);
-	    for my $block (@$blocks) {
-		$self->todo($block, 0, $name);
+	if ($] < 5.020) {
+	    for my $block (@BEGINs, @UNITCHECKs, @CHECKs, @INITs, @ENDs) {
+		$self->todo($block, 0);
 	    }
-	}
+	} else {
+	    my @names = qw(BEGIN UNITCHECK CHECK INIT END);
+	    my @blocks = \(@BEGINs, @UNITCHECKs, @CHECKs, @INITs, @ENDs);
+	    while (@names) {
+		my ($name, $blocks) = (shift @names, shift @blocks);
+		for my $block (@$blocks) {
+		    $self->todo($block, 0, $name);
+		}
+	    }
+        }
 	$self->stash_subs();
 	local($SIG{"__DIE__"}) =
 	  sub {
@@ -833,27 +839,35 @@ sub compile {
 	@{$self->{'subs_todo'}} =
 	  sort {$a->[0] <=> $b->[0]} @{$self->{'subs_todo'}};
 	my $root = main_root;
-	local $B::overlay = {};
-	unless (null $root) {
-	    $self->pad_subs($self->{'curcv'});
-	    # Check for a stub-followed-by-ex-cop, resulting from a program
-	    # consisting solely of sub declarations.  For backward-compati-
-	    # bility (and sane output) we don’t want to emit the stub.
-	    #   leave
-	    #     enter
-	    #     stub
-	    #     ex-nextstate (or ex-dbstate)
-	    my $kid;
-	    if ( $root->name eq 'leave'
-	     and ($kid = $root->first)->name eq 'enter'
-	     and !null($kid = $kid->sibling) and $kid->name eq 'stub'
-	     and !null($kid = $kid->sibling) and $kid->name eq 'null'
-	     and class($kid) eq 'COP' and null $kid->sibling )
-	    {
-		# ignore
-	    } else {
+        local $B::overlay = {};
+
+	if ($] < 5.020) {
+	    unless (null $root) {
 		$self->pessimise($root, main_start);
 		print $self->indent($self->deparse_root($root)), "\n";
+	    }
+	} else {
+	    unless (null $root) {
+		$self->pad_subs($self->{'curcv'});
+		# Check for a stub-followed-by-ex-cop, resulting from a program
+		# consisting solely of sub declarations.  For backward-compati-
+		# bility (and sane output) we don’t want to emit the stub.
+		#   leave
+		#     enter
+		#     stub
+		#     ex-nextstate (or ex-dbstate)
+		my $kid;
+		if ( $root->name eq 'leave'
+		     and ($kid = $root->first)->name eq 'enter'
+		     and !null($kid = $kid->sibling) and $kid->name eq 'stub'
+		     and !null($kid = $kid->sibling) and $kid->name eq 'null'
+		     and class($kid) eq 'COP' and null $kid->sibling )
+		{
+		    # ignore
+		} else {
+		    $self->pessimise($root, main_start);
+		    print $self->indent($self->deparse_root($root)), "\n";
+		}
 	    }
 	}
 	my @text;
