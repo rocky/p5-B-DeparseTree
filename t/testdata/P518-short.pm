@@ -238,13 +238,3 @@ use feature 'state', 'lexical_subs';
 no warnings 'experimental::lexical_subs';
 state sub f {}
 print f();
-####
-# SKIP FIXME: Works without fragments
-# [perl #121050] Prototypes with whitespace
-sub _121050(\$ \$) { }
-_121050($a,$b);
-sub _121050empty( ) {}
-() = _121050empty() + 1;
->>>>
-_121050 $a, $b;
-() = _121050empty + 1;

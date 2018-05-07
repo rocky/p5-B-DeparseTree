@@ -4,7 +4,7 @@ use rlib '.';
 use strict;
 use vars qw(@ISA $VERSION);
 
-$VERSION = '2.1.5';
+$VERSION = '3.0.0';
 
 use Config;
 my $is_cperl = $Config::Config{usecperl};
