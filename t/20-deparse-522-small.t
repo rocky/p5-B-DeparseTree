@@ -153,7 +153,6 @@ use constant cr => ['hello'];
 
 my $path = join " ", map { qq["-I$_"] } @INC;
 
-
 $a = `$^X $path "-MO=Deparse" -anlwi.bak -e 1 2>&1`;
 $a =~ s/-e syntax OK\n//g;
 $a =~ s/.*possible typo.*\n//;	   # Remove warning line

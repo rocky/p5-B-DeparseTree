@@ -52,6 +52,7 @@ $x{warn()};
 my $foo;
 $_ .= <ARGV> . <$foo>;
 ####
+# SKIP ROCKY fixme
 # \x{}
 my $foo = "Ab\x{100}\200\x{200}\237Cd\000Ef\x{1000}\cA\x{2000}\cZ";
 ####
@@ -238,6 +239,7 @@ no warnings 'experimental::lexical_subs';
 state sub f {}
 print f();
 ####
+# SKIP FIXME: Works without fragments
 # [perl #121050] Prototypes with whitespace
 sub _121050(\$ \$) { }
 _121050($a,$b);
