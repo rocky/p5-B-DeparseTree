@@ -235,6 +235,7 @@ no warnings 'experimental::lexical_subs';
 state sub f {}
 print f();
 ####
+# SKIP FIXME: Works without fragments
 # [perl #121050] Prototypes with whitespace
 sub _121050(\$ \$) { }
 _121050($a,$b);

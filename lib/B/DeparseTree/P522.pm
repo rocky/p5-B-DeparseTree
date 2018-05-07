@@ -3169,12 +3169,12 @@ sub pp_entersub
     for (; not null $kid->sibling; $kid = $kid->sibling) {
 	push @exprs, $kid;
     }
-    my ($simple, $proto, $kid_info) = (0, undef, undef);
+    my ($simple, $proto, $subname_info) = (0, undef, undef);
     if (is_scope($kid)) {
 	$amper = "&";
-	$kid_info = $self->deparse($kid, 0, $op);
-	$kid_info->{texts} = ['{', $kid_info->texts, '}'];
-	$kid_info->{text} = join('', @$kid_info->{texts});
+	$subname_info = $self->deparse($kid, 0, $op);
+	$subname_info->{texts} = ['{', $subname_info->texts, '}'];
+	$subname_info->{text} = join('', @$subname_info->{texts});
     } elsif ($kid->first->name eq "gv") {
 	my $gv = $self->gv_or_padgv($kid->first);
 	my $cv;
@@ -3183,7 +3183,7 @@ sub pp_entersub
 	    $proto = $cv->PV if $cv->FLAGS & SVf_POK;
 	}
 	$simple = 1; # only calls of named functions can be prototyped
-	$kid_info = $self->deparse($kid, 24, $op);
+	$subname_info = $self->deparse($kid, 24, $op);
 	my $fq;
 	# Fully qualify any sub name that conflicts with a lexical.
 	if ($self->lex_in_scope("&$kid")
@@ -3191,8 +3191,8 @@ sub pp_entersub
 	{
 	    $fq++;
 	} elsif (!$amper) {
-	    if ($kid_info->{text} eq 'main::') {
-		$kid_info->{text} = '::';
+	    if ($subname_info->{text} eq 'main::') {
+		$subname_info->{text} = '::';
 	    } else {
 	      if ($kid !~ /::/ && $kid ne 'x') {
 		# Fully qualify any sub name that is also a keyword.  While
@@ -3207,24 +3207,24 @@ sub pp_entersub
 		}
 	      }
 	    }
-	    if ($kid_info->{text} !~ /^(?:\w|::)(?:[\w\d]|::(?!\z))*\z/) {
-		$kid_info->{text} = $self->single_delim($$kid, "q", "'", $kid) . '->';
+	    if ($subname_info->{text} !~ /^(?:\w|::)(?:[\w\d]|::(?!\z))*\z/) {
+		$subname_info->{text} = $self->single_delim($$kid, "q", "'", $kid) . '->';
 	    }
 	}
     } elsif (is_scalar ($kid->first) && $kid->first->name ne 'rv2cv') {
 	$amper = "&";
-	$kid_info = $self->deparse($kid, 24, $op);
+	$subname_info = $self->deparse($kid, 24, $op);
     } else {
 	$prefix = "";
 	my $arrow = is_subscriptable($kid->first) || $kid->first->name eq "padcv" ? "" : "->";
-	$kid_info = $self->deparse($kid, 24, $op);
-	$kid_info->{text} .= $arrow;
+	$subname_info = $self->deparse($kid, 24, $op);
+	$subname_info->{text} .= $arrow;
     }
 
     # Doesn't matter how many prototypes there are, if
     # they haven't happened yet!
     my $declared;
-    my $sub_name = $kid_info->{text};
+    my $sub_name = $subname_info->{text};
     {
 	no strict 'refs';
 	no warnings 'uninitialized';
@@ -3258,8 +3258,8 @@ sub pp_entersub
     if ($prefix or $amper) {
 	if ($sub_name eq '&') {
 	    # &{&} cannot be written as &&
-	    $kid_info->{texts} = ["{", @{$kid_info->{texts}}, "}"];
-	    $kid_info->{text} = join('', $kid_info->{texts});
+	    $subname_info->{texts} = ["{", @{$subname_info->{texts}}, "}"];
+	    $subname_info->{text} = join('', $subname_info->{texts});
 	}
 	if ($op->flags & OPf_STACKED) {
 	    $type = 'entersub_prefix_or_amper_stacked';
@@ -3272,14 +3272,14 @@ sub pp_entersub
 	# It's a syntax error to call CORE::GLOBAL::foo with a prefix,
 	# so it must have been translated from a keyword call. Translate
 	# it back.
-	$sub_name =~ s/^CORE::GLOBAL:://;
+	$subname_info->{text} =~ s/^CORE::GLOBAL:://;
 	my $dproto = defined($proto) ? $proto : "undefined";
         if (!$declared) {
 	    $type = 'entersub_not_declared';
-	    @texts = dedup_parens_func($self, $kid_info, \@body);
+	    @texts = dedup_parens_func($self, $subname_info, \@body);
 	} elsif ($dproto =~ /^\s*\z/) {
 	    $type = 'entersub_null_proto';
-	    @texts = ($kid);
+	    @texts = ($subname_info);
 	} elsif ($dproto eq "\$" and is_scalar($exprs[0])) {
 	    $type = 'entersub_dollar_proto';
 	    # is_scalar is an excessively conservative test here:
@@ -3289,10 +3289,10 @@ sub pp_entersub
 	    @texts = $self->maybe_parens_func($kid, $self->combine(', ', \@body), $cx, 16);
 	} elsif ($dproto ne '$' and defined($proto) || $simple) { #'
 	    $type = 'entersub_proto';
-	    @texts = $self->maybe_parens_func($kid, $self->combine(', ', \@body), $cx, 5);
+	    @texts = $self->maybe_parens_func($subname_info, $self->combine(', ', \@body), $cx, 5);
 	} else {
 	    $type = 'entersub';
-	    @texts = dedup_parens_func($self, $kid_info, \@body);
+	    @texts = dedup_parens_func($self, $subname_info, \@body);
 	}
     }
     my $info = B::DeparseTree::Node->new($op, $self->{deparse}, \@texts,
@@ -3552,6 +3552,7 @@ sub const {
     # convert a version object into the "v1.2.3" string in its V magic
     if ($sv->FLAGS & SVs_RMG) {
 	for (my $mg = $sv->MAGIC; $mg; $mg = $mg->MOREMAGIC) {
+	    use Enbugger; Enbugger->stop;
 	    return $mg->PTR if $mg->TYPE eq 'V';
 	}
     }

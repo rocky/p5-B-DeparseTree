@@ -25,7 +25,6 @@
 # Note that tests for prefixing feature.pm-enabled keywords with CORE:: when
 # feature.pm is not enabled are in deparse.t, as they fit that format better.
 
-exit 0;
 BEGIN {
     require Config;
     if (($Config::Config{extensions} !~ /\bB\b/) ){
