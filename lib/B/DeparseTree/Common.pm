@@ -429,11 +429,6 @@ sub info_from_list($$$$$$)
 sub info_from_text($$$$$)
 {
     my ($op, $deparse, $text, $type, $opts) = @_;
-    if (!defined($opts) || !defined($op) || !defined($type)) {
-	my @foo = caller;
-	use Data::Printer; p @foo;
-	use Enbugger; Enbugger->stop;
-    }
     return info_from_list($op, $deparse, [[$text, $$op]], '', $type, $opts)
 }
 
