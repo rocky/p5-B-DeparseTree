@@ -1,5 +1,6 @@
 package B::DeparseTree::Fragment;
 
+use strict; use warnings;
 use vars qw(@ISA @EXPORT);
 @ISA = ('Exporter');
 @EXPORT = qw(deparse_offset get_addr_info get_parent_addr_info extract_node_info);
@@ -45,12 +46,13 @@ sub get_parent_addr_info($)
 sub extract_node_info($)
 {
     my ($info) = @_;
+    my $child_text = $info->{text};
     my $parent = $info->{parent} ? $info->{parent} : undef;
-    return $info->{text} unless $parent;
+    return $child_text unless $parent;
     my $child_addr = $info->{addr};
     my $deparsed = $info->{deparse};
     my $parent_info = $deparsed->{optree}{$parent};
-    return $info->{text} unless $parent_info;
+    return $child_text unless $parent_info;
     my $separator = $parent_info->{sep};
     my @texts = @{$parent_info->{texts}};
     my $parent_line = '';
@@ -67,7 +69,7 @@ sub extract_node_info($)
 		    $result .= $text->[0];
 		    $parent_underline .= '-' x length($text->[0]);
 		    if ($i < $text_len-1) {
-			$result .= $seperator;
+			$result .= $separator;
 			my @remain_texts = @texts[$i+1..$#texts];
 			my $tail = $deparsed->combine2str($separator, \@remain_texts);
 			# FIXME remove trailing split on "\n'
@@ -84,14 +86,14 @@ sub extract_node_info($)
 		    $result .= $text->{text};
 		    $parent_underline .= '-' x length($text->{text});
 		    if ($i < $text_len-1) {
-			$result .= $seperator;
+			$result .= $separator;
 			my @remain_texts = @texts[$i+1..$#texts];
 			my $tail = $deparsed->combine2str($separator, \@remain_texts);
 			# FIXME remove trailing split on "\n'
 			# Also remove leading \n.
 			$result .=  $tail;
-			return [$result, $parent_underline];
 		    }
+		    return [$result, $parent_underline];
 		} else {
 		    $result .= $text->{text};
 		}
@@ -100,10 +102,32 @@ sub extract_node_info($)
 	    $result .= $text;
 	}
     }
+    # Can't find by node address info, so just try to find the string
+    # inside of the parent.
+    my $parent_text = $parent_info->{text};
+    my $start_index = index($parent_text, $child_text);
+    if ($start_index >= 0) {
+	if (index($parent_text, $child_text, $start_index+1) < 0) {
+	    # It is in there *uniquely*!
+	    # Remove any \n's before the text.
+	    my $last_pos = 0;
+	    my $start_search = index($parent_text, $child_text);
+	    while ($start_search >= 0) {
+		$last_pos = $start_search;
+		$start_search = index($parent_text, $child_text, $last_pos+1);
+	    }
+	    my $parent_underline = ' ' x ($start_index - $last_pos) ;
+	    $parent_underline .= '~' x length($child_text);
+	    my $stripped_parent = substr($parent_text, $last_pos);
+	    $stripped_parent =~ s/(?:\n.*)//;
+	    return [$stripped_parent, $parent_underline];
+	}
+    }
 }
 
 unless (caller) {
     sub bug() {
+	no strict;
 	CORE::exec($foo $bar);
     }
 
