@@ -727,7 +727,7 @@ sub stash_variable_name {
 	return $name, 0; # not quoted
     }
     else {
-	single_delim($self, "q", "'", $name), 1;
+	$self->single_delim($gv, "q", "'", $name, $self), 1;
     }
 }
 
@@ -777,6 +777,7 @@ sub populate_curcvlex {
 		next;
 	    }
             my $name = $ns[$i]->PVX;
+	    next unless defined $name;
 	    my ($seq_st, $seq_en) =
 		($ns[$i]->FLAGS & SVf_FAKE)
 		    ? (0, 999999)
@@ -784,7 +785,7 @@ sub populate_curcvlex {
 
 	    push @{$self->{'curcvlex'}{
 			($ns[$i]->FLAGS & SVpad_OUR ? 'o' : 'm') . $name
-		  }}, [$seq_st, $seq_en];
+		  }}, [$seq_st, $seq_en, $ns[$i]];
 	}
     }
 }
@@ -950,7 +951,7 @@ sub unop
 		body => [$kid],
 		maybe_parens => [$self, $cx, 16],
 	    };
-	    return info_from_list($op,$self,[($self->keyword($name), $kid->{text})],
+	    return info_from_list($op, $self, [($self->keyword($name), $kid->{text})],
 				  ' ', 'unop_noallafr', $opts);
 	}
 	return $self->maybe_parens_unop($name, $kid, $cx, $op);
@@ -958,8 +959,7 @@ sub unop
 	my $opts = {maybe_parens => [$self, $cx, 16]};
 	my @texts = ($self->keyword($name));
 	push @texts, '()' if $op->flags & OPf_SPECIAL;
-	return info_from_list($op, $self,\@texts, '', 'unop_nokid',
-			      $opts);
+	return info_from_list($op, $self, \@texts, '', 'unop_nokid', $opts);
     }
 }
 
@@ -1485,6 +1485,7 @@ sub binop
 	&& $lhs->{text} !~ /^(my|our|local|)[\@\(]/) {
 	$lhs->{text} = "($lhs->{text})";
     }
+
     my $rhs = $self->deparse_binop_right($op, $right, $prec);
     my @texts = ($lhs, "$opname$eq", $rhs);
     return info_from_list($op, $self, \@texts, ' ', 'binop',
@@ -1545,21 +1546,15 @@ sub pp_smartmatch {
     }
 }
 
-sub bin_info_join($$$$$) {
-    my ($lhs, $rhs, $mid, $sep, $type) = @_;
+sub bin_info_join($$$$$$$) {
+    my ($self, $op, $lhs, $rhs, $mid, $sep, $type) = @_;
     my $texts = [$lhs->{text}, $mid, $rhs->{text}];
-    my $text = join(' ', @$texts);
-    return {
-	text => $text,
-	body => [$lhs, $rhs],
-	texts => $texts,
-	type => $type
-    };
+    return info_from_list($op, $self, $texts, ' ', $type, {})
 }
 
-sub bin_info_join_maybe_parens($$$$$$) {
-    my ($self, $lhs, $rhs, $mid, $sep, $cx, $prec, $type) = @_;
-    my $info = bin_info_join($lhs, $rhs, $mid, $sep, $type);
+sub bin_info_join_maybe_parens($$$$$$$$$) {
+    my ($self, $op, $lhs, $rhs, $mid, $sep, $cx, $prec, $type) = @_;
+    my $info = bin_info_join($self, $op, $lhs, $rhs, $mid, $sep, $type);
     $info->{text} = $self->maybe_parens($info->{text}, $cx, $prec);
     return $info;
 }
@@ -1581,8 +1576,8 @@ sub real_concat {
     }
     my $lhs = $self->deparse_binop_left($op, $left, $prec);
     my $rhs  = $self->deparse_binop_right($op, $right, $prec);
-    return $self->bin_info_join_maybe_parens($lhs, $rhs, ".$eq", " ", $cx, $prec,
-	'real_concat');
+    return $self->bin_info_join_maybe_parens($op, $lhs, $rhs, ".$eq", " ", $cx, $prec,
+					     'real_concat');
 }
 
 # 'x' is weird when the left arg is a list
@@ -1694,7 +1689,7 @@ sub listop
 	my $text = $nollafr
 	    ? $self->maybe_parens($self->keyword($name), $cx, 7)
 	    : $self->keyword($name) . '()' x (7 < $cx);
-	return info_from_text($op, $self, $text, '', 'null_listop', {});
+	return info_from_text($op, $self, $text, 'null_listop', {});
     }
     my $first;
     my $fullname = $self->keyword($name);
@@ -2323,13 +2318,15 @@ sub pp_null
     	     $kid->sibling->flags & OPf_STACKED) {
     	my $lhs = $self->deparse($kid, 7, $op);
     	my $rhs = $self->deparse($kid->sibling, 7, $kid);
-    	return $self->bin_info_join_maybe_parens($lhs, $rhs, '=', " ", $cx, 7);
+    	return $self->bin_info_join_maybe_parens($op, $lhs, $rhs, '=', " ", $cx, 7,
+						 'readline');
     } elsif (!null($kid->sibling) and
     	     $kid->sibling->name eq "trans" and
     	     $kid->sibling->flags & OPf_STACKED) {
     	my $lhs = $self->deparse($kid, 20, $op);
     	my $rhs = $self->deparse($kid->sibling, 20, $op);
-    	return $self->bin_info_join_maybe_parens($lhs, $rhs, '=~', " ", $cx, 20);
+    	return $self->bin_info_join_maybe_parens($op, $lhs, $rhs, '=~', " ", $cx, 20,
+	                                         'trans');
     } elsif ($op->flags & OPf_SPECIAL && $cx < 1 && !$op->targ) {
     	my $kid_info = $self->deparse($kid, $cx, $op);
 	return info_from_list($op, $self, ['do', "{\n\t", $kid_info->{text},
@@ -2342,7 +2339,7 @@ sub pp_null
 	     $kid->sibling->first->name eq "rcatline") {
 	my $lhs = $self->deparse($kid, 18, $op);
 	my $rhs = $self->deparse($kid->sibling, 18, $op);
-	return $self->bin_info_join_maybe_parens($lhs, $rhs, '=', " ", $cx, 20,
+	return $self->bin_info_join_maybe_parens($op, $lhs, $rhs, '=', " ", $cx, 20,
 						 'null_rcatline');
     } else {
 	return $self->deparse($kid, $cx, $op);
@@ -2953,40 +2950,62 @@ sub pp_entersub
     for (; not null $kid->sibling; $kid = $kid->sibling) {
 	push @exprs, $kid;
     }
-    my ($simple, $proto, $kid_info) = (0, undef, undef);
+    my ($simple, $proto, $subname_info) = (0, undef, undef);
     if (is_scope($kid)) {
 	$amper = "&";
-	$kid_info = $self->deparse($kid, 0, $op);
-	$kid_info->{texts} = ['{', $kid_info->texts, '}'];
-	$kid_info->{text} = join('', @$kid_info->{texts});
+	$subname_info = $self->deparse($kid, 0, $op);
+	$subname_info->{texts} = ['{', $subname_info->texts, '}'];
+	$subname_info->{text} = join('', @$subname_info->{texts});
     } elsif ($kid->first->name eq "gv") {
 	my $gv = $self->gv_or_padgv($kid->first);
-	if (class($gv->CV) ne "SPECIAL") {
-	    $proto = $gv->CV->PV if $gv->CV->FLAGS & SVf_POK;
+	my $cv;
+	if (class($gv) eq 'GV' && class($cv = $gv->CV) ne "SPECIAL"
+	 || $gv->FLAGS & SVf_ROK && class($cv = $gv->RV) eq 'CV') {
+	    $proto = $cv->PV if $cv->FLAGS & SVf_POK;
 	}
 	$simple = 1; # only calls of named functions can be prototyped
-	$kid_info = $self->deparse($kid, 24, $op);
-	if (!$amper) {
-	    if ($kid_info->{text} eq 'main::') {
-		$kid_info->{text} = '::';
-	    } elsif ($kid_info->{text} !~ /^(?:\w|::)(?:[\w\d]|::(?!\z))*\z/) {
-		$kid_info->{text} = single_delim($self, "q", "'", $kid) . '->';
+	$subname_info = $self->deparse($kid, 24, $op);
+	my $fq;
+	# Fully qualify any sub name that conflicts with a lexical.
+	if ($self->lex_in_scope("&$kid")
+	 || $self->lex_in_scope("&$kid", 1))
+	{
+	    $fq++;
+	} elsif (!$amper) {
+	    if ($subname_info->{text} eq 'main::') {
+		$subname_info->{text} = '::';
+	    } else {
+	      if ($kid !~ /::/ && $kid ne 'x') {
+		# Fully qualify any sub name that is also a keyword.  While
+		# we could check the import flag, we cannot guarantee that
+		# the code deparsed so far would set that flag, so we qual-
+		# ify the names regardless of importation.
+		if (exists $feature_keywords{$kid}) {
+		    $fq++ if $self->feature_enabled($kid);
+		} elsif (do { local $@; local $SIG{__DIE__};
+			      eval { () = prototype "CORE::$kid"; 1 } }) {
+		    $fq++
+		}
+	      }
+	    }
+	    if ($subname_info->{text} !~ /^(?:\w|::)(?:[\w\d]|::(?!\z))*\z/) {
+		$subname_info->{text} = $self->single_delim($$kid, "q", "'", $kid) . '->';
 	    }
 	}
     } elsif (is_scalar ($kid->first) && $kid->first->name ne 'rv2cv') {
 	$amper = "&";
-	$kid_info = $self->deparse($kid, 24, $op);
+	$subname_info = $self->deparse($kid, 24, $op);
     } else {
 	$prefix = "";
 	my $arrow = is_subscriptable($kid->first) || $kid->first->name eq "padcv" ? "" : "->";
-	$kid_info = $self->deparse($kid, 24, $op);
-	$kid_info->{text} .= $arrow;
+	$subname_info = $self->deparse($kid, 24, $op);
+	$subname_info->{text} .= $arrow;
     }
 
     # Doesn't matter how many prototypes there are, if
     # they haven't happened yet!
     my $declared;
-    my $sub_name = $kid_info->{text};
+    my $sub_name = $subname_info->{text};
     {
 	no strict 'refs';
 	no warnings 'uninitialized';
@@ -3020,8 +3039,8 @@ sub pp_entersub
     if ($prefix or $amper) {
 	if ($sub_name eq '&') {
 	    # &{&} cannot be written as &&
-	    $kid_info->{texts} = ["{", @{$kid_info->{texts}}, "}"];
-	    $kid_info->{text} = join('', $kid_info->{texts});
+	    $subname_info->{texts} = ["{", @{$subname_info->{texts}}, "}"];
+	    $subname_info->{text} = join('', $subname_info->{texts});
 	}
 	if ($op->flags & OPf_STACKED) {
 	    $type = 'entersub_prefix_or_amper_stacked';
@@ -3034,14 +3053,14 @@ sub pp_entersub
 	# It's a syntax error to call CORE::GLOBAL::foo with a prefix,
 	# so it must have been translated from a keyword call. Translate
 	# it back.
-	$sub_name =~ s/^CORE::GLOBAL:://;
+	$subname_info->{text} =~ s/^CORE::GLOBAL:://;
 	my $dproto = defined($proto) ? $proto : "undefined";
         if (!$declared) {
 	    $type = 'entersub_not_declared';
-	    @texts = dedup_parens_func($self, $kid_info, \@body);
+	    @texts = dedup_parens_func($self, $subname_info, \@body);
 	} elsif ($dproto =~ /^\s*\z/) {
 	    $type = 'entersub_null_proto';
-	    @texts = ($kid);
+	    @texts = ($subname_info);
 	} elsif ($dproto eq "\$" and is_scalar($exprs[0])) {
 	    $type = 'entersub_dollar_proto';
 	    # is_scalar is an excessively conservative test here:
@@ -3051,10 +3070,10 @@ sub pp_entersub
 	    @texts = $self->maybe_parens_func($kid, $self->combine(', ', \@body), $cx, 16);
 	} elsif ($dproto ne '$' and defined($proto) || $simple) { #'
 	    $type = 'entersub_proto';
-	    @texts = $self->maybe_parens_func($kid, $self->combine(', ', \@body), $cx, 5);
+	    @texts = $self->maybe_parens_func($subname_info, $self->combine(', ', \@body), $cx, 5);
 	} else {
 	    $type = 'entersub';
-	    @texts = dedup_parens_func($self, $kid_info, \@body);
+	    @texts = dedup_parens_func($self, $subname_info, \@body);
 	}
     }
     my $info = B::DeparseTree::Node->new($op, $self->{deparse}, \@texts,
@@ -3451,7 +3470,8 @@ sub const_dumper {
     }
 }
 
-sub const_sv {
+sub const_sv
+{
     my $self = shift;
     my $op = shift;
     my $sv = $op->sv;
@@ -4083,7 +4103,10 @@ sub pp_runcv { unop(@_, "__SUB__"); }
 sub pp_split
 {
     my($self, $op, $cx) = @_;
-    my($kid, @exprs, $ary, $expr);
+    my($kid, @exprs, $ary_info, $expr);
+    my $ary = '';
+    my @body = ();
+    my @other_ops = ();
     $kid = $op->first;
 
     # For our kid (an OP_PUSHRE), pmreplroot is never actually the

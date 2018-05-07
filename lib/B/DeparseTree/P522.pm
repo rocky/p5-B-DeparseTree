@@ -1099,7 +1099,6 @@ sub pp_tell { unop(@_, "tell") }
 sub pp_getsockname { unop(@_, "getsockname") }
 sub pp_getpeername { unop(@_, "getpeername") }
 
-
 sub pp_chroot { maybe_targmy(@_, \&unop, "chroot") }
 sub pp_readlink { unop(@_, "readlink") }
 sub pp_rmdir { maybe_targmy(@_, \&unop, "rmdir") }
@@ -1616,21 +1615,15 @@ sub pp_smartmatch {
     }
 }
 
-sub bin_info_join($$$$$) {
-    my ($lhs, $rhs, $mid, $sep, $type) = @_;
+sub bin_info_join($$$$$$$) {
+    my ($self, $op, $lhs, $rhs, $mid, $sep, $type) = @_;
     my $texts = [$lhs->{text}, $mid, $rhs->{text}];
-    my $text = join(' ', @$texts);
-    return {
-	text => $text,
-	body => [$lhs, $rhs],
-	texts => $texts,
-	type => $type
-    };
+    return info_from_list($op, $self, $texts, ' ', $type, {})
 }
 
-sub bin_info_join_maybe_parens($$$$$$) {
-    my ($self, $lhs, $rhs, $mid, $sep, $cx, $prec, $type) = @_;
-    my $info = bin_info_join($lhs, $rhs, $mid, $sep, $type);
+sub bin_info_join_maybe_parens($$$$$$$$$) {
+    my ($self, $op, $lhs, $rhs, $mid, $sep, $cx, $prec, $type) = @_;
+    my $info = bin_info_join($self, $op, $lhs, $rhs, $mid, $sep, $type);
     $info->{text} = $self->maybe_parens($info->{text}, $cx, $prec);
     return $info;
 }
@@ -1652,8 +1645,8 @@ sub real_concat {
     }
     my $lhs = $self->deparse_binop_left($op, $left, $prec);
     my $rhs  = $self->deparse_binop_right($op, $right, $prec);
-    return $self->bin_info_join_maybe_parens($lhs, $rhs, ".$eq", " ", $cx, $prec,
-	'real_concat');
+    return $self->bin_info_join_maybe_parens($op, $lhs, $rhs, ".$eq", " ", $cx, $prec,
+					     'real_concat');
 }
 
 # 'x' is weird when the left arg is a list
@@ -1720,6 +1713,7 @@ sub logassignop
 {
     my ($self, $op, $cx, $opname) = @_;
     my $left = $op->first;
+
     my $right = $op->first->sibling->first; # skip sassign
     $left = $self->deparse($left, 7, $op);
     $right = $self->deparse($right, 7, $op);
@@ -2394,13 +2388,15 @@ sub pp_null
     	     $kid->sibling->flags & OPf_STACKED) {
     	my $lhs = $self->deparse($kid, 7, $op);
     	my $rhs = $self->deparse($kid->sibling, 7, $kid);
-    	return $self->bin_info_join_maybe_parens($lhs, $rhs, '=', " ", $cx, 7);
+    	return $self->bin_info_join_maybe_parens($op, $lhs, $rhs, '=', " ", $cx, 7,
+						 'readline');
     } elsif (!null($kid->sibling) and
     	     $kid->sibling->name eq "trans" and
     	     $kid->sibling->flags & OPf_STACKED) {
     	my $lhs = $self->deparse($kid, 20, $op);
     	my $rhs = $self->deparse($kid->sibling, 20, $op);
-    	return $self->bin_info_join_maybe_parens($lhs, $rhs, '=~', " ", $cx, 20);
+    	return $self->bin_info_join_maybe_parens($op, $lhs, $rhs, '=~', " ", $cx, 20,
+	                                         'trans');
     } elsif ($op->flags & OPf_SPECIAL && $cx < 1 && !$op->targ) {
     	my $kid_info = $self->deparse($kid, $cx, $op);
 	return info_from_list($op, $self, ['do', "{\n\t", $kid_info->{text},
@@ -2413,7 +2409,7 @@ sub pp_null
 	     $kid->sibling->first->name eq "rcatline") {
 	my $lhs = $self->deparse($kid, 18, $op);
 	my $rhs = $self->deparse($kid->sibling, 18, $op);
-	return $self->bin_info_join_maybe_parens($lhs, $rhs, '=', " ", $cx, 20,
+	return $self->bin_info_join_maybe_parens($op, $lhs, $rhs, '=', " ", $cx, 20,
 						 'null_rcatline');
     } else {
 	return $self->deparse($kid, $cx, $op);
@@ -3552,7 +3548,6 @@ sub const {
     # convert a version object into the "v1.2.3" string in its V magic
     if ($sv->FLAGS & SVs_RMG) {
 	for (my $mg = $sv->MAGIC; $mg; $mg = $mg->MOREMAGIC) {
-	    use Enbugger; Enbugger->stop;
 	    return $mg->PTR if $mg->TYPE eq 'V';
 	}
     }
