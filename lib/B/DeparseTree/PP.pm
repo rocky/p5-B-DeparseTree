@@ -11,13 +11,17 @@ package B::DeparseTree::PP;
 
 use B::DeparseTree::Common;
 use B::DeparseTree::Node;
+use B::Deparse;
+
+*is_ifelse_cont = *B::Deparse::is_ifelse_cont;
+*real_negate = *B::Deparse::real_negate;
 
 use B qw(OPpEXISTS_SUB OPf_SPECIAL);
 
 our($VERSION, @EXPORT, @ISA);
 $VERSION = '1.0.0';
 
-@ISA = qw(Exporter);
+@ISA = qw(Exporter B::Deparse);
 @EXPORT = qw(
 
     pp_cond_expr
@@ -26,10 +30,12 @@ $VERSION = '1.0.0';
     pp_fork pp_getlogin pp_ggrent
     pp_ghostent pp_gnetent pp_gprotoent
     pp_gpwent pp_grepstart pp_gservent
+    pp_i_negate
     pp_mapstart
     pp_sgrent pp_spwent pp_tms pp_wantarray
 
     pp_leave pp_lineseq
+    pp_negate
     pp_once
     pp_scope
 
@@ -213,14 +219,14 @@ sub pp_cond_expr
 	my $cond_info = $self->deparse($cond, 8, $op);
 	my $true_info = $self->deparse($true, 6, $op);
 	my $false_info = $self->deparse($false, 8, $op);
-	my @texts = ($cond_info->{text}, '?', $true_info->{text}, ':', $false_info->{text});
-	return info_from_list($op, $self, \@texts, ' ', 'pp_cond_expr1',
+	my @texts = ($cond_info, '?', $true_info, ':', $false_info);
+	return info_from_list($op, $self, \@texts, ' ', 'pp_cond_expr_if_else',
 				  {maybe_parens => [$self, $cx, 8]});
     }
 
     my $cond_info = $self->deparse($cond, 1, $op);
     my $true_info = $self->deparse($true, 0, $op);
-    my @head = ('if ', '(', $cond_info->{text}, ') ', "{\n\t", $true_info->{text}, "\n\b}");
+    my @head = ('if ', '(', $cond_info, ') ', "{\n\t", $true_info, "\n\b}");
     my @elsifs;
 
     while (!null($false) and is_ifelse_cont($false)) {
@@ -236,9 +242,9 @@ sub pp_cond_expr
 	}
 	my $newcond_info = $self->deparse($newcond, 1, $op);
 	my $newtrue_info = $self->deparse($newtrue, 0, $op);
-	push @elsifs, ('', "elsif ($newcond_info->{text})",
+	push @elsifs, ('', "elsif (", $newcond_info, ")",
 		       "{\n\t",
-		       $newtrue_info->{text},
+		       $newtrue_info,
 		       "\n\b}");
     }
     my $false_info;
@@ -254,6 +260,10 @@ sub pp_cond_expr
 }
 
 sub pp_dbstate { pp_nextstate(@_) }
+
+sub pp_i_negate { pp_negate(@_) }
+
+sub pp_negate { maybe_targmy(@_, \&real_negate) }
 
 sub pp_once
 {

@@ -48,11 +48,11 @@ sub extract_node_info($)
     my ($info) = @_;
     my $child_text = $info->{text};
     my $parent = $info->{parent} ? $info->{parent} : undef;
-    return $child_text unless $parent;
+    return [$child_text] unless $parent;
     my $child_addr = $info->{addr};
     my $deparsed = $info->{deparse};
     my $parent_info = $deparsed->{optree}{$parent};
-    return $child_text unless $parent_info;
+    return [$child_text] unless $parent_info;
     my $separator = $parent_info->{sep};
     my @texts = @{$parent_info->{texts}};
     my $parent_line = '';

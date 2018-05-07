@@ -1066,19 +1066,6 @@ sub keyword {
 }
 
 
-sub pp_negate { maybe_targmy(@_, \&real_negate) }
-sub real_negate {
-    my $self = shift;
-    my($op, $cx) = @_;
-    if ($op->first->name =~ /^(i_)?negate$/) {
-	# avoid --$x
-	$self->pfixop($op, $cx, "-", 21.5);
-    } else {
-	$self->pfixop($op, $cx, "-", 21);
-    }
-}
-sub pp_i_negate { pp_negate(@_) }
-
 sub pp_not
 {
     my($self, $op, $cx) = @_;
@@ -3696,54 +3683,6 @@ sub const {
     } else {
 	return $self->info_from_text($sv, "undef", 'const_undef', {});
     }
-}
-
-sub const_dumper {
-    my $self = shift;
-    my($sv, $cx) = @_;
-    my $ref = $sv->object_2svref();
-    my $dumper = Data::Dumper->new([$$ref], ['$v']);
-    $dumper->Purity(1)->Terse(1)->Deparse(1)->Indent(0)->Useqq(1)->Sortkeys(1);
-    my $str = $dumper->Dump();
-    if ($str =~ /^\$v/) {
-	my $texts = ['${my', $str, '\$v}'];
-	return {
-	    texts => @$texts,
-	    text => join(@$texts, ' '),
-	};
-    } else {
-	return { text => $str };
-    }
-}
-
-sub const_sv
-{
-    my $self = shift;
-    my $op = shift;
-    my $sv = $op->sv;
-    # the constant could be in the pad (under useithreads)
-    $sv = $self->padval($op->targ) unless $$sv;
-    return $sv;
-}
-
-sub meth_sv
-{
-    my $self = shift;
-    my $op = shift;
-    my $sv = $op->meth_sv;
-    # the constant could be in the pad (under useithreads)
-    $sv = $self->padval($op->targ) unless $$sv;
-    return $sv;
-}
-
-sub meth_rclass_sv
-{
-    my $self = shift;
-    my $op = shift;
-    my $sv = $op->rclass;
-    # the constant could be in the pad (under useithreads)
-    $sv = $self->padval($sv) unless ref $sv;
-    return $sv;
 }
 
 sub pp_const {

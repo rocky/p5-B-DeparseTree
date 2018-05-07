@@ -903,19 +903,6 @@ sub keyword {
     return $name;
 }
 
-sub pp_negate { maybe_targmy(@_, \&real_negate) }
-sub real_negate {
-    my $self = shift;
-    my($op, $cx) = @_;
-    if ($op->first->name =~ /^(i_)?negate$/) {
-	# avoid --$x
-	$self->pfixop($op, $cx, "-", 21.5);
-    } else {
-	$self->pfixop($op, $cx, "-", 21);
-    }
-}
-sub pp_i_negate { pp_negate(@_) }
-
 sub pp_not
 {
     my($self, $op, $cx) = @_;
@@ -2007,14 +1994,6 @@ sub pp_list
 
     }
     return info_from_list($op, $self, \@texts, '', $type, $opts);
-}
-
-sub is_ifelse_cont
-{
-    my $op = shift;
-    return ($op->name eq "null" and class($op) eq "UNOP"
-	    and $op->first->name =~ /^(and|cond_expr)$/
-	    and is_scope($op->first->first->sibling));
 }
 
 sub loop_common
@@ -3391,16 +3370,6 @@ sub const_dumper {
     } else {
 	return { text => $str };
     }
-}
-
-sub const_sv
-{
-    my $self = shift;
-    my $op = shift;
-    my $sv = $op->sv;
-    # the constant could be in the pad (under useithreads)
-    $sv = $self->padval($op->targ) unless $$sv;
-    return $sv;
 }
 
 sub pp_const {

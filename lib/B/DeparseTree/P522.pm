@@ -57,6 +57,9 @@ use B qw(class opnumber
 
 use B::DeparseTree::Common;
 use B::DeparseTree::PP;
+use B::Deparse;
+
+*begin_is_use = *B::Deparse::begin_is_use;
 
 use strict;
 use vars qw/$AUTOLOAD/;
@@ -319,109 +322,6 @@ sub deparse_format($$$)
     $info->{text} = $self->combine2str(\@texts) . "\f.";
     $info->{texts} = \@texts;
     return $info;
-}
-
-# Return a "use" declaration for this BEGIN block, if appropriate
-sub begin_is_use
-{
-    my ($self, $cv) = @_;
-    my $root = $cv->ROOT;
-    local @$self{qw'curcv curcvlex'} = ($cv);
-    local $B::overlay = {};
-    $self->pessimise($root, $cv->START);
-    # require B::Debug;
-    # B::walkoptree($cv->ROOT, "debug");
-    my $lineseq = $root->first;
-    return if $lineseq->name ne "lineseq";
-
-    my $req_op = $lineseq->first->sibling;
-    return if $req_op->name ne "require";
-
-    my $module;
-    if ($req_op->first->private & OPpCONST_BARE) {
-	# Actually it should always be a bareword
-	$module = $self->const_sv($req_op->first)->PV;
-	$module =~ s[/][::]g;
-	$module =~ s/.pm$//;
-    }
-    else {
-	$module = $self->const($self->const_sv($req_op->first), 6);
-    }
-
-    my $version;
-    my $version_op = $req_op->sibling;
-    return if class($version_op) eq "NULL";
-    if ($version_op->name eq "lineseq") {
-	# We have a version parameter; skip nextstate & pushmark
-	my $constop = $version_op->first->next->next;
-
-	return unless $self->const_sv($constop)->PV eq $module;
-	$constop = $constop->sibling;
-	$version = $self->const_sv($constop);
-	if (class($version) eq "IV") {
-	    $version = $version->int_value;
-	} elsif (class($version) eq "NV") {
-	    $version = $version->NV;
-	} elsif (class($version) ne "PVMG") {
-	    # Includes PVIV and PVNV
-	    $version = $version->PV;
-	} else {
-	    # version specified as a v-string
-	    $version = 'v'.join '.', map ord, split //, $version->PV;
-	}
-	$constop = $constop->sibling;
-	return if $constop->name ne "method_named";
-	return if $self->const_sv($constop)->PV ne "VERSION";
-    }
-
-    $lineseq = $version_op->sibling;
-    return if $lineseq->name ne "lineseq";
-    my $entersub = $lineseq->first->sibling;
-    if ($entersub->name eq "stub") {
-	return "use $module $version ();\n" if defined $version;
-	return "use $module ();\n";
-    }
-    return if $entersub->name ne "entersub";
-
-    # See if there are import arguments
-    my $args = '';
-
-    my $svop = $entersub->first->sibling; # Skip over pushmark
-    return unless $self->const_sv($svop)->PV eq $module;
-
-    # Pull out the arguments
-    for ($svop=$svop->sibling; $svop->name ne "method_named";
-		$svop = $svop->sibling) {
-	$args .= ", " if length($args);
-	$args .= $self->deparse($svop, 6, $root);
-    }
-
-    my $use = 'use';
-    my $method_named = $svop;
-    return if $method_named->name ne "method_named";
-    my $method_name = $self->const_sv($method_named)->PV;
-
-    if ($method_name eq "unimport") {
-	$use = 'no';
-    }
-
-    # Certain pragmas are dealt with using hint bits,
-    # so we ignore them here
-    if ($module eq 'strict' || $module eq 'integer'
-	|| $module eq 'bytes' || $module eq 'warnings'
-	|| $module eq 'feature') {
-	return "";
-    }
-
-    if (defined $version && length $args) {
-	return "$use $module $version ($args);\n";
-    } elsif (defined $version) {
-	return "$use $module $version;\n";
-    } elsif (length $args) {
-	return "$use $module ($args);\n";
-    } else {
-	return "$use $module;\n";
-    }
 }
 
 sub ambient_pragmas {
@@ -980,19 +880,6 @@ sub keyword {
     }
     return $name;
 }
-
-sub pp_negate { maybe_targmy(@_, \&real_negate) }
-sub real_negate {
-    my $self = shift;
-    my($op, $cx) = @_;
-    if ($op->first->name =~ /^(i_)?negate$/) {
-	# avoid --$x
-	$self->pfixop($op, $cx, "-", 21.5);
-    } else {
-	$self->pfixop($op, $cx, "-", 21);
-    }
-}
-sub pp_i_negate { pp_negate(@_) }
 
 sub pp_not
 {
@@ -3183,10 +3070,10 @@ sub pp_entersub
 	}
 	if ($op->flags & OPf_STACKED) {
 	    $type = 'entersub_prefix_or_amper_stacked';
-	    @texts = ($prefix, $amper, $kid, "(", $self->combine(', ', \@body), ")");
+	    @texts = ($prefix, $amper, $subname_info, "(", $self->combine(', ', \@body), ")");
 	} else {
 	    $type = 'entersub_prefix_or_amper';
-	    @texts = ($prefix, $amper, $kid);
+	    @texts = ($prefix, $amper, $subname_info);
 	}
     } else {
 	# It's a syntax error to call CORE::GLOBAL::foo with a prefix,
@@ -3607,36 +3494,6 @@ sub const_dumper {
     } else {
 	return { text => $str };
     }
-}
-
-sub const_sv
-{
-    my $self = shift;
-    my $op = shift;
-    my $sv = $op->sv;
-    # the constant could be in the pad (under useithreads)
-    $sv = $self->padval($op->targ) unless $$sv;
-    return $sv;
-}
-
-sub meth_sv
-{
-    my $self = shift;
-    my $op = shift;
-    my $sv = $op->meth_sv;
-    # the constant could be in the pad (under useithreads)
-    $sv = $self->padval($op->targ) unless $$sv;
-    return $sv;
-}
-
-sub meth_rclass_sv
-{
-    my $self = shift;
-    my $op = shift;
-    my $sv = $op->rclass;
-    # the constant could be in the pad (under useithreads)
-    $sv = $self->padval($sv) unless ref $sv;
-    return $sv;
 }
 
 sub pp_const {

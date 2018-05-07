@@ -9,13 +9,15 @@ use B qw(class
          SVf_IOK SVf_POK SVf_ROK SVs_PADTMP CVf_LVALUE CVf_METHOD
          OPf_STACKED OPpCONST_BARE OPpSORT_NUMERIC OPpSORT_INTEGER
          OPpSORT_REVERSE OPpTARGET_MY svref_2object perlstring);
+
+use B::Deparse;
 use Carp;
 
 use B::DeparseTree::Node;
 
 our($VERSION, @EXPORT, @ISA);
 $VERSION = '1.1.0';
-@ISA = qw(Exporter);
+@ISA = qw(Exporter B::Deparse);
 @EXPORT = qw(maybe_parens info_from_list info_from_text null new WARN_MASK
             map_texts
             indent_list indent indent_info parens_test print_protos
@@ -226,6 +228,22 @@ sub coderef2text
     return $self->indent($info->{text});
 }
 
+sub const_dumper
+{
+    my $self = shift;
+    my($sv, $cx) = @_;
+    my $ref = $sv->object_2svref();
+    my $dumper = Data::Dumper->new([$$ref], ['$v']);
+    $dumper->Purity(1)->Terse(1)->Deparse(1)->Indent(0)->Useqq(1)->Sortkeys(1);
+    my $str = $dumper->Dump();
+    if ($str =~ /^\$v/) {
+        return info_from_text($sv, $self, ['${my', $str, '\$v}'], 'const_dumper_my', {});
+    } else {
+        return info_from_text($sv, $self, $str, 'const_dumper', {});
+    }
+}
+
+# FIXME: how can we inherit this from B::Deparse?
 sub null
 {
     my $op = shift;
@@ -903,8 +921,11 @@ sub next_todo
 	if ($name eq "BEGIN") {
 	    my $use_dec = $self->begin_is_use($cv);
 	    if (defined ($use_dec) and $self->{'expand'} < 5) {
-		return { text => '', type => 'begin_todo' } if 0 == length($use_dec);
-		return { text => $use_dec, type => 'begin_todo' };
+		if (0 == length($use_dec)) {
+		    info_from_text($cv, $self, '', 'begin_todo', {});
+		} else {
+		    info_from_text($cv, $self, $use_dec, 'begin_todo_use', {});
+		}
 	    }
 	}
 	my $l = '';
@@ -1468,7 +1489,7 @@ sub pfixop
     if ($flags & POSTFIX) {
 	@texts = ($operand, $operator);
 	$type = 'prefix_op';
-    } elsif ($operator eq '-' && $operand =~ /^[a-zA-Z](?!\w)/) {
+    } elsif ($operator eq '-' && $operand->{text} =~ /^[a-zA-Z](?!\w)/) {
 	# avoid confusion with filetests
 	$type = 'prefix_filetest';
 	@texts = ($operand, '(', $operator, ')');
