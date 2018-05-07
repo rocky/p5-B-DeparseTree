@@ -621,41 +621,6 @@ sub stash_variable {
     return $prefix . $self->maybe_qualify($prefix, $name);
 }
 
-my %unctrl = # portable to EBCDIC
-    (
-     "\c@" => '@',	# unused
-     "\cA" => 'A',
-     "\cB" => 'B',
-     "\cC" => 'C',
-     "\cD" => 'D',
-     "\cE" => 'E',
-     "\cF" => 'F',
-     "\cG" => 'G',
-     "\cH" => 'H',
-     "\cI" => 'I',
-     "\cJ" => 'J',
-     "\cK" => 'K',
-     "\cL" => 'L',
-     "\cM" => 'M',
-     "\cN" => 'N',
-     "\cO" => 'O',
-     "\cP" => 'P',
-     "\cQ" => 'Q',
-     "\cR" => 'R',
-     "\cS" => 'S',
-     "\cT" => 'T',
-     "\cU" => 'U',
-     "\cV" => 'V',
-     "\cW" => 'W',
-     "\cX" => 'X',
-     "\cY" => 'Y',
-     "\cZ" => 'Z',
-     "\c[" => '[',	# unused
-     "\c\\" => '\\',	# unused
-     "\c]" => ']',	# unused
-     "\c_" => '_',	# unused
-    );
-
 # Return just the name, without the prefix.  It may be returned as a quoted
 # string.  The second return value is a boolean indicating that.
 sub stash_variable_name {
@@ -2914,33 +2879,6 @@ sub balanced_delim {
     }
     return ("", $str);
 }
-
-sub single_delim($$$$) {
-    my($self, $op, $q, $default, $str) = @_;
-    return info_from_list($op, $self, [$default, $str, $default], '', 'single_delim_default', {})
-	if $default and index($str, $default) == -1;
-    if ($q ne 'qr') {
-	(my $succeed, $str) = balanced_delim($str);
-	return info_from_list(undef, $self, [$q, $str], '', 'single_delim', {}) if $succeed;
-    }
-    for my $delim ('/', '"', '#') {
-	return info_from_list($op, $self, [$q, $delim, $str,
-			   $delim], '', 'single_delim_qr', {})
-	    if index($str, $delim) == -1;
-    }
-    if ($default) {
-	$str =~ s/$default/\\$default/g;
-	return info_from_list($op, $self, [$default, $str, $default], '',
-	    'single_delim_qr_esc', {});
-    } else {
-	$str =~ s[/][\\/]g;
-	return info_from_list($op, $self, [$q, '/', $str, '/'], '',
-	    'single_delim_qr', {});
-    }
-}
-
-my $max_prec;
-BEGIN { $max_prec = int(0.999 + 8*length(pack("F", 42))*log(2)/log(10)); }
 
 # Split a floating point number into an integer mantissa and a binary
 # exponent. Assumes you've already made sure the number isn't zero or
