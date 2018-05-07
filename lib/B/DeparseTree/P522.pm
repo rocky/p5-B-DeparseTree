@@ -2510,7 +2510,7 @@ sub list_const($$$) {
 	    $prec = 9;
 	}
     }
-    return info_from_list('const', $self, \@texts,  '', $type,
+    return info_from_list($op, $self, \@texts,  '', $type,
 	{maybe_parens => [$self, $cx, $prec]});
 }
 
@@ -4280,7 +4280,11 @@ sub pp_qr { matchop(@_, "qr", "") }
 
 sub pp_runcv { unop(@_, "__SUB__"); }
 
-sub pp_split
+sub pp_split {
+    maybe_targmy(@_, \&split, "split");
+}
+
+sub split
 {
     my($self, $op, $cx) = @_;
     my($kid, @exprs, $ary_info, $expr);
@@ -4317,9 +4321,8 @@ sub pp_split
 
     # Skip the last kid when OPf_STACKED is set, since it is the array
     # on the left.
-    for (my $i=0; !null($stacked ? $kid->sibling : $kid); $kid = $kid->sibling) {
-	my $expr = $self->deparse($kid, 6, $op);
-	push @exprs, $expr;
+    for (; !null($stacked ? $kid->sibling : $kid); $kid = $kid->sibling) {
+	push @exprs, $self->deparse($kid, 6, $op);
     }
 
     push @body, @exprs;

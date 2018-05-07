@@ -13,6 +13,7 @@ example/multiline.pl
 lib/B/DeparseTree.pm
 lib/B/DeparseTree.pod
 lib/B/DeparseTree/Common.pm
+lib/B/DeparseTree/Fragment.pm
 lib/B/DeparseTree/Node.pm
 lib/B/DeparseTree/P520.pm
 lib/B/DeparseTree/P522.pm
@@ -37,6 +38,7 @@ t/20-deparse-524.t
 t/20-deparse-526-small.t
 t/20-deparse-526.t
 t/20-deparse-526c.t
+t/testdata/bug-sample.pm
 t/testdata/P518-short.pm
 t/testdata/P520.pm
 t/testdata/P522-short.pm
@@ -54,6 +56,8 @@ testdata/base/pat.t
 testdata/base/rs.t
 testdata/base/term.t
 testdata/base/while.t
+testdata/bug-sample.pm
+testdata/frag.pl
 testdata/fib.pl
 testdata/opbasic/arith.t
 testdata/opbasic/magic_phase.t
