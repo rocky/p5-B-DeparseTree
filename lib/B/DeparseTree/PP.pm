@@ -418,10 +418,10 @@ sub pp_entersub
 	}
 	if ($op->flags & OPf_STACKED) {
 	    $type = 'entersub_prefix_or_amper_stacked';
-	    @texts = ($prefix, $amper, $kid, "(", $self->combine2str(', ', \@body), ")");
+	    @texts = ($prefix, $amper, $subname_info, "(", $self->combine2str(', ', \@body), ")");
 	} else {
 	    $type = 'entersub_prefix_or_amper';
-	    @texts = ($prefix, $amper, $kid);
+	    @texts = ($prefix, $amper, $subname_info);
 	}
     } else {
 	# It's a syntax error to call CORE::GLOBAL::foo with a prefix,

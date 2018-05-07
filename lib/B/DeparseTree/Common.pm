@@ -1104,6 +1104,9 @@ sub style_opts
     }
 }
 
+# This gets called automatically when option:
+#   -MO="DeparseTree,sC" is added
+# Running this prints out the program text.
 sub compile {
     my(@args) = @_;
     return sub {
@@ -1161,7 +1164,8 @@ sub compile {
 	if ($] < 5.020) {
 	    unless (null $root) {
 		$self->pessimise($root, main_start);
-		print $self->indent($self->deparse_root($root)), "\n";
+		# Print deparsed program
+		print $self->indent_info($self->deparse_root($root)), "\n";
 	    }
 	} else {
 	    unless (null $root) {
@@ -1180,16 +1184,17 @@ sub compile {
 		     and !null($kid = $kid->sibling) and $kid->name eq 'null'
 		     and class($kid) eq 'COP' and null $kid->sibling )
 		{
-		    # ignore
+		    # ignore deparsing routine
 		} else {
 		    $self->pessimise($root, main_start);
-		    print $self->indent($self->deparse_root($root)), "\n";
+		    # Print deparsed program
+		    print $self->indent_info($self->deparse_root($root)), "\n";
 		}
 	    }
 	}
 	my @text;
-	while (scalar(@{$self->{'subs_todo'}})) {
-	    push @text, $self->next_todo;
+        while (scalar(@{$self->{'subs_todo'}})) {
+	    push @text, $self->next_todo->{text};
 	}
 	print $self->indent(join("", @text)), "\n" if @text;
 

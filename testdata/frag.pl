@@ -5,7 +5,7 @@ use B::DeparseTree;
 use B::DeparseTree::Fragment;
 
 # Change this or comment it out
-use B::DeparseTree::P522;
+# use B::DeparseTree::P522;
 
 use File::Basename qw(dirname basename); use File::Spec;
 use strict; use warnings;

@@ -39,7 +39,6 @@ t/20-deparse-524.t
 t/20-deparse-526-small.t
 t/20-deparse-526.t
 t/20-deparse-526c.t
-t/testdata/bug-sample.pm
 t/testdata/P518-short.pm
 t/testdata/P520.pm
 t/testdata/P522-short.pm
@@ -50,6 +49,9 @@ t/testdata/P526-short.pm
 t/testdata/P526.pm
 t/testdata/README.md
 t/testdata/README.pod
+t/testdata/bug-sample.pm
+testdata/Makefile
+testdata/README.md
 testdata/base/cond.t
 testdata/base/if.t
 testdata/base/lex.t
@@ -59,8 +61,8 @@ testdata/base/rs.t
 testdata/base/term.t
 testdata/base/while.t
 testdata/bug-sample.pm
-testdata/frag.pl
 testdata/fib.pl
+testdata/frag.pl
 testdata/opbasic/arith.t
 testdata/opbasic/magic_phase.t
 testdata/opbasic/qq.t
