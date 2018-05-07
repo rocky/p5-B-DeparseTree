@@ -1456,26 +1456,24 @@ sub baseop
 
 sub POSTFIX () { 1 }
 
-# I couldn't think of a good short name, but this is the category of
-# symbolic unary operators with interesting precedence
-
+# This is the category of symbolic prefix and postfix unary operators,
+# e.g $x++, -r, +$x.
 sub pfixop
 {
     my $self = shift;
     my($op, $cx, $operator, $prec, $flags) = (@_, 0);
-    my $operand = $op->first;
-    $operand = $self->deparse($operand, $prec, $op);
-    my $type = 'pfixop';
+    my $operand = $self->deparse($op->first, $prec, $op);
+    my $type;
     my @texts;
     if ($flags & POSTFIX) {
 	@texts = ($operand, $operator);
-	$type = 'pfixop_postfix';
+	$type = 'prefix_op';
     } elsif ($operator eq '-' && $operand =~ /^[a-zA-Z](?!\w)/) {
 	# avoid confusion with filetests
-	$type = 'pfixop_minus';
-	# FIXME: use precidence
+	$type = 'prefix_filetest';
 	@texts = ($operand, '(', $operator, ')');
     } else {
+	$type = 'postfix_op';
 	@texts = ($operator, $operand);
     }
 
