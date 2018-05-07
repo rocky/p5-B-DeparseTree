@@ -4,6 +4,20 @@
 #
 use strict;
 use warnings ();
+require feature;
+
+my %feature_keywords = (
+  # keyword => 'feature',
+    state   => 'state',
+    say     => 'say',
+    given   => 'switch',
+    when    => 'switch',
+    default => 'switch',
+    break   => 'switch',
+    evalbytes=>'evalbytes',
+    __SUB__ => '__SUB__',
+   fc       => 'fc',
+);
 
 use rlib '../..';
 
@@ -16,7 +30,15 @@ use B::Deparse;
 *is_ifelse_cont = *B::Deparse::is_ifelse_cont;
 *real_negate = *B::Deparse::real_negate;
 
-use B qw(OPpEXISTS_SUB OPf_SPECIAL);
+use B qw(
+    class
+    OPf_MOD OPpENTERSUB_AMPER
+    OPf_SPECIAL
+    OPf_STACKED
+    OPpEXISTS_SUB
+    SVf_POK
+    SVf_ROK
+);
 
 our($VERSION, @EXPORT, @ISA);
 $VERSION = '1.0.0';
@@ -25,14 +47,16 @@ $VERSION = '1.0.0';
 @EXPORT = qw(
 
     pp_cond_expr
+    pp_const
     pp_egrent pp_ehostent pp_enetent
+    pp_entersub
     pp_eprotoent pp_epwent pp_eservent
+    pp_exists
     pp_fork pp_getlogin pp_ggrent
     pp_ghostent pp_gnetent pp_gprotoent
     pp_gpwent pp_grepstart pp_gservent
     pp_i_negate
     pp_mapstart
-    pp_sgrent pp_spwent pp_tms pp_wantarray
 
     pp_leave pp_lineseq
     pp_negate
@@ -52,10 +76,13 @@ $VERSION = '1.0.0';
     pp_time
     pp_wait
 
-    pp_print pp_prtf pp_say pp_sort
+    pp_print pp_prtf
+    pp_repeat
     pp_preinc pp_predec pp_i_preinc pp_i_predec
 
-    pp_stub pp_exists
+    pp_say pp_sort
+    pp_sgrent pp_spwent pp_tms pp_wantarray
+    pp_stub
     );
 
 BEGIN {
@@ -259,11 +286,173 @@ sub pp_cond_expr
     return info_from_list($op, $self, \@texts, ' ', 'pp_cond_expr', {});
 }
 
+sub pp_const {
+    my $self = shift;
+    my($op, $cx) = @_;
+    if ($op->private & OPpCONST_ARYBASE) {
+        return info_from_text($op, $self, '$[', 'const_ary', {});
+    }
+    # if ($op->private & OPpCONST_BARE) { # trouble with '=>' autoquoting
+    # 	return $self->const_sv($op)->PV;
+    # }
+    my $sv = $self->const_sv($op);
+    return info_from_list($op, $self, [$self->const($sv, $cx)], '', 'const', {});
+}
+
 sub pp_dbstate { pp_nextstate(@_) }
 
-sub pp_i_negate { pp_negate(@_) }
+sub pp_entersub
+{
+    my($self, $op, $cx) = @_;
+    return $self->e_method($op, $self->_method($op, $cx))
+        unless null $op->first->sibling;
+    my $prefix = "";
+    my $amper = "";
+    my($kid, @exprs);
+    if ($op->flags & OPf_SPECIAL && !($op->flags & OPf_MOD)) {
+	$prefix = "do ";
+    } elsif ($op->private & OPpENTERSUB_AMPER) {
+	$amper = "&";
+    }
+    $kid = $op->first;
 
-sub pp_negate { maybe_targmy(@_, \&real_negate) }
+    my $other_ops = [$kid, $kid->first];
+    $kid = $kid->first->sibling; # skip ex-list, pushmark
+
+    for (; not null $kid->sibling; $kid = $kid->sibling) {
+	push @exprs, $kid;
+    }
+    my ($simple, $proto, $subname_info) = (0, undef, undef);
+    if (is_scope($kid)) {
+	$amper = "&";
+	$subname_info = $self->deparse($kid, 0, $op);
+	$subname_info->{texts} = ['{', $subname_info->texts, '}'];
+	$subname_info->{text} = join('', @$subname_info->{texts});
+    } elsif ($kid->first->name eq "gv") {
+	my $gv = $self->gv_or_padgv($kid->first);
+	my $cv;
+	if (class($gv) eq 'GV' && class($cv = $gv->CV) ne "SPECIAL"
+	 || $gv->FLAGS & SVf_ROK && class($cv = $gv->RV) eq 'CV') {
+	    $proto = $cv->PV if $cv->FLAGS & SVf_POK;
+	}
+	$simple = 1; # only calls of named functions can be prototyped
+	$subname_info = $self->deparse($kid, 24, $op);
+	my $fq;
+	# Fully qualify any sub name that conflicts with a lexical.
+	if ($self->lex_in_scope("&$kid")
+	 || $self->lex_in_scope("&$kid", 1))
+	{
+	    $fq++;
+	} elsif (!$amper) {
+	    if ($subname_info->{text} eq 'main::') {
+		$subname_info->{text} = '::';
+	    } else {
+	      if ($kid !~ /::/ && $kid ne 'x') {
+		# Fully qualify any sub name that is also a keyword.  While
+		# we could check the import flag, we cannot guarantee that
+		# the code deparsed so far would set that flag, so we qual-
+		# ify the names regardless of importation.
+		if (exists $feature_keywords{$kid}) {
+		    $fq++ if $self->feature_enabled($kid);
+		} elsif (do { local $@; local $SIG{__DIE__};
+			      eval { () = prototype "CORE::$kid"; 1 } }) {
+		    $fq++
+		}
+	      }
+	    }
+	    if ($subname_info->{text} !~ /^(?:\w|::)(?:[\w\d]|::(?!\z))*\z/) {
+		$subname_info->{text} = $self->single_delim($$kid, "q", "'", $kid) . '->';
+	    }
+	}
+    } elsif (is_scalar ($kid->first) && $kid->first->name ne 'rv2cv') {
+	$amper = "&";
+	$subname_info = $self->deparse($kid, 24, $op);
+    } else {
+	$prefix = "";
+	my $arrow = is_subscriptable($kid->first) || $kid->first->name eq "padcv" ? "" : "->";
+	$subname_info = $self->deparse($kid, 24, $op);
+	$subname_info->{text} .= $arrow;
+    }
+
+    # Doesn't matter how many prototypes there are, if
+    # they haven't happened yet!
+    my $declared;
+    my $sub_name = $subname_info->{text};
+    {
+	no strict 'refs';
+	no warnings 'uninitialized';
+	$declared = exists $self->{'subs_declared'}{$sub_name}
+	    || (
+		 defined &{ ${$self->{'curstash'}."::"}{$sub_name} }
+		 && !exists
+		     $self->{'subs_deparsed'}{$self->{'curstash'}."::" . $sub_name}
+		 && defined prototype $self->{'curstash'}."::" . $sub_name
+	       );
+	if (!$declared && defined($proto)) {
+	    # Avoid "too early to check prototype" warning
+	    ($amper, $proto) = ('&');
+	}
+    }
+
+    my (@texts, @body, $type);
+    @body = ();
+    if ($declared and defined $proto and not $amper) {
+	my $args;
+	($amper, $args) = $self->check_proto($op, $proto, @exprs);
+	if ($amper eq "&") {
+	    @body = map($self->deparse($_, 6, $op), @exprs);
+	} else {
+	    @body = @$args if @$args;
+	}
+    } else {
+	@body  = map($self->deparse($_, 6, $op), @exprs);
+    }
+
+    if ($prefix or $amper) {
+	if ($sub_name eq '&') {
+	    # &{&} cannot be written as &&
+	    $subname_info->{texts} = ["{", @{$subname_info->{texts}}, "}"];
+	    $subname_info->{text} = join('', $subname_info->{texts});
+	}
+	if ($op->flags & OPf_STACKED) {
+	    $type = 'entersub_prefix_or_amper_stacked';
+	    @texts = ($prefix, $amper, $kid, "(", $self->combine2str(', ', \@body), ")");
+	} else {
+	    $type = 'entersub_prefix_or_amper';
+	    @texts = ($prefix, $amper, $kid);
+	}
+    } else {
+	# It's a syntax error to call CORE::GLOBAL::foo with a prefix,
+	# so it must have been translated from a keyword call. Translate
+	# it back.
+	$subname_info->{text} =~ s/^CORE::GLOBAL:://;
+	my $dproto = defined($proto) ? $proto : "undefined";
+        if (!$declared) {
+	    $type = 'entersub_not_declared';
+	    @texts = dedup_parens_func($self, $subname_info, \@body);
+	} elsif ($dproto =~ /^\s*\z/) {
+	    $type = 'entersub_null_proto';
+	    @texts = ($subname_info);
+	} elsif ($dproto eq "\$" and is_scalar($exprs[0])) {
+	    $type = 'entersub_dollar_proto';
+	    # is_scalar is an excessively conservative test here:
+	    # really, we should be comparing to the precedence of the
+	    # top operator of $exprs[0] (ala unop()), but that would
+	    # take some major code restructuring to do right.
+	    @texts = $self->maybe_parens_func($kid, $self->combine2str(', ', \@body), $cx, 16);
+	} elsif ($dproto ne '$' and defined($proto) || $simple) { #'
+	    $type = 'entersub_proto';
+	    @texts = $self->maybe_parens_func($subname_info, $self->combine2str(', ', \@body), $cx, 5);
+	} else {
+	    $type = 'entersub';
+	    @texts = dedup_parens_func($self, $subname_info, \@body);
+	}
+    }
+    my $info = B::DeparseTree::Node->new($op, $self->{deparse}, \@texts,
+					 '', $type,
+					 {other_ops => $other_ops});
+    return $info;
+}
 
 sub pp_once
 {
@@ -276,6 +465,45 @@ sub pp_once
 
 sub pp_print { indirop(@_, "print") }
 sub pp_prtf { indirop(@_, "printf") }
+
+# 'x' is weird when the left arg is a list
+sub pp_repeat {
+    my $self = shift;
+    my($op, $cx) = @_;
+    my $left = $op->first;
+    my $right = $op->last;
+    my $eq = "";
+    my $prec = 19;
+    my $other_ops = undef;
+    if ($op->flags & OPf_STACKED) {
+	$eq = "=";
+	$prec = 7;
+    }
+    my @exprs = ();
+    my ($left_info, @body);
+    if (null($right)) {
+	# list repeat; count is inside left-side ex-list
+	$other_ops = [$left->first];
+	my $kid = $left->first->sibling; # skip pushmark
+	for (my $i=0; !null($kid->sibling); $kid = $kid->sibling) {
+	    my $expr = $self->deparse($kid, 6, $op);
+	    push @exprs, $expr;
+	}
+	$right = $kid;
+	@body = @exprs;
+	$left_info = info_from_list($op, $self,
+				    ["(", @exprs, ")"], '', 'repeat_left', {});
+    } else {
+	$left_info = $self->deparse_binop_left($op, $left, $prec);
+    }
+    my $right_info  = $self->deparse_binop_right($op, $right, $prec);
+    my $texts = [$left_info, "x$eq", $right_info];
+    my $info = info_from_list($op, $self, $texts, ' ', 'repeat',
+			      {maybe_parens => [$self, $cx, $prec]});
+    $info->{other_ops} = $other_ops if $other_ops;
+    return $info
+}
+
 sub pp_say  { indirop(@_, "say") }
 
 sub pp_setstate { pp_nextstate(@_) }

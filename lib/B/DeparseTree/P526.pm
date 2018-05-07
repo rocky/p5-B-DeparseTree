@@ -612,20 +612,6 @@ sub maybe_parens_func
     }
 }
 
-sub dedup_parens_func
-{
-    my $self = shift;
-    my $sub_info = shift;
-    my ($args_ref) = @_;
-    my @args = @$args_ref;
-    if (scalar @args == 1 && substr($args[0], 0, 1) eq '(' &&
-	substr($args[0], -1, 1) eq ')') {
-	return ($sub_info, $self->combine(', ', \@args), );
-    } else {
-	return ($sub_info, '(', $self->combine(', ', \@args), ')', );
-    }
-}
-
 sub maybe_local_str
 {
     my($self, $op, $cx, $text) = @_;
@@ -1748,46 +1734,6 @@ sub real_concat {
 					     'real_concat');
 }
 
-# 'x' is weird when the left arg is a list
-sub pp_repeat {
-    my $self = shift;
-    my($op, $cx) = @_;
-    my $left = $op->first;
-    my $right = $op->last;
-    my $eq = "";
-    my $prec = 19;
-    my $other_ops = undef;
-    if ($op->flags & OPf_STACKED) {
-	$eq = "=";
-	$prec = 7;
-    }
-    my @exprs = ();
-    my ($left_info, @body);
-    if (null($right)) {
-	# list repeat; count is inside left-side ex-list
-	$other_ops = [$left->first];
-	my $kid = $left->first->sibling; # skip pushmark
-	for (my $i=0; !null($kid->sibling); $kid = $kid->sibling) {
-	    my $expr = $self->deparse($kid, 6, $op);
-	    push @exprs, $expr;
-	}
-	$right = $kid;
-	@body = @exprs;
-	my $args = join(', ', map($_->{text}, @exprs));
-	$left_info = info_from_list($op, $self,
-				    ["(", $args, ")"], '', 'repeat_left', {body => \@exprs});
-    } else {
-	$left_info = $self->deparse_binop_left($op, $left, $prec);
-    }
-    my $right_info  = $self->deparse_binop_right($op, $right, $prec);
-    my $texts = [$left_info->{text}, "x$eq", $right_info->{text}];
-    my $info = info_from_list($op, $self, $texts, ' ', 'repeat',
-			      {body => [$left_info, $right_info],
-			       maybe_parens => [$self, $cx, $prec]});
-    $info->{other_ops} = $other_ops if $other_ops;
-    return $info
-}
-
 sub range {
     my $self = shift;
     my ($op, $cx, $type) = @_;
@@ -2619,25 +2565,6 @@ sub pp_rv2av {
 	return $self->maybe_local($op, $cx, $self->rv2x($op, $cx, "\@"));
     }
  }
-
-sub is_subscriptable {
-    my $op = shift;
-    if ($op->name =~ /^([ahg]elem|multideref$)/) {
-	return 1;
-    } elsif ($op->name eq "entersub") {
-	my $kid = $op->first;
-	return 0 unless null $kid->sibling;
-	$kid = $kid->first;
-	$kid = $kid->sibling until null $kid->sibling;
-	return 0 if is_scope($kid);
-	$kid = $kid->first;
-	return 0 if $kid->name eq "gv" || $kid->name eq "padcv";
-	return 0 if is_scalar($kid);
-	return is_subscriptable($kid);
-    } else {
-	return 0;
-    }
-}
 
 sub elem_or_slice_array_name
 {

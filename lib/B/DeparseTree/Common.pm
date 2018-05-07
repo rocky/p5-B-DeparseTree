@@ -19,7 +19,8 @@ our($VERSION, @EXPORT, @ISA);
 $VERSION = '1.1.0';
 @ISA = qw(Exporter B::Deparse);
 @EXPORT = qw(maybe_parens info_from_list info_from_text null new WARN_MASK
-            map_texts
+            is_scalar is_subscriptable
+            map_texts dedup_parens_func
             indent_list indent indent_info parens_test print_protos
             style_opts scopeop declare_hints hint_pragmas
             is_miniwhile is_lexical_subs %strict_bits
@@ -134,6 +135,36 @@ my %strict_bits = do {
     map +($_ => strict::bits($_)), qw/refs subs vars/
 };
 
+# FIXME: get from B::Deparse
+sub is_scalar {
+    my $op = shift;
+    return ($op->name eq "rv2sv" or
+	    $op->name eq "padsv" or
+	    $op->name eq "gv" or # only in array/hash constructs
+	    $op->flags & OPf_KIDS && !null($op->first)
+	      && $op->first->name eq "gvsv");
+}
+
+# FIXME: get from B::Deparse
+sub is_subscriptable {
+    my $op = shift;
+    if ($op->name =~ /^([ahg]elem|multideref$)/) {
+	return 1;
+    } elsif ($op->name eq "entersub") {
+	my $kid = $op->first;
+	return 0 unless null $kid->sibling;
+	$kid = $kid->first;
+	$kid = $kid->sibling until null $kid->sibling;
+	return 0 if is_scope($kid);
+	$kid = $kid->first;
+	return 0 if $kid->name eq "gv" || $kid->name eq "padcv";
+	return 0 if is_scalar($kid);
+	return is_subscriptable($kid);
+    } else {
+	return 0;
+    }
+}
+
 sub map_texts($$)
 {
     my ($self, $args) = @_;
@@ -243,6 +274,20 @@ sub const_dumper
     }
 }
 
+sub dedup_parens_func($$$)
+{
+    my $self = shift;
+    my $sub_info = shift;
+    my ($args_ref) = @_;
+    my @args = @$args_ref;
+    if (scalar @args == 1 && substr($args[0], 0, 1) eq '(' &&
+	substr($args[0], -1, 1) eq ')') {
+	return ($sub_info, $self->combine(', ', \@args), );
+    } else {
+	return ($sub_info, '(', $self->combine(', ', \@args), ')', );
+    }
+}
+
 # FIXME: how can we inherit this from B::Deparse?
 sub null
 {
@@ -338,7 +383,7 @@ sub info_from_list($$$$$$)
     $info->{text} = $text;
     if ($opts->{maybe_parens}) {
 	my ($self, $cx, $prec) = @{$opts->{maybe_parens}};
-	$info->{text} = $deparse->maybe_parens($info->{text}, $cx, $prec);
+	$info->{text} = $self->maybe_parens($info->{text}, $cx, $prec);
 	$info->{maybe_parens} = {context => $cx , precidence => $prec};
     }
     return $info
@@ -348,6 +393,11 @@ sub info_from_list($$$$$$)
 sub info_from_text($$$$$)
 {
     my ($op, $deparse, $text, $type, $opts) = @_;
+    if (!defined($opts) || !defined($op) || !defined($type)) {
+	my @foo = caller;
+	use Data::Printer; p @foo;
+	use Enbugger; Enbugger->stop;
+    }
     return info_from_list($op, $deparse, [[$text, $$op]], '', $type, $opts)
 }
 
@@ -381,10 +431,11 @@ sub walk_lineseq
     # Add semicolons between statements. Don't add them to blank lines,
     # or to comment lines, which we
     # assume will always be the last line in the text and start after a \n.
+    # FIXME: not quite ideal when adding ';' because we record only the text
+    # rather than the DeparseTree::Node.
     my @texts = map { $_->{text} =~ /(?:\n#)|^\s*$/ ?
-			  $_->{text} : $_->{text} . ';' } @body;
-    my $info = info_from_list($op, $self, \@texts, "\n", 'lineseq',
-			      {op => $op, body => \@body});
+			  $_ : "$_->{text};" } @body;
+    my $info = info_from_list($op, $self, \@texts, "\n", 'lineseq', {});
     $self->{optree}{$$op} = $info if $op;
     return $info;
 }

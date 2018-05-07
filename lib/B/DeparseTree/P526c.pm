@@ -645,21 +645,6 @@ sub maybe_parens_func
     }
 }
 
-sub dedup_parens_func
-{
-    my $self = shift;
-    my $sub_name = shift;
-    my ($args_ref) = @_;
-    my @args = @$args_ref;
-    if (scalar @args == 1 && substr($args[0], 0, 1) eq '(' &&
-	substr($args[0], -1, 1) eq ')') {
-	print "WOOT\n";
-	return ($sub_name, $self->combine(', ', \@args), );
-    } else {
-	return ($sub_name, '(', $self->combine(', ', \@args), ')', );
-    }
-}
-
 sub maybe_local_str
 {
     my($self, $op, $cx, $text) = @_;
@@ -2650,25 +2635,6 @@ sub pp_rv2av {
     }
  }
 
-sub is_subscriptable {
-    my $op = shift;
-    if ($op->name =~ /^([ahg]elem|multideref$)/) {
-	return 1;
-    } elsif ($op->name eq "entersub") {
-	my $kid = $op->first;
-	return 0 unless null $kid->sibling;
-	$kid = $kid->first;
-	$kid = $kid->sibling until null $kid->sibling;
-	return 0 if is_scope($kid);
-	$kid = $kid->first;
-	return 0 if $kid->name eq "gv" || $kid->name eq "padcv";
-	return 0 if is_scalar($kid);
-	return is_subscriptable($kid);
-    } else {
-	return 0;
-    }
-}
-
 sub elem_or_slice_array_name
 {
     my $self = shift;
@@ -3191,162 +3157,6 @@ sub check_proto {
     return ('', \@reals);
 }
 
-sub pp_entersub
-{
-    my($self, $op, $cx) = @_;
-    return $self->e_method($op, $self->_method($op, $cx))
-        unless null $op->first->sibling;
-    my $prefix = "";
-    my $amper = "";
-    my($kid, @exprs);
-    if ($op->flags & OPf_SPECIAL && !($op->flags & OPf_MOD)) {
-	$prefix = "do ";
-    } elsif ($op->private & OPpENTERSUB_AMPER) {
-	$amper = "&";
-    }
-    $kid = $op->first;
-
-    my $other_ops = [$kid, $kid->first];
-    $kid = $kid->first->sibling; # skip ex-list, pushmark
-
-    for (; not null $kid->sibling; $kid = $kid->sibling) {
-	push @exprs, $kid;
-    }
-    my ($simple, $proto, $kid_info) = (0, undef, undef);
-    if (is_scope($kid)) {
-	$amper = "&";
-	$kid_info = $self->deparse($kid, 0, $op);
-	$kid_info->{texts} = ['{', $kid_info->texts, '}'];
-	$kid_info->{text} = join('', @$kid_info->{texts});
-    } elsif ($kid->first->name eq "gv") {
-	my $gv = $self->gv_or_padgv($kid->first);
-	my $cv;
-	if (class($gv) eq 'GV' && class($cv = $gv->CV) ne "SPECIAL"
-	 || $gv->FLAGS & SVf_ROK && class($cv = $gv->RV) eq 'CV') {
-	    $proto = $cv->PV if $cv->FLAGS & SVf_POK;
-	}
-	$simple = 1; # only calls of named functions can be prototyped
-	$kid_info = $self->deparse($kid, 24, $op);
-	my $fq;
-	# Fully qualify any sub name that conflicts with a lexical.
-	if ($self->lex_in_scope("&$kid")
-	 || $self->lex_in_scope("&$kid", 1))
-	{
-	    $fq++;
-	} elsif (!$amper) {
-	    if ($kid_info->{text} eq 'main::') {
-		$kid_info->{text} = '::';
-	    } else {
-	      if ($kid !~ /::/ && $kid ne 'x') {
-		# Fully qualify any sub name that is also a keyword.  While
-		# we could check the import flag, we cannot guarantee that
-		# the code deparsed so far would set that flag, so we qual-
-		# ify the names regardless of importation.
-		if (exists $feature_keywords{$kid}) {
-		    $fq++ if $self->feature_enabled($kid);
-		} elsif (do { local $@; local $SIG{__DIE__};
-			      eval { () = prototype "CORE::$kid"; 1 } }) {
-		    $fq++
-		}
-	      }
-	    }
-	    if ($kid_info->{text} !~ /^(?:\w|::)(?:[\w\d]|::(?!\z))*\z/) {
-		$kid_info->{text} = single_delim("q", "'", $kid) . '->';
-	    }
-	}
-    } elsif (is_scalar ($kid->first) && $kid->first->name ne 'rv2cv') {
-	$amper = "&";
-	$kid_info = $self->deparse($kid, 24, $op);
-    } else {
-	$prefix = "";
-	my $arrow = is_subscriptable($kid->first) || $kid->first->name eq "padcv" ? "" : "->";
-	$kid_info = $self->deparse($kid, 24, $op);
-	$kid_info->{text} .= $arrow;
-    }
-
-    # Doesn't matter how many prototypes there are, if
-    # they haven't happened yet!
-    my $declared;
-    my $sub_name = $kid_info->{text};
-    {
-	no strict 'refs';
-	no warnings 'uninitialized';
-	$declared = exists $self->{'subs_declared'}{$sub_name}
-	    || (
-		 defined &{ ${$self->{'curstash'}."::"}{$sub_name} }
-		 && !exists
-		     $self->{'subs_deparsed'}{$self->{'curstash'}."::" . $sub_name}
-		 && defined prototype $self->{'curstash'}."::" . $sub_name
-	       );
-	if (!$declared && defined($proto)) {
-	    # Avoid "too early to check prototype" warning
-	    ($amper, $proto) = ('&');
-	}
-    }
-
-    my (@arg_texts, @texts, @body, $type);
-    @body = ();
-    if ($declared and defined $proto and not $amper) {
-	my $args;
-	($amper, $args) = $self->check_proto($op, $proto, @exprs);
-	if ($amper eq "&") {
-	    @body = map($self->deparse($_, 6, $op), @exprs);
-	} else {
-	    @body = @$args if @$args;
-	}
-    } else {
-	@body  = map($self->deparse($_, 6, $op), @exprs);
-    }
-
-    my @arg_texts = $self->map_texts(\@body);
-
-    if ($prefix or $amper) {
-	if ($sub_name eq '&') {
-	    # &{&} cannot be written as &&
-	    $kid_info->{texts} = ["{", @{$kid_info->{texts}}, "}"];
-	    $kid_info->{text} = join('', $kid_info->{texts});
-	}
-	if ($op->flags & OPf_STACKED) {
-	    $type = 'entersub_prefix_or_amper_stacked';
-	    @texts = ($prefix, $amper, $sub_name, "(", $self->combine(', ', \@arg_texts), ")");
-	} else {
-	    $type = 'entersub_prefix_or_amper';
-	    @texts = ($prefix, $amper, $sub_name);
-	}
-    } else {
-	# It's a syntax error to call CORE::GLOBAL::foo with a prefix,
-	# so it must have been translated from a keyword call. Translate
-	# it back.
-	$sub_name =~ s/^CORE::GLOBAL:://;
-	my $dproto = defined($proto) ? $proto : "undefined";
-        if (!$declared) {
-	    $type = 'entersub_not_declared';
-	    @texts = dedup_parens_func($self, $sub_name, \@arg_texts);
-	} elsif ($dproto =~ /^\s*\z/) {
-	    $type = 'entersub_null_proto';
-	    @texts = ($sub_name);
-	} elsif ($dproto eq "\$" and is_scalar($exprs[0])) {
-	    $type = 'entersub_dollar_proto';
-	    # is_scalar is an excessively conservative test here:
-	    # really, we should be comparing to the precedence of the
-	    # top operator of $exprs[0] (ala unop()), but that would
-	    # take some major code restructuring to do right.
-	    @texts = $self->maybe_parens_func($sub_name, $self->combine(', ', \@arg_texts), $cx, 16);
-	} elsif ($dproto ne '$' and defined($proto) || $simple) { #'
-	    $type = 'entersub_proto';
-	    @texts = $self->maybe_parens_func($sub_name, $self->combine(', ', \@arg_texts), $cx, 5);
-	} else {
-	    $type = 'entersub';
-	    @texts = dedup_parens_func($self, $sub_name, \@arg_texts);
-	}
-    }
-    my $info = B::DeparseTree::Node->new($op, $self->{deparse}, \@texts,
-					 '', 'pp_entersub',
-					 {body => \@body,
-					  other_ops => $other_ops});
-    return $info;
-}
-
 sub pp_enterwrite { unop(@_, "write") }
 
 # escape things that cause interpolation in double quotes,
@@ -3712,24 +3522,6 @@ sub const {
 	}
     } else {
 	return info_from_text("undef", 'const_undef', {});
-    }
-}
-
-sub const_dumper {
-    my $self = shift;
-    my($sv, $cx) = @_;
-    my $ref = $sv->object_2svref();
-    my $dumper = Data::Dumper->new([$$ref], ['$v']);
-    $dumper->Purity(1)->Terse(1)->Deparse(1)->Indent(0)->Useqq(1)->Sortkeys(1);
-    my $str = $dumper->Dump();
-    if ($str =~ /^\$v/) {
-	my $texts = ['${my', $str, '\$v}'];
-	return {
-	    texts => @$texts,
-	    text => join(@$texts, ' '),
-	};
-    } else {
-	return { text => $str };
     }
 }
 
