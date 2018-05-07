@@ -1319,9 +1319,7 @@ sub pp_readline {
     my($op, $cx) = @_;
     my $kid = $op->first;
     $kid = $kid->first if $kid->name eq "rv2gv"; # <$fh>
-    if (is_scalar($kid)
-	and $op->flags & OPf_SPECIAL
-	and $self->deparse($kid, 1) eq 'ARGV') {
+    if (is_scalar($kid)) {
 	my $body = [$self->deparse($kid, 1, $op)];
 	return info_from_list($op, $self, ['<', $body->[0]{text}, '>'], '',
 			      'readline_scalar', {body=>$body});

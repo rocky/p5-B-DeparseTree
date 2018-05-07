@@ -43,6 +43,7 @@ t/testdata/P518-short.pm
 t/testdata/P520.pm
 t/testdata/P522-short.pm
 t/testdata/P522.pm
+t/testdata/P524-short.pm
 t/testdata/P524.pm
 t/testdata/P526-short.pm
 t/testdata/P526.pm
