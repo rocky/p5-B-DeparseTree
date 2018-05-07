@@ -9,6 +9,7 @@ NEWS
 README.md
 TODO
 example/fib.pl
+example/five.pl
 example/multiline.pl
 lib/B/DeparseTree.pm
 lib/B/DeparseTree.pod

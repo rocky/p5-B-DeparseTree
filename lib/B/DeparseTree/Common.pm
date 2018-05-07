@@ -1,16 +1,44 @@
 # Copyright (c) 2015-2018 Rocky Bernstein
+# Copyright (c) 1998-2000, 2002, 2003, 2004, 2005, 2006 Stephen McCamant.
+
+# All rights reserved.
+# This module is free software; you can redistribute and/or modify
+# it under the same terms as Perl itself.
+
+# This is based on the module B::Deparse by Stephen McCamant.
+# It has been extended save tree structure, and is addressible
+# by opcode address.
+
+# B::Parse in turn is based on the module of the same name by Malcolm Beattie,
+# but essentially none of his code remains.
 use strict; use warnings;
 
 package B::DeparseTree::Common;
 
 use B qw(class
+         CVf_LVALUE
+         CVf_METHOD
+         OPf_STACKED
+         OPpCONST_BARE
+         OPpSORT_INTEGER
+         OPpSORT_NUMERIC
+         OPpSORT_REVERSE
+         OPpTARGET_MY
+         SVf_IOK
+         SVf_NOK
+         SVf_POK
+         SVf_ROK
+         SVs_PADTMP
+         SVs_RMG
+         SVs_SMG
          main_cv main_root main_start
          opnumber OPpLVAL_INTRO OPf_SPECIAL OPf_KIDS
-         SVf_IOK SVf_POK SVf_ROK SVs_PADTMP CVf_LVALUE CVf_METHOD
-         OPf_STACKED OPpCONST_BARE OPpSORT_NUMERIC OPpSORT_INTEGER
-         OPpSORT_REVERSE OPpTARGET_MY svref_2object perlstring);
+         perlstring
+         svref_2object
+         );
 
 use B::Deparse;
+
 use Carp;
 
 use B::DeparseTree::Node;
@@ -19,8 +47,17 @@ our($VERSION, @EXPORT, @ISA);
 $VERSION = '1.1.0';
 @ISA = qw(Exporter B::Deparse);
 @EXPORT = qw(
+    %globalnames gv_name is_scope logop maybe_targmy is_state
+    %rev_feature declare_hinthash declare_warnings %ignored_hints
+    %unctrl
+    POSTFIX baseop mapop pfixop indirop
+    _features_from_bundle ambiant_pragmas maybe_qualify
+    const
     declare_hints
     dedup_parens_func
+    deparse_sub
+    deparse_subname
+    escape_str
     hint_pragmas
     indent
     indent_info
@@ -34,23 +71,42 @@ $VERSION = '1.1.0';
     maybe_parens
     maybe_qualify
     new WARN_MASK
+    next_todo
     null
     parens_test
+    pragmata
     print_protos
+    re_unback
+    re_uninterp
+    re_uninterp_extended
     scopeop
     style_opts
-    %rev_feature declare_hinthash declare_warnings %ignored_hints
-    _features_from_bundle ambiant_pragmas maybe_qualify
-    %globalnames gv_name is_scope logop maybe_targmy is_state
-    POSTFIX baseop mapop pfixop indirop
-    deparse_sub deparse_subname next_todo pragmata
+    unback
+    uninterp
     );
+
+my $bal;
+BEGIN {
+    use re "eval";
+    # Matches any string which is balanced with respect to {braces}
+    $bal = qr(
+      (?:
+	[^\\{}]
+      | \\\\
+      | \\[{}]
+      | \{(??{$bal})\}
+      )*
+    )x;
+}
 
 # The BEGIN {} is used here because otherwise this code isn't executed
 # when you run B::Deparse on itself.
 my %globalnames;
 BEGIN { map($globalnames{$_}++, "SIG", "STDIN", "STDOUT", "STDERR", "INC",
 	    "ENV", "ARGV", "ARGVOUT", "_"); }
+
+my $max_prec;
+BEGIN { $max_prec = int(0.999 + 8*length(pack("F", 42))*log(2)/log(10)); }
 
 BEGIN {
     # List version-specific constants here.
@@ -277,6 +333,135 @@ sub main2info
     return $self->deparse_root(B::main_root);
 }
 
+# the same, but treat $|, $), $( and $ at the end of the string differently
+sub re_uninterp {
+    my($str) = @_;
+
+    $str =~ s/
+	  ( ^|\G                  # $1
+          | [^\\]
+          )
+
+          (                       # $2
+            (?:\\\\)*
+          )
+
+          (                       # $3
+            (\(\?\??\{$bal\}\))   # $4
+          | [\$\@]
+            (?!\||\)|\(|$)
+          | \\[uUlLQE]
+          )
+
+	/defined($4) && length($4) ? "$1$2$4" : "$1$2\\$3"/xeg;
+
+    return $str;
+}
+
+# This is for regular expressions with the /x modifier
+# We have to leave comments unmangled.
+sub re_uninterp_extended {
+    my($str) = @_;
+
+    $str =~ s/
+	  ( ^|\G                  # $1
+          | [^\\]
+          )
+
+          (                       # $2
+            (?:\\\\)*
+          )
+
+          (                       # $3
+            ( \(\?\??\{$bal\}\)   # $4  (skip over (?{}) and (??{}) blocks)
+            | \#[^\n]*            #     (skip over comments)
+            )
+          | [\$\@]
+            (?!\||\)|\(|$|\s)
+          | \\[uUlLQE]
+          )
+
+	/defined($4) && length($4) ? "$1$2$4" : "$1$2\\$3"/xeg;
+
+    return $str;
+}
+
+# escape things that cause interpolation in double quotes,
+# but not character escapes
+sub uninterp {
+    my($str) = @_;
+    $str =~ s/(^|\G|[^\\])((?:\\\\)*)([\$\@]|\\[uUlLQE])/$1$2\\$3/g;
+    return $str;
+}
+
+my %unctrl = # portable to EBCDIC
+    (
+     "\c@" => '@',	# unused
+     "\cA" => 'A',
+     "\cB" => 'B',
+     "\cC" => 'C',
+     "\cD" => 'D',
+     "\cE" => 'E',
+     "\cF" => 'F',
+     "\cG" => 'G',
+     "\cH" => 'H',
+     "\cI" => 'I',
+     "\cJ" => 'J',
+     "\cK" => 'K',
+     "\cL" => 'L',
+     "\cM" => 'M',
+     "\cN" => 'N',
+     "\cO" => 'O',
+     "\cP" => 'P',
+     "\cQ" => 'Q',
+     "\cR" => 'R',
+     "\cS" => 'S',
+     "\cT" => 'T',
+     "\cU" => 'U',
+     "\cV" => 'V',
+     "\cW" => 'W',
+     "\cX" => 'X',
+     "\cY" => 'Y',
+     "\cZ" => 'Z',
+     "\c[" => '[',	# unused
+     "\c\\" => '\\',	# unused
+     "\c]" => ']',	# unused
+     "\c_" => '_',	# unused
+    );
+
+# character escapes, but not delimiters that might need to be escaped
+sub escape_str { # ASCII, UTF8
+    my($str) = @_;
+    $str =~ s/(.)/ord($1) > 255 ? sprintf("\\x{%x}", ord($1)) : $1/eg;
+    $str =~ s/\a/\\a/g;
+#    $str =~ s/\cH/\\b/g; # \b means something different in a regex
+    $str =~ s/\t/\\t/g;
+    $str =~ s/\n/\\n/g;
+    $str =~ s/\e/\\e/g;
+    $str =~ s/\f/\\f/g;
+    $str =~ s/\r/\\r/g;
+    $str =~ s/([\cA-\cZ])/$unctrl{$1}/ge;
+    $str =~ s/([[:^print:]])/sprintf("\\%03o", ord($1))/ge;
+    return $str;
+}
+
+# Don't do this for regexen
+sub unback {
+    my($str) = @_;
+    $str =~ s/\\/\\\\/g;
+    return $str;
+}
+
+# Remove backslashes which precede literal control characters,
+# to avoid creating ambiguity when we escape the latter.
+sub re_unback {
+    my($str) = @_;
+
+    # the insane complexity here is due to the behaviour of "\c\"
+    $str =~ s/(^|[^\\]|\\c\\)(?<!\\c)\\(\\\\)*(?=[[:^print:]])/$1$2/g;
+    return $str;
+}
+
 sub coderef2info
 {
     my ($self, $coderef) = @_;
@@ -293,6 +478,143 @@ sub coderef2text
     $self->init();
     my $info = $self->coderef2info($func);
     return $self->indent($info->{text});
+}
+
+sub const {
+    my $self = shift;
+    my($sv, $cx) = @_;
+    if ($self->{'use_dumper'}) {
+	return $self->const_dumper($sv, $cx);
+    }
+    if (class($sv) eq "SPECIAL") {
+	# sv_undef, sv_yes, sv_no
+	my $text = ('undef', '1', $self->maybe_parens("!1", $cx, 21))[$$sv-1];
+	return info_from_text($sv, $self, $text, 'const_special', {});
+    }
+    if (class($sv) eq "NULL") {
+	return info_from_text($sv, $self, 'undef', 'const_NULL', {});
+    }
+    # convert a version object into the "v1.2.3" string in its V magic
+    if ($sv->FLAGS & SVs_RMG) {
+	for (my $mg = $sv->MAGIC; $mg; $mg = $mg->MOREMAGIC) {
+	    if ($mg->TYPE eq 'V') {
+		return info_from_text($sv, $self, $mg->PTR, 'const_magic', {});
+	    }
+	}
+    }
+
+    if ($sv->FLAGS & SVf_IOK) {
+	my $str = $sv->int_value;
+	$str = $self->maybe_parens($str, $cx, 21) if $str < 0;
+	return info_from_text($sv, $self, $str, 'const_INT', {});
+    } elsif ($sv->FLAGS & SVf_NOK) {
+	my $nv = $sv->NV;
+	if ($nv == 0) {
+	    if (pack("F", $nv) eq pack("F", 0)) {
+		# positive zero
+		return info_from_text($sv, $self, "0", 'const_plus_zero', {});
+	    } else {
+		# negative zero
+		return info_from_text($sv, $self, $self->maybe_parens("-.0", $cx, 21),
+				 'const_minus_zero', {});
+	    }
+	} elsif (1/$nv == 0) {
+	    if ($nv > 0) {
+		# positive infinity
+		return info_from_text($sv, $self, $self->maybe_parens("9**9**9", $cx, 22),
+				 'const_plus_inf', {});
+	    } else {
+		# negative infinity
+		return info_from_text($sv, $self, $self->maybe_parens("-9**9**9", $cx, 21),
+				 'const_minus_inf', {});
+	    }
+	} elsif ($nv != $nv) {
+	    # NaN
+	    if (pack("F", $nv) eq pack("F", sin(9**9**9))) {
+		# the normal kind
+		return info_from_text($sv, $self, "sin(9**9**9)", 'const_Nan', {});
+	    } elsif (pack("F", $nv) eq pack("F", -sin(9**9**9))) {
+		# the inverted kind
+		return info_from_text($sv, $self, $self->maybe_parens("-sin(9**9**9)", $cx, 21),
+				 'const_Nan_invert', {});
+	    } else {
+		# some other kind
+		my $hex = unpack("h*", pack("F", $nv));
+		return info_from_text($sv, $self, qq'unpack("F", pack("h*", "$hex"))',
+				 'const_Na_na_na', {});
+	    }
+	}
+	# first, try the default stringification
+	my $str = "$nv";
+	if ($str != $nv) {
+	    # failing that, try using more precision
+	    $str = sprintf("%.${max_prec}g", $nv);
+	    # if (pack("F", $str) ne pack("F", $nv)) {
+	    if ($str != $nv) {
+		# not representable in decimal with whatever sprintf()
+		# and atof() Perl is using here.
+		my($mant, $exp) = split_float($nv);
+		return info_from_text($sv, $self, $self->maybe_parens("$mant * 2**$exp", $cx, 19),
+				 'const_not_nv', {});
+	    }
+	}
+	$str = $self->maybe_parens($str, $cx, 21) if $nv < 0;
+	return info_from_text($sv, $self, $str, 'const_nv', {});
+    } elsif ($sv->FLAGS & SVf_ROK && $sv->can("RV")) {
+	my $ref = $sv->RV;
+	if (class($ref) eq "AV") {
+	    my $list_info = $self->list_const($sv, 2, $ref->ARRAY);
+	    return info_from_list($sv, $self, ['[', $list_info->{text}, ']'], '', 'const_av',
+		{body => [$list_info]});
+	} elsif (class($ref) eq "HV") {
+	    my %hash = $ref->ARRAY;
+	    my @elts;
+	    for my $k (sort keys %hash) {
+		push @elts, "$k => " . $self->const($hash{$k}, 6);
+	    }
+	    return info_from_list($sv, $self, ["{", join(", ", @elts), "}"], '', 'const_hv', {});
+	} elsif (class($ref) eq "CV") {
+	    BEGIN {
+		if ($] > 5.0150051) {
+		    require overloading;
+		    unimport overloading;
+		}
+	    }
+	    if ($] > 5.0150051 && $self->{curcv} &&
+		 $self->{curcv}->object_2svref == $ref->object_2svref) {
+		return info_from_text($sv, $self, $self->keyword("__SUB__"), 'const_sub', {});
+	    }
+	    my $sub_info = $self->deparse_sub($ref);
+	    return info_from_list($sub_info->{op}, $self, ["sub ", $sub_info->{text}], '', 'const_sub2',
+				  {body => [$sub_info]});
+	}
+	if ($ref->FLAGS & SVs_SMG) {
+	    for (my $mg = $ref->MAGIC; $mg; $mg = $mg->MOREMAGIC) {
+		if ($mg->TYPE eq 'r') {
+		    my $re = re_uninterp(escape_str(re_unback($mg->precomp)));
+		    return $self->single_delim($sv, "qr", "", $re);
+		}
+	    }
+	}
+
+	my $const = $self->const($ref, 20);
+	if ($self->{in_subst_repl} && $const =~ /^[0-9]/) {
+	    $const = "($const)";
+	}
+	my @texts = ("\\", $const);
+	return $self->info_from_list($sv, \@texts, '', 'const_rv',
+				     {maybe_parens => [$self, $cx, 20]});
+
+    } elsif ($sv->FLAGS & SVf_POK) {
+	my $str = $sv->PV;
+	if ($str =~ /[[:^print:]]/) {
+	    return $self->single_delim($sv, "qq", '"', uninterp escape_str unback $str);
+	} else {
+	    return $self->single_delim($sv, "q", "'", unback $str);
+	}
+    } else {
+	return $self->info_from_text($sv, "undef", 'const_undef', {});
+    }
 }
 
 sub const_dumper
