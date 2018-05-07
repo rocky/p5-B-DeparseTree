@@ -849,21 +849,6 @@ sub stash_variable_name {
     }
 }
 
-sub maybe_qualify {
-    my ($self,$prefix,$name) = @_;
-    my $v = ($prefix eq '$#' ? '@' : $prefix) . $name;
-    return $name if !$prefix || $name =~ /::/;
-    return $self->{'curstash'}.'::'. $name
-	if
-	    $name =~ /^(?!\d)\w/         # alphabetic
-	 && $v    !~ /^\$[ab]\z/	 # not $a or $b
-	 && !$globalnames{$name}         # not a global name
-	 && $self->{hints} & $strict_bits{vars}  # strict vars
-	 && !$self->lex_in_scope($v,1)   # no "our"
-      or $self->lex_in_scope($v);        # conflicts with "my" variable
-    return $name;
-}
-
 sub lex_in_scope {
     my ($self, $name, $our) = @_;
     substr $name, 0, 0, = $our ? 'o' : 'm'; # our/my

@@ -18,18 +18,39 @@ use B::DeparseTree::Node;
 our($VERSION, @EXPORT, @ISA);
 $VERSION = '1.1.0';
 @ISA = qw(Exporter B::Deparse);
-@EXPORT = qw(maybe_parens info_from_list info_from_text null new WARN_MASK
-            is_scalar is_subscriptable
-            map_texts dedup_parens_func
-            indent_list indent indent_info parens_test print_protos
-            style_opts scopeop declare_hints hint_pragmas
-            is_miniwhile is_lexical_subs %strict_bits
-            %rev_feature declare_hinthash declare_warnings %ignored_hints
-            _features_from_bundle ambiant_pragmas maybe_qualify
-            %globalnames gv_name is_scope logop maybe_targmy is_state
-            POSTFIX baseop mapop pfixop indirop
-            deparse_sub deparse_subname next_todo pragmata
-            );
+@EXPORT = qw(
+    declare_hints
+    dedup_parens_func
+    hint_pragmas
+    indent
+    indent_info
+    indent_list
+    info_from_list
+    info_from_text
+    is_miniwhile is_lexical_subs %strict_bits
+    is_scalar
+    is_subscriptable
+    map_texts
+    maybe_parens
+    maybe_qualify
+    new WARN_MASK
+    null
+    parens_test
+    print_protos
+    scopeop
+    style_opts
+    %rev_feature declare_hinthash declare_warnings %ignored_hints
+    _features_from_bundle ambiant_pragmas maybe_qualify
+    %globalnames gv_name is_scope logop maybe_targmy is_state
+    POSTFIX baseop mapop pfixop indirop
+    deparse_sub deparse_subname next_todo pragmata
+    );
+
+# The BEGIN {} is used here because otherwise this code isn't executed
+# when you run B::Deparse on itself.
+my %globalnames;
+BEGIN { map($globalnames{$_}++, "SIG", "STDIN", "STDOUT", "STDERR", "INC",
+	    "ENV", "ARGV", "ARGVOUT", "_"); }
 
 BEGIN {
     # List version-specific constants here.
@@ -180,6 +201,21 @@ sub map_texts($$)
     return @result;
 }
 
+
+sub maybe_qualify {
+    my ($self,$prefix,$name) = @_;
+    my $v = ($prefix eq '$#' ? '@' : $prefix) . $name;
+    return $name if !$prefix || $name =~ /::/;
+    return $self->{'curstash'}.'::'. $name
+	if
+	    $name =~ /^(?!\d)\w/         # alphabetic
+	 && $v    !~ /^\$[ab]\z/	 # not $a or $b
+	 && !$globalnames{$name}         # not a global name
+	 && $self->{hints} & $strict_bits{vars}  # strict vars
+	 && !$self->lex_in_scope($v,1)   # no "our"
+      or $self->lex_in_scope($v);        # conflicts with "my" variable
+    return $name;
+}
 
 sub combine($$$)
 {

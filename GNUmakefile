@@ -112,9 +112,10 @@ skipcheck :
 #: Same as "test". "check" is the usual autoconf name
 check: test
 
-#: Run all unit tests
+#: Run all tests
 test:
-	perl Build --makefile_env_macros 1 test
+	perl Build --makefile_env_macros 1 test && \
+	(cd testdata && perl ./runtests.pl)
 
 #: Check code coverage
 testcover:
