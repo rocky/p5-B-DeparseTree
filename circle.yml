@@ -1,7 +1,7 @@
 checkout:
   post:
     - sudo apt-get -y install cpanminus
-    - sudo cpanm rlib Module::Build Text::Diff Test::Simple
+    - sudo cpanm rlib Module::Build Text::Diff Test::Simple Data::Printer
 
 test:
   override:
