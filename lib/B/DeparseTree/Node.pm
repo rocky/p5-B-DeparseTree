@@ -143,9 +143,6 @@ sub combine($$$)
 		$add = $item->{text};
 		# First item is text and second item is op address.
 	    } else {
-		if (!eval{$item->{texts}}) {
-		    use Enbugger 'trepan'; Enbugger->stop;
-		}
 		$add = $self->combine($item->{sep}, $item->{texts});
 	    }
 	} else {
