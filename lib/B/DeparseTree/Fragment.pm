@@ -68,7 +68,7 @@ sub extract_node_info($)
 		    my $parent_underline = ' ' x length($result);
 		    $result .= $text->[0];
 		    $parent_underline .= '-' x length($text->[0]);
-		    if ($i < $text_len-1) {
+		    if ($i < $text_len) {
 			$result .= $separator;
 			my @remain_texts = @texts[$i+1..$#texts];
 			my $tail = $deparsed->combine2str($separator, \@remain_texts);
@@ -85,7 +85,7 @@ sub extract_node_info($)
 		    my $parent_underline = ' ' x length($result);
 		    $result .= $text->{text};
 		    $parent_underline .= '-' x length($text->{text});
-		    if ($i < $text_len-1) {
+		    if ($i < $text_len) {
 			$result .= $separator;
 			my @remain_texts = @texts[$i+1..$#texts];
 			my $tail = $deparsed->combine2str($separator, \@remain_texts);

@@ -20,6 +20,7 @@ $VERSION = '1.0.0';
 @ISA = qw(Exporter);
 @EXPORT = qw(
 
+    pp_cond_expr
     pp_egrent pp_ehostent pp_enetent
     pp_eprotoent pp_epwent pp_eservent
     pp_fork pp_getlogin pp_ggrent
@@ -28,7 +29,9 @@ $VERSION = '1.0.0';
     pp_mapstart
     pp_sgrent pp_spwent pp_tms pp_wantarray
 
-    pp_leave pp_lineseq pp_scope
+    pp_leave pp_lineseq
+    pp_once
+    pp_scope
 
     pp_dbstate pp_nextstate pp_setstate
 
@@ -193,15 +196,83 @@ sub pp_nextstate {
     return $info;
 }
 
+sub pp_and { logop(@_, "and", 3, "&&", 11, "if") }
+
+
+sub pp_cond_expr
+{
+    my $self = shift;
+    my($op, $cx) = @_;
+    my $cond = $op->first;
+    my $true = $cond->sibling;
+    my $false = $true->sibling;
+    my $cuddle = $self->{'cuddle'};
+    unless ($cx < 1 and (is_scope($true) and $true->name ne "null") and
+	    (is_scope($false) || is_ifelse_cont($false))
+	    and $self->{'expand'} < 7) {
+	my $cond_info = $self->deparse($cond, 8, $op);
+	my $true_info = $self->deparse($true, 6, $op);
+	my $false_info = $self->deparse($false, 8, $op);
+	my @texts = ($cond_info->{text}, '?', $true_info->{text}, ':', $false_info->{text});
+	return info_from_list($op, $self, \@texts, ' ', 'pp_cond_expr1',
+				  {maybe_parens => [$self, $cx, 8]});
+    }
+
+    my $cond_info = $self->deparse($cond, 1, $op);
+    my $true_info = $self->deparse($true, 0, $op);
+    my @head = ('if ', '(', $cond_info->{text}, ') ', "{\n\t", $true_info->{text}, "\n\b}");
+    my @elsifs;
+
+    while (!null($false) and is_ifelse_cont($false)) {
+	my $newop = $false->first;
+	my $newcond = $newop->first;
+	my $newtrue = $newcond->sibling;
+	$false = $newtrue->sibling; # last in chain is OP_AND => no else
+	if ($newcond->name eq "lineseq")
+	{
+	    # lineseq to ensure correct line numbers in elsif()
+	    # Bug #37302 fixed by change #33710.
+	    $newcond = $newcond->first->sibling;
+	}
+	my $newcond_info = $self->deparse($newcond, 1, $op);
+	my $newtrue_info = $self->deparse($newtrue, 0, $op);
+	push @elsifs, ('', "elsif ($newcond_info->{text})",
+		       "{\n\t",
+		       $newtrue_info->{text},
+		       "\n\b}");
+    }
+    my $false_info;
+    if (!null($false)) {
+	$false_info = $self->deparse($false, 0, $op);
+	$false_info->{text} = $cuddle . "else {\n\t" . $false_info->{text} . "\n\b}\cK";
+    } else {
+	$false_info->{text} = "\cK";
+    }
+    my @texts = (@head, @elsifs, $false_info->{text});
+    my $text = join('', @head) . join($cuddle, @elsifs) . $false_info->{text};
+    return info_from_list($op, $self, \@texts, ' ', 'pp_cond_expr', {});
+}
+
+sub pp_dbstate { pp_nextstate(@_) }
+
+sub pp_once
+{
+    my ($self, $op, $cx) = @_;
+    my $cond = $op->first;
+    my $true = $cond->sibling;
+
+    return $self->deparse($true, $cx);
+}
+
 sub pp_print { indirop(@_, "print") }
 sub pp_prtf { indirop(@_, "printf") }
 sub pp_say  { indirop(@_, "say") }
-sub pp_sort { indirop(@_, "sort") }
 
-sub pp_dbstate { pp_nextstate(@_) }
 sub pp_setstate { pp_nextstate(@_) }
 
-sub pp_and { logop(@_, "and", 3, "&&", 11, "if") }
+sub pp_sort { indirop(@_, "sort") }
+
+
 sub pp_or  { logop(@_, "or",  2, "||", 10, "unless") }
 sub pp_dor { logop(@_, "//", 10) }
 

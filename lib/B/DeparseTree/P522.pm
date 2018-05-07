@@ -1552,6 +1552,7 @@ sub binop
     my $lhs = $self->deparse_binop_left($op, $left, $prec);
     if ($flags & LIST_CONTEXT
 	&& $lhs->{text} !~ /^(my|our|local|)[\@\(]/) {
+	# FIXME use precidence.
 	$lhs->{text} = "($lhs->{text})";
     }
 
@@ -2084,83 +2085,6 @@ sub is_ifelse_cont
     return ($op->name eq "null" and class($op) eq "UNOP"
 	    and $op->first->name =~ /^(and|cond_expr)$/
 	    and is_scope($op->first->first->sibling));
-}
-
-sub pp_cond_expr
-{
-    my $self = shift;
-    my($op, $cx) = @_;
-    my $cond = $op->first;
-    my $true = $cond->sibling;
-    my $false = $true->sibling;
-    my $cuddle = $self->{'cuddle'};
-    unless ($cx < 1 and (is_scope($true) and $true->name ne "null") and
-	    (is_scope($false) || is_ifelse_cont($false))
-	    and $self->{'expand'} < 7) {
-	my $cond_info = $self->deparse($cond, 8, $op);
-	my $true_info = $self->deparse($true, 6, $op);
-	my $false_info = $self->deparse($false, 8, $op);
-	my @texts = ($cond_info->{text}, '?', $true_info->{text}, ':', $false_info->{text});
-	my $text = $self->maybe_parens($self->combine(' ', \@texts), $cx, 8);
-	return {
-	    text => $text,
-	    texts => \@texts,
-	    type => 'pp_cond_expr1',
-	    body => [$cond_info, $true_info, $false_info],
-	};
-    }
-
-    my $cond_info = $self->deparse($cond, 1, $op);
-    my $true_info = $self->deparse($true, 0, $op);
-    my @head = ('if ', '(', $cond_info->{text}, ') ', "{\n\t", $true_info->{text}, "\n\b}");
-    my @elsifs;
-    my @body = ($cond_info, $true_info);
-
-    while (!null($false) and is_ifelse_cont($false)) {
-	my $newop = $false->first;
-	my $newcond = $newop->first;
-	my $newtrue = $newcond->sibling;
-	$false = $newtrue->sibling; # last in chain is OP_AND => no else
-	if ($newcond->name eq "lineseq")
-	{
-	    # lineseq to ensure correct line numbers in elsif()
-	    # Bug #37302 fixed by change #33710.
-	    $newcond = $newcond->first->sibling;
-	}
-	my $newcond_info = $self->deparse($newcond, 1, $op);
-	my $newtrue_info = $self->deparse($newtrue, 0, $op);
-	push @body, $newcond_info;
-	push @body, $newtrue_info;
-	push @elsifs, ('', "elsif ($newcond_info->{text})",
-		       "{\n\t",
-		       $newtrue_info->{text},
-		       "\n\b}");
-    }
-    my $false_info;
-    if (!null($false)) {
-	$false_info = $self->deparse($false, 0, $op);
-	$false_info->{text} = $cuddle . "else {\n\t" . $false_info->{text} . "\n\b}\cK";
-	push @body, $false_info;
-    } else {
-	$false_info->{text} = "\cK";
-    }
-    my @texts = (@head, @elsifs, $false_info->{text});
-    my $text = join('', @head) . join($cuddle, @elsifs) . $false_info->{text};
-    return {
-	text => $text,
-	texts => \@texts,
-	body => \@body,
-	type => 'pp_cond_expr',
-    };
-}
-
-sub pp_once
-{
-    my ($self, $op, $cx) = @_;
-    my $cond = $op->first;
-    my $true = $cond->sibling;
-
-    return $self->deparse($true, $cx);
 }
 
 sub loop_common
@@ -4599,5 +4523,66 @@ sub pp_entereval
 # Not in Perl 5.20 and presumeably < 5.20. No harm in adding to 5.20?
 *pp_ncomplement = *pp_complement;
 sub pp_scomplement { maybe_targmy(@_, \&pfixop, "~.", 21) }
+
+unless (caller) {
+    eval "use Data::Printer;";
+
+    eval {
+	our($Fileparse_fstype);
+	sub fib($) {
+	    my $x = shift;
+	    return 1 if $x <= 1;
+	    return(fib($x-1) + fib($x-2))
+	}
+	sub fileparse {
+	    no strict;
+  # my($fullname,@suffices) = @_;
+
+  my $tail   = '';
+  $tail = $1 . $tail;
+
+  # Ensure taint is propagated from the path to its pieces.
+  $tail .= $taint;
+  wantarray ? ($basename .= $taint, $dirpath .= $taint, $tail)
+            : ($basename .= $taint);
+}
+	sub baz {
+	    no strict;
+	    if ($basename =~ s/$pat//s) {
+	    }
+	}
+    };
+
+    my $deparse = __PACKAGE__->new("-l", "-c");
+    my $info = $deparse->coderef2info(\&fileparse);
+    # my $info = $deparse->coderef2info(\&baz);
+    import Data::Printer colored => 0;
+    Data::Printer::p($info);
+    print "\n", '=' x 30, "\n";
+    # print $deparse->indent($deparse->deparse_subname('fib')->{text});
+    # print "\n", '=' x 30, "\n";
+    # print "\n", '-' x 30, "\n";
+    while (my($key, $value) = each %{$deparse->{optree}}) {
+	my $parent_op_name = 'undef';
+	if ($value->{parent}) {
+	    my $parent = $deparse->{optree}{$value->{parent}};
+	    $parent_op_name = $parent->{op}->name if $parent->{op};
+	}
+	if (eval{$value->{op}->name}) {
+	    printf("0x%x %s/%s of %s |\n%s",
+		   $key, $value->{op}->name, $value->{type},
+		   $parent_op_name, $deparse->indent($value->{text}));
+	} else {
+	    printf("0x%x %s of %s |\n%s",
+		   $key, $value->{type},
+		   $parent_op_name, $deparse->indent($value->{text}));
+	}
+	printf " ## line %s\n", $value->{cop} ? $value->{cop}->line : 'undef';
+	print '-' x 30, "\n";
+    }
+    # use B::Deparse;
+    # my $deparse_old = B::Deparse->new("-l", "-sC");
+    # print $deparse_old->coderef2text(\&baz);
+}
 
 1;

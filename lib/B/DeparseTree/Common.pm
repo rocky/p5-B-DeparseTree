@@ -320,7 +320,7 @@ sub info_from_list($$$$$$)
     $info->{text} = $text;
     if ($opts->{maybe_parens}) {
 	my ($self, $cx, $prec) = @{$opts->{maybe_parens}};
-	$info->{text} = $self->maybe_parens($info->{text}, $cx, $prec);
+	$info->{text} = $deparse->maybe_parens($info->{text}, $cx, $prec);
 	$info->{maybe_parens} = {context => $cx , precidence => $prec};
     }
     return $info
@@ -1462,20 +1462,21 @@ sub POSTFIX () { 1 }
 sub pfixop
 {
     my $self = shift;
-    my($op, $cx, $name, $prec, $flags) = (@_, 0);
-    my $kid = $op->first;
-    $kid = $self->deparse($kid, $prec, $op);
+    my($op, $cx, $operator, $prec, $flags) = (@_, 0);
+    my $operand = $op->first;
+    $operand = $self->deparse($operand, $prec, $op);
     my $type = 'pfixop';
     my @texts;
     if ($flags & POSTFIX) {
-	@texts = ($kid->{text}, $name);
+	@texts = ($operand, $operator);
 	$type = 'pfixop_postfix';
-    } elsif ($name eq '-' && $kid =~ /^[a-zA-Z](?!\w)/) {
+    } elsif ($operator eq '-' && $operand =~ /^[a-zA-Z](?!\w)/) {
 	# avoid confusion with filetests
 	$type = 'pfixop_minus';
-	@texts = ($kid->{text}, '(', $name, ')');
+	# FIXME: use precidence
+	@texts = ($operand, '(', $operator, ')');
     } else {
-	@texts = ($name, $kid->{text});
+	@texts = ($operator, $operand);
     }
 
     return info_from_list $op, $self, \@texts, '', $type,
