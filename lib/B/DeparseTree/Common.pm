@@ -1138,7 +1138,7 @@ sub compile {
 	    }
 	} else {
 	    my @names = qw(BEGIN UNITCHECK CHECK INIT END);
-	    my @blocks = \(@BEGINs, @UNITCHECKs, @CHECKs, @INITs, @ENDs);
+	    my @blocks = (\@BEGINs, \@UNITCHECKs, \@CHECKs, \@INITs, \@ENDs);
 	    while (@names) {
 		my ($name, $blocks) = (shift @names, shift @blocks);
 		for my $block (@$blocks) {
@@ -1148,12 +1148,12 @@ sub compile {
         }
 	$self->stash_subs();
 	local($SIG{"__DIE__"}) =
-	  sub {
-	      if ($self->{'curcop'}) {
-		  my $cop = $self->{'curcop'};
+	    sub {
+		if ($self->{'curcop'}) {
+		    my $cop = $self->{'curcop'};
 		  my($line, $file) = ($cop->line, $cop->file);
-		  print STDERR "While deparsing $file near line $line,\n";
-	      }
+		    print STDERR "While deparsing $file near line $line,\n";
+		}
 	    };
 	$self->{'curcv'} = main_cv;
 	$self->{'curcvlex'} = undef;
@@ -1190,7 +1190,8 @@ sub compile {
 		} else {
 		    $self->pessimise($root, main_start);
 		    # Print deparsed program
-		    print $self->indent_info($self->deparse_root($root)), "\n";
+		    my $root_tree = $self->deparse_root($root);
+		    print $self->indent_info($root_tree), "\n";
 		}
 	    }
 	}

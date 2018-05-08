@@ -115,7 +115,7 @@ check: test
 #: Run all tests
 test:
 	perl Build --makefile_env_macros 1 test && \
-	(cd testdata && perl ./runtests.pl)
+	(cd scripts && perl ./runtests.pl)
 
 #: Check code coverage
 testcover:
