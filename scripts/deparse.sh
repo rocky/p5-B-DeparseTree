@@ -10,6 +10,6 @@ if (($# != 1)) ; then
     exit 1
 fi
 PERL=${PERL:-perl}
-my_dir=$(basename ${BASH_SOURCE[0]})
-$PERL -I${my_dir}/lib -MO=DeparseTree,sC $1
+my_dir=$(dirname ${BASH_SOURCE[0]})
+$PERL -I${my_dir}/../lib -MO=DeparseTree,sC $1
 exit $?

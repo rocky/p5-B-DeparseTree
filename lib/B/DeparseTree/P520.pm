@@ -3459,7 +3459,7 @@ sub pp_split
 	$type = 'split';
 
     }
-    return info_from_list($self, $op, \@expr_texts, $sep, $type, $opts);
+    return info_from_list($op, $self, \@expr_texts, $sep, $type, $opts);
 }
 
 # Kind of silly, but we prefer, subst regexp flags joined together to

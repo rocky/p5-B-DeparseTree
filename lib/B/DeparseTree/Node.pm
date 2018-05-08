@@ -84,7 +84,16 @@ sub parens_test($$$)
 sub new($$$$$)
 {
     my ($class, $op, $deparse, $texts, $sep, $type, $opts) = @_;
-    my $addr = eval { $$op } || -1;
+    my $addr = -1;
+    if (ref($op)) {
+	if (ref($op) eq 'B::DeparseTree') {
+	    # use Enbugger 'trepan'; Enbugger->stop;
+	    Carp::confess("Rocky got the order of \$self, and \$op confused again");
+	    $addr = -2;
+	} else {
+	    eval { $addr = $$op };
+	}
+    }
     my $self = bless {
 	addr => $addr,
 	op => $op,

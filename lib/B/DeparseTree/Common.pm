@@ -613,7 +613,7 @@ sub const {
 	    $const = "($const)";
 	}
 	my @texts = ("\\", $const);
-	return $self->info_from_list($sv, \@texts, '', 'const_rv',
+	return info_from_list($sv, $self, \@texts, '', 'const_rv',
 				     {maybe_parens => [$self, $cx, 20]});
 
     } elsif ($sv->FLAGS & SVf_POK) {
@@ -624,7 +624,7 @@ sub const {
 	    return $self->single_delim($sv, "q", "'", unback $str);
 	}
     } else {
-	return $self->info_from_text($sv, "undef", 'const_undef', {});
+	return info_from_text($sv, $self, "undef", 'const_undef', {});
     }
 }
 
@@ -734,6 +734,7 @@ sub is_for_loop($)
 }
 
 # Create an info structure from a list of strings
+# FIXME: $deparse (or rather $self) should be first
 sub info_from_list($$$$$$)
 {
     my ($op, $deparse, $texts, $sep, $type, $opts) = @_;
@@ -759,6 +760,7 @@ sub info_from_list($$$$$$)
 }
 
 # Create an info structure from a single string
+# FIXME: $deparse (or rather $self) should be first
 sub info_from_text($$$$$)
 {
     my ($op, $deparse, $text, $type, $opts) = @_;
@@ -1169,9 +1171,12 @@ sub compile {
 	    sub {
 		if ($self->{'curcop'}) {
 		    my $cop = $self->{'curcop'};
-		  my($line, $file) = ($cop->line, $cop->file);
+		    my($line, $file) = ($cop->line, $cop->file);
 		    print STDERR "While deparsing $file near line $line,\n";
 		}
+		use Data::Printer;
+		my @bt = caller(1);
+		p @bt;
 	    };
 	$self->{'curcv'} = main_cv;
 	$self->{'curcvlex'} = undef;
@@ -1392,7 +1397,7 @@ sub next_todo
 	}
 	my $info = $self->deparse_sub($cv, $parent);
 	push @texts, $info->{text};
-	return info_from_list($self, $cv, \@texts, ' ', 'sub_todo', {body=>[$info]})
+	return info_from_list($cv, $self, \@texts, ' ', 'sub_todo', {body=>[$info]})
     }
 }
 

@@ -57,6 +57,16 @@ use B qw(class opnumber
 
 use B::DeparseTree::Common;
 use B::DeparseTree::PP;
+# use B::Deparse;
+
+# Copy unchanged functions from B::Deparse
+*begin_is_use = *B::Deparse::begin_is_use;
+*padname_sv = *B::Deparse::padname_sv;
+*meth_sv = *B::Deparse::meth_sv;
+*meth_rclass_sv = *B::Deparse::meth_rclass_sv;
+
+# # Here we need to call the routine something else.
+# *maybe_local_str = *B::Deparse::maybe_local;
 
 use strict;
 use vars qw/$AUTOLOAD/;
@@ -321,109 +331,6 @@ sub deparse_format($$$)
     return $info;
 }
 
-# Return a "use" declaration for this BEGIN block, if appropriate
-sub begin_is_use
-{
-    my ($self, $cv) = @_;
-    my $root = $cv->ROOT;
-    local @$self{qw'curcv curcvlex'} = ($cv);
-    local $B::overlay = {};
-    $self->pessimise($root, $cv->START);
-    # require B::Debug;
-    # B::walkoptree($cv->ROOT, "debug");
-    my $lineseq = $root->first;
-    return if $lineseq->name ne "lineseq";
-
-    my $req_op = $lineseq->first->sibling;
-    return if $req_op->name ne "require";
-
-    my $module;
-    if ($req_op->first->private & OPpCONST_BARE) {
-	# Actually it should always be a bareword
-	$module = $self->const_sv($req_op->first)->PV;
-	$module =~ s[/][::]g;
-	$module =~ s/.pm$//;
-    }
-    else {
-	$module = $self->const($self->const_sv($req_op->first), 6);
-    }
-
-    my $version;
-    my $version_op = $req_op->sibling;
-    return if class($version_op) eq "NULL";
-    if ($version_op->name eq "lineseq") {
-	# We have a version parameter; skip nextstate & pushmark
-	my $constop = $version_op->first->next->next;
-
-	return unless $self->const_sv($constop)->PV eq $module;
-	$constop = $constop->sibling;
-	$version = $self->const_sv($constop);
-	if (class($version) eq "IV") {
-	    $version = $version->int_value;
-	} elsif (class($version) eq "NV") {
-	    $version = $version->NV;
-	} elsif (class($version) ne "PVMG") {
-	    # Includes PVIV and PVNV
-	    $version = $version->PV;
-	} else {
-	    # version specified as a v-string
-	    $version = 'v'.join '.', map ord, split //, $version->PV;
-	}
-	$constop = $constop->sibling;
-	return if $constop->name ne "method_named";
-	return if $self->const_sv($constop)->PV ne "VERSION";
-    }
-
-    $lineseq = $version_op->sibling;
-    return if $lineseq->name ne "lineseq";
-    my $entersub = $lineseq->first->sibling;
-    if ($entersub->name eq "stub") {
-	return "use $module $version ();\n" if defined $version;
-	return "use $module ();\n";
-    }
-    return if $entersub->name ne "entersub";
-
-    # See if there are import arguments
-    my $args = '';
-
-    my $svop = $entersub->first->sibling; # Skip over pushmark
-    return unless $self->const_sv($svop)->PV eq $module;
-
-    # Pull out the arguments
-    for ($svop=$svop->sibling; $svop->name ne "method_named";
-		$svop = $svop->sibling) {
-	$args .= ", " if length($args);
-	$args .= $self->deparse($svop, 6, $root);
-    }
-
-    my $use = 'use';
-    my $method_named = $svop;
-    return if $method_named->name ne "method_named";
-    my $method_name = $self->const_sv($method_named)->PV;
-
-    if ($method_name eq "unimport") {
-	$use = 'no';
-    }
-
-    # Certain pragmas are dealt with using hint bits,
-    # so we ignore them here
-    if ($module eq 'strict' || $module eq 'integer'
-	|| $module eq 'bytes' || $module eq 'warnings'
-	|| $module eq 'feature') {
-	return "";
-    }
-
-    if (defined $version && length $args) {
-	return "$use $module $version ($args);\n";
-    } elsif (defined $version) {
-	return "$use $module $version;\n";
-    } elsif (length $args) {
-	return "$use $module ($args);\n";
-    } else {
-	return "$use $module;\n";
-    }
-}
-
 sub ambient_pragmas {
     my $self = shift;
     my ($arybase, $hint_bits, $warning_bits, $hinthash) = (0, 0);
@@ -622,12 +529,6 @@ sub maybe_local {
     my($self, $op, $cx, $var_info) = @_;
     $var_info->{parent} = $$op;
     return maybe_local_str($self, $op, $cx, $var_info->{text});
-}
-
-sub padname_sv {
-    my $self = shift;
-    my $targ = shift;
-    return $self->{'curcv'}->PADLIST->ARRAYelt(0)->ARRAYelt($targ);
 }
 
 sub maybe_my {
@@ -3698,7 +3599,7 @@ sub split
 	$type = 'split';
 
     }
-    return info_from_list($self, $op, \@expr_texts, $sep, $type, $opts);
+    return info_from_list($op, $self, \@expr_texts, $sep, $type, $opts);
 }
 
 # Kind of silly, but we prefer, subst regexp flags joined together to
