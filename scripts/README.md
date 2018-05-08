@@ -17,3 +17,9 @@ is assumed to have a subroutine called "bug" which is then decompiled
 after the module file. it is `required`.
 
 To start you off, you can copy `bug-sample.pm` to `bug.pm` and modify from there.
+
+## deparse.sh
+
+A simple shell script that has Perl read in a Perl source program and then deparse it
+Basically it has the knowledge of the funky Perl invocation you need to give it to
+run the module `B::DeparseTree` as a compile backend script.

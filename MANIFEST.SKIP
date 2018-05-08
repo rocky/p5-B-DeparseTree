@@ -85,7 +85,6 @@
 # Nothing in tmp
 \btmp/
 
-how-to-make-a-release\.txt
-testdata/benchtests\.pl
-testdata/check\.pl
+admin/how-to-make-a-release\.md
+scripts/bug\.pm
 git2cl
