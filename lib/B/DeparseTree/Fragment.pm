@@ -118,8 +118,14 @@ sub extract_node_info($)
 	    }
 	    my $parent_underline = ' ' x ($start_index - $last_pos) ;
 	    $parent_underline .= '~' x length($child_text);
-	    my $stripped_parent = substr($parent_text, $last_pos);
-	    $stripped_parent =~ s/(?:\n.*)//;
+
+	    # If the parent text is longer than a line, use just the line.
+	    # The underline indicator adds an elipsis to show it is elided.
+	    my @parent_lines = split(/\n/, substr($parent_text, $last_pos));
+	    my $stripped_parent = @parent_lines[0];
+	    if (length($parent_underline) > length($stripped_parent)) {
+		$parent_underline = substr($parent_underline, 0, length($stripped_parent)) . '...';
+	    }
 	    return [$stripped_parent, $parent_underline];
 	}
     }
