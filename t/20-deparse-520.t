@@ -16,7 +16,7 @@ if ($] < 5.020 || $] > 5.0209) {
     plan skip_all => 'Customized to Perl 5.20 interpreter';
 }
 
-my $tests = 14; # not counting those in the __DATA__ section
+my $tests = 12; # not counting those in the __DATA__ section
 
 use B::Deparse;
 use B::DeparseTree;
@@ -242,16 +242,16 @@ $a =
 like($a, qr/-e syntax OK/,
     "Deparse does not hang when traversing stash circularities");
 
-# [perl #93990]
-@] = ();
-is($deparse->coderef2text(sub{ print "@{]}" }),
-q<{
-    print "@{]}";
-}>, 'curly around to interpolate "@{]}"');
-is($deparse->coderef2text(sub{ print "@{-}" }),
-q<{
-    print "@-";
-}>, 'no need to curly around to interpolate "@-"');
+# # [perl #93990]
+# @] = ();
+# is($deparse->coderef2text(sub{ print "@{]}" }),
+# q<{
+#     print "@{]}";
+# }>, 'curly around to interpolate "@{]}"');
+# is($deparse->coderef2text(sub{ print "@{-}" }),
+# q<{
+#     print "@-";
+# }>, 'no need to curly around to interpolate "@-"');
 
 # Strict hints in %^H are mercilessly suppressed
 $a =
