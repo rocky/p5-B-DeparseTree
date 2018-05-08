@@ -83,11 +83,6 @@ my @x;
 @x = ($#{<}, $#{.}, $#{>}, $#{/}, $#{?}, $#{=}, $#+, $#{\}, $#{|}, $#-);
 @x = ($#{;}, $#{:});
 ####
-# ${#} interpolated
-# It's a known TODO that warnings are deparsed as bits, not textually.
-no warnings;
-() = "${#}a";
-####
 # ()[...]
 my(@a) = ()[()];
 ####
