@@ -45,9 +45,6 @@ print $main::x;
 my %x;
 $x{warn()};
 ####
-# our (LIST)
-our($foo, $bar, $baz);
-####
 # <>
 my $foo;
 $_ .= <> . <ARGV> . <$foo>;
@@ -302,11 +299,6 @@ my @x;
 @x = ($#{(}, $#{)}, $#{[}, $#{{}, $#{]}, $#{}}, $#{'}, $#{"}, $#{,});
 @x = ($#{<}, $#{.}, $#{>}, $#{/}, $#{?}, $#{=}, $#+, $#{\}, $#{|}, $#-);
 @x = ($#{;}, $#{:}, $#{1}), $#_;
-####
-# ${#} interpolated
-# It's a known TODO that warnings are deparsed as bits, not textually.
-no warnings;
-() = "${#}a";
 # ####
 # # [perl #86060] $( $| $) in regexps need braces
 # /${(}/;
@@ -388,28 +380,6 @@ my($m5, $m6) = (1, 2);
 my($m7, undef, $m8) = (1, 2, 3);
 @z = ($m7, undef, $m8);
 ($m7, undef, $m8) = (1, 2, 3);
-####
-# 'our/local' works with padrange op
-our($z, @z);
-our $o1;
-no strict;
-local $o11;
-$o1 = 1;
-local $o1 = 1;
-$z = $o1;
-$z = local $o1;
-our $o2 = 2;
-our($o3, $o4);
-($o3, $o4) = (1, 2);
-local($o3, $o4) = (1, 2);
-@z = ($o3, $o4);
-@z = local($o3, $o4);
-our($o5, $o6) = (1, 2);
-our($o7, undef, $o8) = (1, 2, 3);
-@z = ($o7, undef, $o8);
-@z = local($o7, undef, $o8);
-($o7, undef, $o8) = (1, 2, 3);
-local($o7, undef, $o8) = (1, 2, 3);
 ####
 # 'state' works with padrange op
 # CONTEXT no strict; use feature 'state';

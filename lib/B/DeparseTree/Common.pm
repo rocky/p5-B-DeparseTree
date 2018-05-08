@@ -47,18 +47,23 @@ our($VERSION, @EXPORT, @ISA);
 $VERSION = '1.1.0';
 @ISA = qw(Exporter B::Deparse);
 @EXPORT = qw(
-    %globalnames gv_name is_scope logop maybe_targmy is_state
-    %rev_feature declare_hinthash declare_warnings %ignored_hints
+    %globalnames
+    %ignored_hints
+    %rev_feature
     %unctrl
     POSTFIX baseop mapop pfixop indirop
     _features_from_bundle ambiant_pragmas maybe_qualify
-    const
     balanced_delim
+    const
+    declare_hinthash
     declare_hints
+    declare_warnings
     dedup_parens_func
     deparse_sub
     deparse_subname
+    dquote
     escape_str
+    gv_name
     hint_pragmas
     indent
     indent_info
@@ -67,10 +72,14 @@ $VERSION = '1.1.0';
     info_from_text
     is_miniwhile is_lexical_subs %strict_bits
     is_scalar
+    is_scope
+    is_state
     is_subscriptable
+    logop
     map_texts
     maybe_parens
     maybe_qualify
+    maybe_targmy
     new WARN_MASK
     next_todo
     null
@@ -837,6 +846,15 @@ sub lineseq {
     return $self->walk_lineseq($root, \@ops, $fn);
 }
 
+sub dquote
+{
+    my($self, $op, $cx) = @_;
+    my $kid = $op->first->sibling; # skip ex-stringify, pushmark
+    return $self->deparse($kid, $cx, $op) if $self->{'unquote'};
+    $self->maybe_targmy($kid, $cx,
+			sub {$self->single_delim($kid, '"', $self->dq($_[1])->{text})});
+}
+
 sub maybe_targmy
 {
     my($self, $op, $cx, $func, @args) = @_;
@@ -1236,6 +1254,9 @@ sub deparse
     $info->{cop} = $self->{'curcop'};
     my $got_op = $info->{op};
     if ($got_op) {
+	if ($got_op eq 'qq') {
+	    use Enbugger "trepan"; Enbugger->stop;
+	}
 	if ($got_op != $op) {
 	    # Do something here?
 	    # printf("XX final op 0x%x is not requested 0x%x\n",
@@ -2003,11 +2024,16 @@ sub mapop
 
 sub single_delim($$$$$) {
     my($self, $op, $q, $default, $str) = @_;
+
+    if (!defined($str)) {
+	# FIXME: this is a workaround.
+	$str = '"';
+    }
     return info_from_list($op, $self, [$default, $str, $default], '', 'single_delim_default', {})
 	if $default and index($str, $default) == -1;
     if ($q ne 'qr') {
 	(my $succeed, $str) = balanced_delim($str);
-	return info_from_list(undef, $self, [$q, $str], '', 'single_delim', {}) if $succeed;
+	return info_from_list($op, $self, [$q, $str], '', 'single_delim', {}) if $succeed;
     }
     for my $delim ('/', '"', '#') {
 	return info_from_list($op, $self, [$q, $delim, $str,

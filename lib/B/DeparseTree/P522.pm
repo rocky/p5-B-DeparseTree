@@ -2958,15 +2958,6 @@ sub pp_backtick
     unop($self, $op, $cx, "readpipe");
 }
 
-sub dquote
-{
-    my($self, $op, $cx) = @_;
-    my $kid = $op->first->sibling; # skip ex-stringify, pushmark
-    return $self->deparse($kid, $cx, $op) if $self->{'unquote'};
-    $self->maybe_targmy($kid, $cx,
-			sub {$self->single_delim($op, "qq", '"', $self->dq($_[1])->{text})});
-}
-
 # OP_STRINGIFY is a listop, but it only ever has one arg
 sub pp_stringify {
     my ($self, $op, $cx) = @_;

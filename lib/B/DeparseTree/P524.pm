@@ -2974,30 +2974,6 @@ sub balanced_delim {
     return ("", $str);
 }
 
-sub single_delim($$$$) {
-    my($self, $op, $q, $default, $str) = @_;
-    return info_from_list($op, $self, [$default, $str, $default], '', 'single_delim_default', {})
-	if $default and index($str, $default) == -1;
-    if ($q ne 'qr') {
-	(my $succeed, $str) = balanced_delim($str);
-	return info_from_list(undef, $self, [$q, $str], '', 'single_delim', {}) if $succeed;
-    }
-    for my $delim ('/', '"', '#') {
-	return info_from_list($op, $self, [$q, $delim, $str,
-			   $delim], '', 'single_delim_qr', {})
-	    if index($str, $delim) == -1;
-    }
-    if ($default) {
-	$str =~ s/$default/\\$default/g;
-	return info_from_list($op, $self, [$default, $str, $default], '',
-	    'single_delim_qr_esc', {});
-    } else {
-	$str =~ s[/][\\/]g;
-	return info_from_list($op, $self, [$q, '/', $str, '/'], '',
-	    'single_delim_qr', {});
-    }
-}
-
 # Split a floating point number into an integer mantissa and a binary
 # exponent. Assumes you've already made sure the number isn't zero or
 # some weird infinity or NaN.
@@ -3087,15 +3063,6 @@ sub pp_backtick
 	return $self->single_delim($op, "qx", '`', $self->dq($child, 1)->{text});
     }
     unop($self, $op, $cx, "readpipe");
-}
-
-sub dquote
-{
-    my($self, $op, $cx) = @_;
-    my $kid = $op->first->sibling; # skip ex-stringify, pushmark
-    return $self->deparse($kid, $cx, $op) if $self->{'unquote'};
-    $self->maybe_targmy($kid, $cx,
-			sub {$self->single_delim($op, "qq", '"', $self->dq($_[1])->{text})});
 }
 
 # OP_STRINGIFY is a listop, but it only ever has one arg
