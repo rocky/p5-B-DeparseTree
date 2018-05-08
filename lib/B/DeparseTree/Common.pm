@@ -1254,9 +1254,6 @@ sub deparse
     $info->{cop} = $self->{'curcop'};
     my $got_op = $info->{op};
     if ($got_op) {
-	if ($got_op eq 'qq') {
-	    use Enbugger "trepan"; Enbugger->stop;
-	}
 	if ($got_op != $op) {
 	    # Do something here?
 	    # printf("XX final op 0x%x is not requested 0x%x\n",
