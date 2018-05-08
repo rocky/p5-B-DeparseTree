@@ -1,9 +1,15 @@
-# Data taken from Perl 5.20.3's lib/B/Deparse.t
+# Adapted from Perl 5.18's lib/B/Deparse.t
 1;
 __DATA__
-####
 # A constant
 1;
+####
+# Constants in a block
+{
+    no warnings;
+    '???';
+    2;
+}
 ####
 # Lexical and simple arithmetic
 my $test;
@@ -13,7 +19,22 @@ my $test;
 $test /= 2 if ++$test;
 ####
 # list x
--((1, 2) x 2);
+# SKIP ROCKY fixme
+# -((1, 2) x 2);
+####
+# lvalue sub
+{
+    my $test = sub : lvalue {
+	my $x;
+    };
+}
+####
+# method
+{
+    my $test = sub : method {
+	my $x;
+    };
+}
 ####
 # lexical and package scalars
 my $x;
@@ -31,44 +52,27 @@ $x{warn()};
 my $foo;
 $_ .= <ARGV> . <$foo>;
 ####
-# SKIP ?$] < 5.010 && "say not implemented on this Perl version"
-# CONTEXT use feature ':5.10';
-# say
-say 'foo';
+# SKIP ROCKY fixme
+# \x{}
+my $foo = "Ab\x{100}\200\x{200}\237Cd\000Ef\x{1000}\cA\x{2000}\cZ";
 ####
-# shift optimisation
-shift;
->>>>
-shift();
+# block
+{ my $x; }
 ####
-# shift optimisation
-shift @_;
+# while 1
+while (1) { my $k; }
 ####
-# shift optimisation
-pop;
->>>>
-pop();
-####
-# shift optimisation
-pop @_;
-####
-#[perl #20444]
-"foo" =~ (1 ? /foo/ : /bar/);
-"foo" =~ (1 ? y/foo// : /bar/);
-"foo" =~ (1 ? y/foo//r : /bar/);
-"foo" =~ (1 ? s/foo// : /bar/);
->>>>
-'foo' =~ ($_ =~ /foo/);
-'foo' =~ ($_ =~ tr/fo//);
-'foo' =~ ($_ =~ tr/fo//r);
-'foo' =~ ($_ =~ s/foo//);
+# reverse sort
+my @x;
+print reverse sort(@x);
 ####
 # [perl #81424] match against aelemfast_lex
 my @s;
 print /$s[1]/;
 ####
+# SKIP ROCKY fixme
 # /$#a/
-print /$#main::a/;
+print /$main::a/;
 ####
 # y///r
 tr/a/b/r;
@@ -83,6 +87,27 @@ $b::a[0] = 1;
 my @a;
 $a[0] = 1;
 ####
+# Feature hints
+use feature 'current_sub', 'evalbytes';
+print;
+use 1;
+print;
+use 5.014;
+print;
+no feature 'unicode_strings';
+print;
+>>>>
+use feature 'current_sub', 'evalbytes';
+print $_;
+no feature ':all';
+use feature ':default';
+print $_;
+no feature ':all';
+use feature ':5.12';
+print $_;
+no feature 'unicode_strings';
+print $_;
+####
 # $#- $#+ $#{%} etc.
 my @x;
 @x = ($#{`}, $#{~}, $#{!}, $#{@}, $#{$}, $#{%}, $#{^}, $#{&}, $#{*});
@@ -94,12 +119,6 @@ my @x;
 # It's a known TODO that warnings are deparsed as bits, not textually.
 no warnings;
 () = "${#}a";
-####
-# [perl #86060] $( $| $) in regexps need braces
-/${(}/;
-/${|}/;
-/${)}/;
-/${(}${|}${)}/;
 ####
 # ()[...]
 my(@a) = ()[()];
@@ -123,6 +142,13 @@ $a++;
 () = warn;
 () = warn() + 1;
 () = setpgrp() + 1;
+####
+# [perl #63558] open local(*FH)
+open local *FH;
+pipe local *FH, local *FH;
+####
+# require <binop>
+require 'a' . $1;
 ####
 # 'my' works with padrange op
 my($z, @z);
@@ -183,19 +209,6 @@ my(@x, %y);
 @x = @x[$a, $b];
 @x = @y{$a, $b};
 ####
-# binops with padrange
-my($a, $b, $c);
-$c = $a cmp $b;
-$c = $a + $b;
-$a += $b;
-$c = $a - $b;
-$a -= $b;
-$c = my $a1 cmp $b;
-$c = my $a2 + $b;
-$a += my $b1;
-$c = my $a3 - $b;
-$a -= my $b2;
-####
 # 'x' with padrange
 my($a, $b, $c, $d, @e);
 $c = $a x $b;
@@ -208,24 +221,20 @@ $a x= $b;
 # @_ with padrange
 my($a, $b, $c) = @_;
 ####
-# SKIP 1
+# SKIP ?$] < 5.017004 && "lexical subs not implemented on this Perl version"
 # TODO unimplemented in B::Deparse; RT #116553
 # lexical subroutine
 use feature 'lexical_subs';
 no warnings "experimental::lexical_subs";
 my sub f {}
 print f();
-####
 # Elements of %# should not be confused with $#{ array }
 () = ${#}{'foo'};
 ####
-# [perl #121050] Prototypes with whitespace
-sub _121050(\$ \$) { }
-_121050($a,$b);
-sub _121050empty( ) {}
-() = _121050empty() + 1;
->>>>
-_121050 $a, $b;
-() = _121050empty + 1;
-####
-# ensure aelemfast works in the range -128..127 and that there's no
+# SKIP ?$] < 5.017004 && "lexical subs not implemented on this Perl version"
+# TODO unimplemented in B::Deparse; RT #116553
+# lexical "state" subroutine
+use feature 'state', 'lexical_subs';
+no warnings 'experimental::lexical_subs';
+state sub f {}
+print f();

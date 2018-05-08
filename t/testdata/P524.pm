@@ -915,13 +915,6 @@ glob 'a,';
 glob 'a,';
 glob 'a,';
 ####
-# [perl #91008]
-# SKIP ?$] >= 5.023 && "autoderef deleted in this Perl version"
-# CONTEXT no warnings 'experimental::autoderef';
-each $@;
-keys $~;
-values $!;
-####
 # readpipe with complex expression
 readpipe $a + $b;
 ####
@@ -1415,7 +1408,7 @@ $a x= $b;
 # @_ with padrange
 my($a, $b, $c) = @_;
 ####
-# SKIP ?$] < 5.017004 && "lexical subs not implemented on this Perl version"
+# SKIP $] < 5.28 || ?$] < 5.017004 && "lexical subs not implemented on this Perl version"
 # lexical subroutine
 use feature 'lexical_subs';
 no warnings "experimental::lexical_subs";
@@ -1429,24 +1422,6 @@ my sub f {
 
 }
 BEGIN {${^WARNING_BITS} = "\x54\x55\x55\x55\x55\x55\x55\x55\x55\x55\x55\x55\x55\x54\x55\x55\x15"}
-print f();
-####
-# SKIP ?$] < 5.017004 && "lexical subs not implemented on this Perl version"
-# lexical "state" subroutine
-use feature 'state', 'lexical_subs';
-no warnings 'experimental::lexical_subs';
-state sub f {}
-print f();
->>>>
-use feature 'lexical_subs';
-BEGIN {${^WARNING_BITS} = "\x54\x55\x55\x55\x55\x55\x55\x55\x55\x55\x55\x55\x55\x54\x55\x55\x55\x15"}
-CORE::state sub f {
-    BEGIN {${^WARNING_BITS} = "\x54\x55\x55\x55\x55\x55\x55\x55\x55\x55\x55\x55\x55\x54\x55\x55\x15"}
-    use feature 'state';
-
-}
-BEGIN {${^WARNING_BITS} = "\x54\x55\x55\x55\x55\x55\x55\x55\x55\x55\x55\x55\x55\x54\x55\x55\x15"}
-use feature 'state';
 print f();
 ####
 # SKIP ?$] < 5.017004 && "lexical subs not implemented on this Perl version"

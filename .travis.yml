@@ -3,7 +3,7 @@ language: perl
 sudo: false
 
 env:
-  - AUTOMATED_TESTING=1 PREREQS="rlib Text::Diff Test::Simple LEONT/Module-Build-0.4224.tar.gz"
+  - AUTOMATED_TESTING=1 PREREQS="rlib Text::Diff Test::Simple Data::Printer LEONT/Module-Build-0.4224.tar.gz"
 
 after_failure:
   - cat /home/travis/.cpanm/work/*/build.log
@@ -19,4 +19,5 @@ perl:
   - "5.20"
   - "5.22"
   - "5.24"
-  - "5.26"
+# Not yet
+#  - "5.26"

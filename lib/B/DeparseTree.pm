@@ -4,7 +4,10 @@ use rlib '.';
 use strict;
 use vars qw(@ISA $VERSION);
 
-$VERSION = '2.1.5';
+$VERSION = '3.0.0';
+
+use Config;
+my $is_cperl = $Config::Config{usecperl};
 
 my $module;
 if ($] >= 5.016 and $] < 5.018) {
@@ -25,10 +28,16 @@ if ($] >= 5.016 and $] < 5.018) {
 } else {
     die "Can only handle Perl 5.16..5.26";
 }
+
+$module .= 'c' if $is_cperl;
+
 require "B/DeparseTree/${module}.pm";
 *compile = \&B::DeparseTree::Common::compile;
 
-@ISA = ("B::DeparseTree::$module");
+require Exporter;
+
+@ISA = ("Exporter", "B::DeparseTree::$module");
+our @EXPORT = qw(is_cperl);
 
 1;
 
