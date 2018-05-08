@@ -1084,11 +1084,6 @@ my @x;
 @x = ($#{<}, $#{.}, $#{>}, $#{/}, $#{?}, $#{=}, $#+, $#{\}, $#{|}, $#-);
 @x = ($#{;}, $#{:}, $#{1}), $#_;
 ####
-# ${#} interpolated
-# It's a known TODO that warnings are deparsed as bits, not textually.
-no warnings;
-() = "${#}a";
-####
 # [perl #86060] $( $| $) in regexps need braces
 /${(}/;
 /${|}/;
