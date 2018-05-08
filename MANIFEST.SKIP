@@ -88,3 +88,5 @@
 admin/how-to-make-a-release\.md
 scripts/bug\.pm
 git2cl
+
+t/testdata/bug\.pm
