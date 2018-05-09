@@ -516,9 +516,6 @@ sub maybe_local_str
 
 sub maybe_local {
     my($self, $op, $cx, $var_info) = @_;
-    if (!ref($var_info)) {
-	use Enbugger 'trepan'; Enbugger->stop;
-    }
     $var_info->{parent} = $$op;
     return maybe_local_str($self, $op, $cx, $var_info->{text});
 }
