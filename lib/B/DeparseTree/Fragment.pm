@@ -43,19 +43,10 @@ sub get_parent_addr_info($)
 }
 
 sub trim_line_pair($$$$) {
-    my ($parent_text, $child_text, $start_index,$dash_type) = @_;
-    my $last_pos = 0;
-    my $start_search = index($parent_text, $child_text);
-    while ($start_search >= 0) {
-	$last_pos = $start_search;
-	$start_search = index($parent_text, $child_text, $last_pos+1);
-    }
-    my $parent_underline = ' ' x ($start_index - $last_pos) ;
-    $parent_underline .= $dash_type x length($child_text);
-
+    my ($parent_text, $child_text, $parent_underline, $start_pos) = @_;
     # If the parent text is longer than a line, use just the line.
     # The underline indicator adds an elipsis to show it is elided.
-    my @parent_lines = split(/\n/, substr($parent_text, $last_pos));
+    my @parent_lines = split(/\n/, substr($parent_text, $start_pos));
     my $stripped_parent = $parent_lines[0];
     if (length($parent_underline) > length($stripped_parent)) {
 	$parent_underline = substr($parent_underline, 0, length($stripped_parent)) . '...';
@@ -82,9 +73,14 @@ sub extract_node_info($)
     for (my $i=0; $i <= $text_len; $i++) {
 	my $text = $texts[$i];
 	$result .= $separator if $result;
+
 	if (ref($text)) {
 	    if ((ref($text) eq 'ARRAY') and scalar(@$text) == 2) {
 		if ($text->[1] == $child_addr) {
+		    # Note $text->[0] may be different from $child_text.
+		    # as in exec "$foo $bar" vs "$foo"
+		    # FIXE: What do we do then?
+		    $child_text = $text->[0];
 		    my $parent_underline = ' ' x length($result);
 		    $result .= $text->[0];
 		    $parent_underline .= '-' x length($text->[0]);
@@ -94,7 +90,7 @@ sub extract_node_info($)
 			my $tail = $deparsed->combine2str($separator, \@remain_texts);
 			$result .=  $tail;
 		    }
-		    return trim_line_pair($result, $child_text, 0, '-');
+		    return trim_line_pair($result, $child_text, $parent_underline, 0);
 		} else {
 		    $result .= $text->[0];
 		}
@@ -109,7 +105,7 @@ sub extract_node_info($)
 			my $tail = $deparsed->combine2str($separator, \@remain_texts);
 			$result .=  $tail;
 		    }
-		    return trim_line_pair($result, $child_text, 0, '-');
+		    return trim_line_pair($result, $child_text, $parent_underline, 0);
 		} else {
 		    $result .= $text->{text};
 		}
@@ -126,7 +122,17 @@ sub extract_node_info($)
 	if (index($parent_text, $child_text, $start_index+1) < 0) {
 	    # It is in there *uniquely*!
 	    # Remove any \n's before the text.
-	    return trim_line_pair($parent_text, $child_text, $start_index, '~');
+	    my $last_pos = 0;
+	    my $start_search = index($parent_text, $child_text);
+	    while ($start_search >= 0) {
+		$last_pos = $start_search;
+		$start_search = index($parent_text, $child_text, $last_pos+1);
+	    }
+	    my $start_pos = ($start_index - $last_pos);
+	    my $parent_underline = ' ' x $start_pos ;
+
+	    $parent_underline .= '~' x length($child_text);
+	    return trim_line_pair($parent_text, $child_text, $parent_underline, $start_index);
 	}
     }
 }
@@ -136,6 +142,14 @@ unless (caller) {
 	no strict;
 	CORE::exec($foo $bar);
     }
+
+    my $child_text = '$foo $bar';
+    my $result = 'exec $foo $bar';
+    my $parent_underline = "     ---------";
+    my $start_pos = 0;
+    my $lines = trim_line_pair($result, $child_text, $parent_underline,
+			       $start_pos);
+    print join("\n", @$lines), "\n";
 
     my $deparse = B::DeparseTree->new();
     $deparse->coderef2info(\&bug);

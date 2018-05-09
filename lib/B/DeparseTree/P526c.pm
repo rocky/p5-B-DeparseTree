@@ -28,54 +28,54 @@ use B qw(class main_root main_start main_cv svref_2object opnumber perlstring
 	 OPpSORT_REVERSE OPpMULTIDEREF_EXISTS OPpMULTIDEREF_DELETE
          OPpPADRANGE_COUNTSHIFT OPpSIGNATURE_FAKE
          OPpSPLIT_ASSIGN OPpSPLIT_LEX
-	 SVf_IOK SVf_NOK SVf_ROK SVf_POK SVpad_OUR SVf_FAKE SVs_RMG SVs_SMG
-	 SVs_PADTMP SVpad_TYPED
-         CVf_METHOD CVf_LVALUE
+	 SVf_ROK SVpad_OUR SVf_FAKE SVs_RMG SVs_SMG
+	 SVpad_TYPED
+         CVf_METHOD
 	 PMf_KEEP PMf_GLOBAL PMf_CONTINUE PMf_EVAL PMf_ONCE
 	 PMf_MULTILINE PMf_SINGLELINE PMf_FOLD PMf_EXTENDED PMf_EXTENDED_MORE
 	 PADNAMEt_OUTER
-        MDEREF_reload
-        MDEREF_AV_pop_rv2av_aelem
-        MDEREF_AV_gvsv_vivify_rv2av_aelem
-        MDEREF_AV_padsv_vivify_rv2av_aelem
-        MDEREF_AV_vivify_rv2av_aelem
-        MDEREF_AV_padav_aelem
-        MDEREF_AV_gvav_aelem
-        MDEREF_HV_pop_rv2hv_helem
-        MDEREF_HV_gvsv_vivify_rv2hv_helem
-        MDEREF_HV_padsv_vivify_rv2hv_helem
-        MDEREF_HV_vivify_rv2hv_helem
-        MDEREF_HV_padhv_helem
-        MDEREF_HV_gvhv_helem
-        MDEREF_ACTION_MASK
-        MDEREF_INDEX_none
-        MDEREF_INDEX_const
-        MDEREF_INDEX_padsv
-        MDEREF_INDEX_gvsv
-        MDEREF_INDEX_MASK
-        MDEREF_FLAG_last
-        MDEREF_MASK
-        MDEREF_SHIFT
+         MDEREF_reload
+         MDEREF_AV_pop_rv2av_aelem
+         MDEREF_AV_gvsv_vivify_rv2av_aelem
+         MDEREF_AV_padsv_vivify_rv2av_aelem
+         MDEREF_AV_vivify_rv2av_aelem
+         MDEREF_AV_padav_aelem
+         MDEREF_AV_gvav_aelem
+         MDEREF_HV_pop_rv2hv_helem
+         MDEREF_HV_gvsv_vivify_rv2hv_helem
+         MDEREF_HV_padsv_vivify_rv2hv_helem
+         MDEREF_HV_vivify_rv2hv_helem
+         MDEREF_HV_padhv_helem
+         MDEREF_HV_gvhv_helem
+         MDEREF_ACTION_MASK
+         MDEREF_INDEX_none
+         MDEREF_INDEX_const
+         MDEREF_INDEX_padsv
+         MDEREF_INDEX_gvsv
+         MDEREF_INDEX_MASK
+         MDEREF_FLAG_last
+         MDEREF_MASK
+         MDEREF_SHIFT
 
-        SIGNATURE_reload
-        SIGNATURE_end
-        SIGNATURE_padintro
-        SIGNATURE_arg
-        SIGNATURE_arg_default_none
-        SIGNATURE_arg_default_undef
-        SIGNATURE_arg_default_0
-        SIGNATURE_arg_default_1
-        SIGNATURE_arg_default_iv
-        SIGNATURE_arg_default_const
-        SIGNATURE_arg_default_padsv
-        SIGNATURE_arg_default_gvsv
-        SIGNATURE_arg_default_op
-        SIGNATURE_array
-        SIGNATURE_hash
-        SIGNATURE_ACTION_MASK
-        SIGNATURE_FLAG_skip
-        SIGNATURE_MASK
-        SIGNATURE_SHIFT
+         SIGNATURE_reload
+         SIGNATURE_end
+         SIGNATURE_padintro
+         SIGNATURE_arg
+         SIGNATURE_arg_default_none
+         SIGNATURE_arg_default_undef
+         SIGNATURE_arg_default_0
+         SIGNATURE_arg_default_1
+         SIGNATURE_arg_default_iv
+         SIGNATURE_arg_default_const
+         SIGNATURE_arg_default_padsv
+         SIGNATURE_arg_default_gvsv
+         SIGNATURE_arg_default_op
+         SIGNATURE_array
+         SIGNATURE_hash
+         SIGNATURE_ACTION_MASK
+         SIGNATURE_FLAG_skip
+         SIGNATURE_MASK
+         SIGNATURE_SHIFT
     );
 
 use B::DeparseTree::Common;
@@ -1834,95 +1834,6 @@ sub rv2gv_or_string {
     else {
 	return $self->deparse($op, 6, $parent);
     }
-}
-
-sub listop
-{
-    my($self, $op, $cx, $name, $kid, $nollafr) = @_;
-    my(@exprs);
-    my $parens = ($cx >= 5) || $self->{'parens'};
-
-    unless ($kid) {
-	$kid = $op->first->sibling;
-    }
-
-    # If there are no arguments, add final parentheses (or parenthesize the
-    # whole thing if the llafr does not apply) to account for cases like
-    # (return)+1 or setpgrp()+1.  When the llafr does not apply, we use a
-    # precedence of 6 (< comma), as "return, 1" does not need parentheses.
-    if (null $kid) {
-	my $text = $nollafr
-	    ? $self->maybe_parens($self->keyword($name), $cx, 7)
-	    : $self->keyword($name) . '()' x (7 < $cx);
-	return {text => $text};
-    }
-    my $first;
-    my $fullname = $self->keyword($name);
-    my $proto = prototype("CORE::$name");
-    if (
-	 (     (defined $proto && $proto =~ /^;?\*/)
-	    || $name eq 'select' # select(F) doesn't have a proto
-	 )
-	 && $kid->name eq "rv2gv"
-	 && !($kid->private & OPpLVAL_INTRO)
-    ) {
-	$first = $self->rv2gv_or_string($kid->first, $op);
-    }
-    else {
-	$first = $self->deparse($kid, 6, $op);
-    }
-    if ($name eq "chmod" && $first->{text} =~ /^\d+$/) {
-	$first = info_from_text(sprintf("%#o", $first), 'listop_chmod', {});
-    }
-    $first->{text} = "+" + $first->{text}
-	if not $parens and not $nollafr and substr($first->{text}, 0, 1) eq "(";
-    $first->{child_pos} = 0;
-    push @exprs, $first;
-    $kid = $kid->sibling;
-    if (defined $proto && $proto =~ /^\*\*/ && $kid->name eq "rv2gv"
-	&& !($kid->private & OPpLVAL_INTRO)) {
-	$first = $self->rv2gv_or_string($kid->first, $op);
-	push @exprs, $first;
-	$kid = $kid->sibling;
-    }
-    for (my $i=1; !null($kid); $kid = $kid->sibling) {
-	my $expr = $self->deparse($kid, 6, $op);
-	$expr->{child_pos} = $i++;
-	push @exprs, $expr;
-    }
-
-    if ($name eq "reverse" && ($op->private & OPpREVERSE_INPLACE)) {
-	my $texts =  [$exprs[0->{text}], '=',
-		      $fullname . ($parens ? "($exprs[0]->{text})" : " $exprs[0]->{text}")];
-	return info_from_list($texts, ' ', 'listop_reverse',
-			      {body => \@exprs});
-    }
-
-    my $opts = {body => \@exprs};
-    $opts->{other_ops} = $other_ops if $other_ops;
-    my @texts = map { $_->{text} } @exprs ;
-
-    if ($name =~ /^(system|exec)$/
-	&& ($op->flags & OPf_STACKED)
-	&& @texts > 1)
-    {
-	# handle the "system prog a1, a2, ..." form
-	my $prog = shift @texts;
-	$texts[0] = "$prog $texts[0]";
-    }
-
-    my $type;
-    if ($parens && $nollafr) {
-	@texts = ('(', $fullname, " ", join(", ", @texts), ')');
-	$type = 'listop_parens_noallfr';
-    } elsif ($parens) {
-	@texts = ($fullname, '(', join(", ", @texts), ')');
-	$type = 'listop_parens';
-    } else {
-	@texts = ("$fullname ", join(", ", @texts));
-	$type = 'listop';
-    }
-    return info_from_list(\@texts, '', $type, $opts);
 }
 
 sub pp_bless { listop(@_, "bless") }

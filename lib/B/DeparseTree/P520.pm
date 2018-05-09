@@ -21,14 +21,14 @@ use rlib '../..';
 package B::DeparseTree::P520;
 use Carp;
 use B qw(class opnumber
-	 OPf_WANT OPf_WANT_SCALAR OPf_WANT_LIST
 	 OPf_KIDS OPf_REF OPf_STACKED OPf_SPECIAL OPf_MOD
+	 OPf_WANT OPf_WANT_SCALAR OPf_WANT_LIST
 	 OPpLVAL_INTRO OPpOUR_INTRO OPpENTERSUB_AMPER OPpSLICE OPpCONST_BARE
-	 OPpTRANS_SQUASH OPpTRANS_DELETE OPpTRANS_COMPLEMENT OPpTARGET_MY
 	 OPpSORT_NUMERIC OPpSORT_INTEGER
 	 OPpSORT_REVERSE
-	 SVf_IOK SVf_NOK SVf_ROK SVf_POK SVpad_OUR SVf_FAKE SVs_RMG SVs_SMG
+	 OPpTRANS_SQUASH OPpTRANS_DELETE OPpTRANS_COMPLEMENT OPpTARGET_MY
 	 PMf_KEEP PMf_GLOBAL PMf_CONTINUE PMf_EVAL PMf_ONCE
+	 SVpad_OUR SVf_FAKE SVs_RMG SVs_SMG
          PMf_MULTILINE PMf_SINGLELINE PMf_FOLD PMf_EXTENDED);
 
 use B::DeparseTree::Common;
@@ -1587,95 +1587,6 @@ sub rv2gv_or_string {
     else {
 	return $self->deparse($op, 6, $parent);
     }
-}
-
-sub listop
-{
-    my($self, $op, $cx, $name, $kid, $nollafr) = @_;
-    my(@exprs);
-    my $parens = ($cx >= 5) || $self->{'parens'};
-
-    unless ($kid) {
-	$kid = $op->first->sibling;
-    }
-
-    # If there are no arguments, add final parentheses (or parenthesize the
-    # whole thing if the llafr does not apply) to account for cases like
-    # (return)+1 or setpgrp()+1.  When the llafr does not apply, we use a
-    # precedence of 6 (< comma), as "return, 1" does not need parentheses.
-    if (null $kid) {
-	my $text = $nollafr
-	    ? $self->maybe_parens($self->keyword($name), $cx, 7)
-	    : $self->keyword($name) . '()' x (7 < $cx);
-	return info_from_text($op, $self, $text, 'null_listop', {});
-    }
-    my $first;
-    my $fullname = $self->keyword($name);
-    my $proto = prototype("CORE::$name");
-    if (
-	 (     (defined $proto && $proto =~ /^;?\*/)
-	    || $name eq 'select' # select(F) doesn't have a proto
-	 )
-	 && $kid->name eq "rv2gv"
-	 && !($kid->private & OPpLVAL_INTRO)
-    ) {
-	$first = $self->rv2gv_or_string($kid->first, $op);
-    }
-    else {
-	$first = $self->deparse($kid, 6, $op);
-    }
-    if ($name eq "chmod" && $first->{text} =~ /^\d+$/) {
-	$first = info_from_text($first->{op}, $self, sprintf("%#o", $first->{text}), 'listop_chmod', {});
-    }
-    $first->{text} = "+" + $first->{text}
-	if not $parens and not $nollafr and substr($first->{text}, 0, 1) eq "(";
-    push @exprs, $first;
-    $kid = $kid->sibling;
-    if (defined $proto && $proto =~ /^\*\*/ && $kid->name eq "rv2gv"
-	&& !($kid->private & OPpLVAL_INTRO)) {
-	$first = $self->rv2gv_or_string($kid->first, $op);
-	push @exprs, $first;
-	$kid = $kid->sibling;
-    }
-    for ( ; !null($kid); $kid = $kid->sibling) {
-	my $expr = $self->deparse($kid, 6, $op);
-	push @exprs, $expr;
-    }
-
-    if ($name eq "reverse" && ($op->private & OPpREVERSE_INPLACE)) {
-	my $texts =  [$exprs[0->{text}], '=',
-		      $fullname . ($parens ? "($exprs[0]->{text})" : " $exprs[0]->{text}")];
-	return info_from_list($op, $self, $texts, ' ', 'listop_reverse', {});
-    }
-
-    my $opts = {};
-    my @texts = @exprs;
-
-    if ($name =~ /^(system|exec)$/
-	&& ($op->flags & OPf_STACKED)
-	&& @texts > 1)
-    {
-	# handle the "system(prog a1, a2, ...)" form
-	# where there is no ', ' between the first two arguments.
-	my $prog = shift @texts;
-	my $first_arg = shift @texts;
-	my @two_args = ($prog, $first_arg);
-	unshift @texts, info_from_list($op, $self, [$prog, $first_arg],
-				       ' ', 'system|exec', {});
-    }
-
-    my $type;
-    if ($parens && $nollafr) {
-	@texts = ("($fullname ", $self->combine(', ', \@texts), ')');
-	$type = 'listop_parens_noallfr';
-    } elsif ($parens) {
-	@texts = ("$fullname(", $self->combine(", ", \@texts), ')');
-	$type = 'listop_parens';
-    } else {
-	@texts = ("$fullname ", $self->combine(', ', \@texts));
-	$type = 'listop';
-    }
-    return info_from_list($op, $self, \@texts, '', $type, $opts);
 }
 
 sub pp_bless { listop(@_, "bless") }

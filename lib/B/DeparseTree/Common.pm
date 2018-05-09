@@ -18,8 +18,12 @@ package B::DeparseTree::Common;
 use B qw(class
          CVf_LVALUE
          CVf_METHOD
+         OPf_KIDS
+         OPf_SPECIAL
          OPf_STACKED
          OPpCONST_BARE
+         OPpLVAL_INTRO
+         OPpOUR_INTRO
          OPpSORT_INTEGER
          OPpSORT_NUMERIC
          OPpSORT_REVERSE
@@ -32,7 +36,7 @@ use B qw(class
          SVs_RMG
          SVs_SMG
          main_cv main_root main_start
-         opnumber OPpLVAL_INTRO OPf_SPECIAL OPf_KIDS
+         opnumber
          perlstring
          svref_2object
          );
@@ -75,6 +79,7 @@ $VERSION = '1.1.0';
     is_scope
     is_state
     is_subscriptable
+    listop
     logop
     map_texts
     maybe_parens
@@ -251,6 +256,344 @@ sub is_subscriptable {
     } else {
 	return 0;
     }
+}
+
+sub listop
+{
+    my($self, $op, $cx, $name, $kid, $nollafr) = @_;
+    my(@exprs);
+    my $parens = ($cx >= 5) || $self->{'parens'};
+
+    unless ($kid) {
+	$kid = $op->first->sibling;
+    }
+
+    # If there are no arguments, add final parentheses (or parenthesize the
+    # whole thing if the llafr does not apply) to account for cases like
+    # (return)+1 or setpgrp()+1.  When the llafr does not apply, we use a
+    # precedence of 6 (< comma), as "return, 1" does not need parentheses.
+    if (B::Deparse::null $kid) {
+	my $text = $nollafr
+	    ? $self->maybe_parens($self->keyword($name), $cx, 7)
+	    : $self->keyword($name) . '()' x (7 < $cx);
+	return info_from_text($op, $self, $text, 'null_listop', {});
+    }
+    my $first;
+    my $fullname = $self->keyword($name);
+    my $proto = prototype("CORE::$name");
+    if (
+	 (     (defined $proto && $proto =~ /^;?\*/)
+	    || $name eq 'select' # select(F) doesn't have a proto
+	 )
+	 && $kid->name eq "rv2gv"
+	 && !($kid->private & OPpLVAL_INTRO)
+    ) {
+	$first = $self->rv2gv_or_string($kid->first, $op);
+    }
+    else {
+	$first = $self->deparse($kid, 6, $op);
+    }
+    if ($name eq "chmod" && $first->{text} =~ /^\d+$/) {
+	$first = info_from_text($first->{op}, $self, sprintf("%#o", $first->{text}), 'listop_chmod', {});
+    }
+    $first->{text} = "+" + $first->{text}
+	if not $parens and not $nollafr and substr($first->{text}, 0, 1) eq "(";
+    push @exprs, $first;
+    $kid = $kid->sibling;
+    if (defined $proto && $proto =~ /^\*\*/ && $kid->name eq "rv2gv"
+	&& !($kid->private & OPpLVAL_INTRO)) {
+	$first = $self->rv2gv_or_string($kid->first, $op);
+	push @exprs, $first;
+	$kid = $kid->sibling;
+    }
+    for ( ; !null($kid); $kid = $kid->sibling) {
+	my $expr = $self->deparse($kid, 6, $op);
+	push @exprs, $expr;
+    }
+
+    if ($name eq "reverse" && ($op->private & OPpREVERSE_INPLACE)) {
+	my $texts =  [$exprs[0->{text}], '=',
+		      $fullname . ($parens ? "($exprs[0]->{text})" : " $exprs[0]->{text}")];
+	return info_from_list($op, $self, $texts, ' ', 'listop_reverse', {});
+    }
+
+    my $opts = {};
+    my @texts = @exprs;
+
+    if ($name =~ /^(system|exec)$/
+	&& ($op->flags & OPf_STACKED)
+	&& @texts > 1)
+    {
+	# handle the "system(prog a1, a2, ...)" form
+	# where there is no ', ' between the first two arguments.
+	my $prog = shift @texts;
+	my $first_arg = shift @texts;
+	my @two_args = ($prog, $first_arg);
+	unshift @texts, info_from_list($prog->{op}, $self, [$prog, $first_arg],
+				       ' ', 'system|exec', {});
+    }
+
+    my $type;
+    if ($parens && $nollafr) {
+	@texts = ("($fullname ", $self->combine(', ', \@texts), ')');
+	$type = 'listop_parens_noallfr';
+    } elsif ($parens) {
+	@texts = ("$fullname(", $self->combine(", ", \@texts), ')');
+	$type = 'listop_parens';
+    } else {
+	@texts = ("$fullname ", $self->combine(', ', \@texts));
+	$type = 'listop';
+    }
+    return info_from_list($op, $self, \@texts, '', $type, $opts);
+}
+
+sub pp_bless { listop(@_, "bless") }
+sub pp_atan2 { maybe_targmy(@_, \&listop, "atan2") }
+sub pp_substr {
+    my ($self,$op,$cx) = @_;
+    if ($op->private & OPpSUBSTR_REPL_FIRST) {
+	my $left = listop($self, $op, 7, "substr", $op->first->sibling->sibling);
+	my $right = $self->deparse($op->first->sibling, 7, $op);
+	return info_from_list($op, $self,[$left, '=', $right], ' ',
+			      'substr_repl_first', {});
+    }
+    return maybe_local(@_, listop(@_, "substr"))
+}
+sub pp_vec { maybe_local(@_, listop(@_, "vec")) }
+sub pp_index { maybe_targmy(@_, \&listop, "index") }
+sub pp_rindex { maybe_targmy(@_, \&listop, "rindex") }
+sub pp_sprintf { maybe_targmy(@_, \&listop, "sprintf") }
+sub pp_formline { listop(@_, "formline") } # see also deparse_format
+sub pp_crypt { maybe_targmy(@_, \&listop, "crypt") }
+sub pp_unpack { listop(@_, "unpack") }
+sub pp_pack { listop(@_, "pack") }
+sub pp_join { maybe_targmy(@_, \&listop, "join") }
+sub pp_splice { listop(@_, "splice") }
+sub pp_push { maybe_targmy(@_, \&listop, "push") }
+sub pp_unshift { maybe_targmy(@_, \&listop, "unshift") }
+sub pp_reverse { listop(@_, "reverse") }
+sub pp_warn { listop(@_, "warn") }
+sub pp_die { listop(@_, "die") }
+sub pp_return { listop(@_, "return", undef, 1) } # llafr does not apply
+sub pp_open { listop(@_, "open") }
+sub pp_pipe_op { listop(@_, "pipe") }
+sub pp_tie { listop(@_, "tie") }
+sub pp_binmode { listop(@_, "binmode") }
+sub pp_dbmopen { listop(@_, "dbmopen") }
+sub pp_sselect { listop(@_, "select") }
+sub pp_select { listop(@_, "select") }
+sub pp_read { listop(@_, "read") }
+sub pp_sysopen { listop(@_, "sysopen") }
+sub pp_sysseek { listop(@_, "sysseek") }
+sub pp_sysread { listop(@_, "sysread") }
+sub pp_syswrite { listop(@_, "syswrite") }
+sub pp_send { listop(@_, "send") }
+sub pp_recv { listop(@_, "recv") }
+sub pp_seek { listop(@_, "seek") }
+sub pp_fcntl { listop(@_, "fcntl") }
+sub pp_ioctl { listop(@_, "ioctl") }
+sub pp_flock { maybe_targmy(@_, \&listop, "flock") }
+sub pp_socket { listop(@_, "socket") }
+sub pp_sockpair { listop(@_, "socketpair") }
+sub pp_bind { listop(@_, "bind") }
+sub pp_connect { listop(@_, "connect") }
+sub pp_listen { listop(@_, "listen") }
+sub pp_accept { listop(@_, "accept") }
+sub pp_shutdown { listop(@_, "shutdown") }
+sub pp_gsockopt { listop(@_, "getsockopt") }
+sub pp_ssockopt { listop(@_, "setsockopt") }
+sub pp_chown { maybe_targmy(@_, \&listop, "chown") }
+sub pp_unlink { maybe_targmy(@_, \&listop, "unlink") }
+sub pp_chmod { maybe_targmy(@_, \&listop, "chmod") }
+sub pp_utime { maybe_targmy(@_, \&listop, "utime") }
+sub pp_rename { maybe_targmy(@_, \&listop, "rename") }
+sub pp_link { maybe_targmy(@_, \&listop, "link") }
+sub pp_symlink { maybe_targmy(@_, \&listop, "symlink") }
+sub pp_mkdir { maybe_targmy(@_, \&listop, "mkdir") }
+sub pp_open_dir { listop(@_, "opendir") }
+sub pp_seekdir { listop(@_, "seekdir") }
+sub pp_waitpid { maybe_targmy(@_, \&listop, "waitpid") }
+sub pp_system { maybe_targmy(@_, \&listop, "system") }
+sub pp_exec { maybe_targmy(@_, \&listop, "exec") }
+sub pp_kill { maybe_targmy(@_, \&listop, "kill") }
+sub pp_setpgrp { maybe_targmy(@_, \&listop, "setpgrp") }
+sub pp_getpriority { maybe_targmy(@_, \&listop, "getpriority") }
+sub pp_setpriority { maybe_targmy(@_, \&listop, "setpriority") }
+sub pp_shmget { listop(@_, "shmget") }
+sub pp_shmctl { listop(@_, "shmctl") }
+sub pp_shmread { listop(@_, "shmread") }
+sub pp_shmwrite { listop(@_, "shmwrite") }
+sub pp_msgget { listop(@_, "msgget") }
+sub pp_msgctl { listop(@_, "msgctl") }
+sub pp_msgsnd { listop(@_, "msgsnd") }
+sub pp_msgrcv { listop(@_, "msgrcv") }
+sub pp_semget { listop(@_, "semget") }
+sub pp_semctl { listop(@_, "semctl") }
+sub pp_semop { listop(@_, "semop") }
+sub pp_ghbyaddr { listop(@_, "gethostbyaddr") }
+sub pp_gnbyaddr { listop(@_, "getnetbyaddr") }
+sub pp_gpbynumber { listop(@_, "getprotobynumber") }
+sub pp_gsbyname { listop(@_, "getservbyname") }
+sub pp_gsbyport { listop(@_, "getservbyport") }
+sub pp_syscall { listop(@_, "syscall") }
+
+sub pp_glob
+{
+    my($self, $op, $cx) = @_;
+
+    my $opts = {other_ops => [$op->first]};
+    my $kid = $op->first->sibling;  # skip pushmark
+    my $keyword =
+	$op->flags & OPf_SPECIAL ? 'glob' : $self->keyword('glob');
+
+    if ($keyword =~ /^CORE::/ or $kid->name ne 'const') {
+	my $kid_info = $self->dq($kid, $op);
+	my $body = [$kid_info];
+	my $text = $kid_info->{text};
+	if ($text =~ /^\$?(\w|::|\`)+$/ # could look like a readline
+	    or $text =~ /[<>]/) {
+	    $kid_info = $self->deparse($kid, 0, $op);
+	    $body = [$kid_info];
+	    $text = $kid_info->{text};
+	    $opts->{body} = $body;
+	    if ($cx >= 5 || $self->{'parens'}) {
+		return info_from_list($op, $self, [$keyword, '(', $text, ')'], '',
+				      'glob_paren', $opts);
+	    } else {
+		return info_from_list($op, $self, [$keyword, $text], ' ',
+				      'glob_space', $opts);
+	    }
+	} else {
+	    return info_from_list($op, $self, ['<', $text, '>'], '', 'glob_angle', $opts);
+	}
+    }
+    return info_from_list($op, $self, ['<', '>'], '', 'glob_angle', $opts);
+}
+
+# Truncate is special because OPf_SPECIAL makes a bareword first arg
+# be a filehandle. This could probably be better fixed in the core
+# by moving the GV lookup into ck_truc.
+
+sub pp_truncate
+{
+    my($self, $op, $cx) = @_;
+    my(@exprs);
+    my $parens = ($cx >= 5) || $self->{'parens'};
+    my $kid = $op->first->sibling;
+    my $fh;
+    if ($op->flags & OPf_SPECIAL) {
+	# $kid is an OP_CONST
+	$fh = $self->const_sv($kid)->PV;
+    } else {
+	$fh = $self->deparse($kid, 6, $op);
+        $fh = "+$fh" if not $parens and substr($fh, 0, 1) eq "(";
+    }
+    my $len = $self->deparse($kid->sibling, 6, $op);
+    my $name = $self->keyword('truncate');
+    my $opts = {body => [$fh, $len]};
+    my $args = "$fh->{text}, $len->{text}";
+    if ($parens) {
+	return info_from_list($op, $self, [$name, '(', $args, ')'], '',
+			      'truncate_parens', $opts);
+	return "$name($fh, $len)";
+    } else {
+	return info_from_list($op, $self, [$name, $args], '', 'truncate', $opts);
+    }
+}
+
+sub pp_list
+{
+    my($self, $op, $cx) = @_;
+    my($expr, @exprs);
+
+    my $other_op = $op->first;
+    my $kid = $op->first->sibling; # skip a pushmark
+
+    if (class($kid) eq 'NULL') {
+	return info_from_text($op, $self, '', 'list_null',
+			      {other_ops => [$other_op]});
+    }
+    my $lop;
+    my $local = "either"; # could be local(...), my(...), state(...) or our(...)
+    for ($lop = $kid; !null($lop); $lop = $lop->sibling) {
+	# This assumes that no other private flags equal 128, and that
+	# OPs that store things other than flags in their op_private,
+	# like OP_AELEMFAST, won't be immediate children of a list.
+	#
+	# OP_ENTERSUB and OP_SPLIT can break this logic, so check for them.
+	# I suspect that open and exit can too.
+	# XXX This really needs to be rewritten to accept only those ops
+	#     known to take the OPpLVAL_INTRO flag.
+
+	if (!($lop->private & (OPpLVAL_INTRO|OPpOUR_INTRO)
+		or $lop->name eq "undef")
+	    or $lop->name =~ /^(?:entersub|exit|open|split)\z/)
+	{
+	    $local = ""; # or not
+	    last;
+	}
+	if ($lop->name =~ /^pad[ash]v$/) {
+	    if ($lop->private & OPpPAD_STATE) { # state()
+		($local = "", last) if $local =~ /^(?:local|our|my)$/;
+		$local = "state";
+	    } else { # my()
+		($local = "", last) if $local =~ /^(?:local|our|state)$/;
+		$local = "my";
+	    }
+	} elsif ($lop->name =~ /^(gv|rv2)[ash]v$/
+			&& $lop->private & OPpOUR_INTRO
+		or $lop->name eq "null" && $lop->first->name eq "gvsv"
+			&& $lop->first->private & OPpOUR_INTRO) { # our()
+	    ($local = "", last) if $local =~ /^(?:my|local|state)$/;
+	    $local = "our";
+	} elsif ($lop->name ne "undef"
+		# specifically avoid the "reverse sort" optimisation,
+		# where "reverse" is nullified
+		&& !($lop->name eq 'sort' && ($lop->flags & OPpSORT_REVERSE)))
+	{
+	    # local()
+	    ($local = "", last) if $local =~ /^(?:my|our|state)$/;
+	    $local = "local";
+	}
+    }
+    $local = "" if $local eq "either"; # no point if it's all undefs
+    if (null $kid->sibling and not $local) {
+	my $info = $self->deparse($kid, $cx, $op);
+	my @other_ops = $info->{other_ops} ? @{$info->{other_ops}} : ();
+	push @other_ops, $other_op;
+	$info->{other_ops} = \@other_ops;
+	return $info;
+    }
+
+    for (; !null($kid); $kid = $kid->sibling) {
+	if ($local) {
+	    if (class($kid) eq "UNOP" and $kid->first->name eq "gvsv") {
+		$lop = $kid->first;
+	    } else {
+		$lop = $kid;
+	    }
+	    $self->{'avoid_local'}{$$lop}++;
+	    $expr = $self->deparse($kid, 6, $op);
+	    delete $self->{'avoid_local'}{$$lop};
+	} else {
+	    $expr = $self->deparse($kid, 6, $op);
+	}
+	push @exprs, $expr;
+    }
+
+    my $type;
+    my @texts;
+    my $opts = {};
+    if ($local) {
+	$type = 'list_local';
+	@texts = ($local, '(', $self->combine(", ", \@exprs), ')');
+    } else {
+	$type = 'list';
+	@texts = ($self->combine(", ", \@exprs));
+	$opts->{maybe_parens} = [$self, $cx, 6];
+
+    }
+    return info_from_list($op, $self, \@texts, '', $type, $opts);
 }
 
 sub map_texts($$)
