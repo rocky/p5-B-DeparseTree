@@ -497,6 +497,7 @@ sub maybe_parens_func($$$$$)
     }
 }
 
+# FIXME this doesn't return a String!
 sub maybe_local_str($$$$)
 {
     my($self, $op, $cx, $text) = @_;
@@ -525,6 +526,7 @@ sub maybe_local_str($$$$)
     }
 }
 
+# FIXME: This is weird. Regularize var_info
 sub maybe_local {
     my($self, $op, $cx, $var_info) = @_;
     $var_info->{parent} = $$op;
@@ -1954,7 +1956,7 @@ sub loop_common
 	    push @head, $body_info;
 	    my @texts = ($body_info->{text}, "foreach", '(', @ary_text, ')');
 	    return info_from_list($body->{op}, $self, \@texts, ' ', 'loop_foreach_ary',
-				  {body => \@head, other_ops => \@other_ops});
+				  {other_ops => \@other_ops});
 	}
 	@head_text = ("foreach", @var_text, '(', @ary_text, ')');
     } elsif ($kid->name eq "null") {
@@ -2164,6 +2166,7 @@ sub gv_or_padgv {
     }
 }
 
+# FIXME: adjust use of maybe_local_str
 sub pp_gvsv
 {
     my($self, $op, $cx) = @_;
@@ -3312,7 +3315,6 @@ sub re_dq {
 	$info->{text} =~ s/^\$([(|)])\z/\${$1}/; # $( $| $) need braces
 	return $info;
     }
-    $opts->{body} = [$re];
     return info_from_list($op, $self, \@texts, '', $type, $opts);
 }
 

@@ -42,6 +42,26 @@ sub get_parent_addr_info($)
     return $deparse->{optree}{$parent_addr};
 }
 
+sub trim_line_pair($$$$) {
+    my ($parent_text, $child_text, $start_index,$dash_type) = @_;
+    my $last_pos = 0;
+    my $start_search = index($parent_text, $child_text);
+    while ($start_search >= 0) {
+	$last_pos = $start_search;
+	$start_search = index($parent_text, $child_text, $last_pos+1);
+    }
+    my $parent_underline = ' ' x ($start_index - $last_pos) ;
+    $parent_underline .= $dash_type x length($child_text);
+
+    # If the parent text is longer than a line, use just the line.
+    # The underline indicator adds an elipsis to show it is elided.
+    my @parent_lines = split(/\n/, substr($parent_text, $last_pos));
+    my $stripped_parent = $parent_lines[0];
+    if (length($parent_underline) > length($stripped_parent)) {
+	$parent_underline = substr($parent_underline, 0, length($stripped_parent)) . '...';
+    }
+    return [$stripped_parent, $parent_underline];
+}
 
 sub extract_node_info($)
 {
@@ -72,11 +92,9 @@ sub extract_node_info($)
 			$result .= $separator;
 			my @remain_texts = @texts[$i+1..$#texts];
 			my $tail = $deparsed->combine2str($separator, \@remain_texts);
-			# FIXME remove trailing split on "\n'
-			# Also remove leading \n.
 			$result .=  $tail;
 		    }
-		    return [$result, $parent_underline];
+		    return trim_line_pair($result, $child_text, 0, '-');
 		} else {
 		    $result .= $text->[0];
 		}
@@ -89,11 +107,9 @@ sub extract_node_info($)
 			$result .= $separator;
 			my @remain_texts = @texts[$i+1..$#texts];
 			my $tail = $deparsed->combine2str($separator, \@remain_texts);
-			# FIXME remove trailing split on "\n'
-			# Also remove leading \n.
 			$result .=  $tail;
 		    }
-		    return [$result, $parent_underline];
+		    return trim_line_pair($result, $child_text, 0, '-');
 		} else {
 		    $result .= $text->{text};
 		}
@@ -110,23 +126,7 @@ sub extract_node_info($)
 	if (index($parent_text, $child_text, $start_index+1) < 0) {
 	    # It is in there *uniquely*!
 	    # Remove any \n's before the text.
-	    my $last_pos = 0;
-	    my $start_search = index($parent_text, $child_text);
-	    while ($start_search >= 0) {
-		$last_pos = $start_search;
-		$start_search = index($parent_text, $child_text, $last_pos+1);
-	    }
-	    my $parent_underline = ' ' x ($start_index - $last_pos) ;
-	    $parent_underline .= '~' x length($child_text);
-
-	    # If the parent text is longer than a line, use just the line.
-	    # The underline indicator adds an elipsis to show it is elided.
-	    my @parent_lines = split(/\n/, substr($parent_text, $last_pos));
-	    my $stripped_parent = @parent_lines[0];
-	    if (length($parent_underline) > length($stripped_parent)) {
-		$parent_underline = substr($parent_underline, 0, length($stripped_parent)) . '...';
-	    }
-	    return [$stripped_parent, $parent_underline];
+	    return trim_line_pair($parent_text, $child_text, $start_index, '~');
 	}
     }
 }
