@@ -59,7 +59,12 @@ use B::DeparseTree::Common;
 use B::DeparseTree::PP;
 use B::Deparse;
 
+# Copy unchanged functions from B::Deparse
 *begin_is_use = *B::Deparse::begin_is_use;
+*const_sv = *B::Deparse::const_sv;
+*padname_sv = *B::Deparse::padname_sv;
+*meth_sv = *B::Deparse::meth_sv;
+*meth_rclass_sv = *B::Deparse::meth_rclass_sv;
 
 use strict;
 use vars qw/$AUTOLOAD/;
@@ -67,7 +72,7 @@ use warnings ();
 require feature;
 
 our($VERSION, @EXPORT, @ISA);
-our $VERSION = '2.0';
+our $VERSION = '3.0.0';
 
 @ISA = qw(Exporter B::DeparseTree::Common);
 @EXPORT = qw(compile);
@@ -481,7 +486,7 @@ sub maybe_parens_func($$$$$)
     }
 }
 
-sub maybe_local_str($$$$)
+sub maybe_local_str
 {
     my($self, $op, $cx, $text) = @_;
     my $our_intro = ($op->name =~ /^(gv|rv2)[ash]v$/) ? OPpOUR_INTRO : 0;
@@ -511,14 +516,11 @@ sub maybe_local_str($$$$)
 
 sub maybe_local {
     my($self, $op, $cx, $var_info) = @_;
+    if (!ref($var_info)) {
+	use Enbugger 'trepan'; Enbugger->stop;
+    }
     $var_info->{parent} = $$op;
     return maybe_local_str($self, $op, $cx, $var_info->{text});
-}
-
-sub padname_sv {
-    my $self = shift;
-    my $targ = shift;
-    return $self->{'curcv'}->PADLIST->ARRAYelt(0)->ARRAYelt($targ);
 }
 
 sub maybe_my {
@@ -2296,6 +2298,7 @@ sub pp_rv2av {
 	my $av = $self->const_sv($kid);
 	return $self->list_const($kid, $cx, $av->ARRAY);
     } else {
+	# FIXME?
 	return $self->maybe_local($op, $cx, $self->rv2x($op, $cx, "\@"));
     }
  }

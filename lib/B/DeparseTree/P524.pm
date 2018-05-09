@@ -57,10 +57,11 @@ use B qw(class opnumber
 
 use B::DeparseTree::Common;
 use B::DeparseTree::PP;
-# use B::Deparse;
+use B::Deparse;
 
 # Copy unchanged functions from B::Deparse
 *begin_is_use = *B::Deparse::begin_is_use;
+*const_sv = *B::Deparse::const_sv;
 *padname_sv = *B::Deparse::padname_sv;
 *meth_sv = *B::Deparse::meth_sv;
 *meth_rclass_sv = *B::Deparse::meth_rclass_sv;

@@ -2309,8 +2309,8 @@ sub pp_av2arylen {
     if ($op->first->name eq "padav") {
 	return $self->maybe_local_str($op, $cx, '$#' . $self->padany($op->first));
     } else {
-	return $self->maybe_local($op, $cx,
-				  $self->rv2x($op->first, $cx, '$#'));
+	return $self->maybe_local_str($op, $cx,
+				      $self->rv2x($op->first, $cx, '$#'));
     }
 }
 
