@@ -99,6 +99,7 @@ $VERSION = '1.1.0';
     style_opts
     unback
     uninterp
+    unop
     );
 
 my $bal;
@@ -860,27 +861,27 @@ sub const {
     if ($sv->FLAGS & SVf_IOK) {
 	my $str = $sv->int_value;
 	$str = $self->maybe_parens($str, $cx, 21) if $str < 0;
-	return info_from_text($sv, $self, $str, 'const_INT', {});
+	return info_from_text($sv, $self, $str, 'integer constant', {});
     } elsif ($sv->FLAGS & SVf_NOK) {
 	my $nv = $sv->NV;
 	if ($nv == 0) {
 	    if (pack("F", $nv) eq pack("F", 0)) {
 		# positive zero
-		return info_from_text($sv, $self, "0", 'const_plus_zero', {});
+		return info_from_text($sv, $self, "0", 'constant float positive 0', {});
 	    } else {
 		# negative zero
 		return info_from_text($sv, $self, $self->maybe_parens("-.0", $cx, 21),
-				 'const_minus_zero', {});
+				 'constant float negative 0', {});
 	    }
 	} elsif (1/$nv == 0) {
 	    if ($nv > 0) {
 		# positive infinity
 		return info_from_text($sv, $self, $self->maybe_parens("9**9**9", $cx, 22),
-				 'const_plus_inf', {});
+				 'constant float +infinity', {});
 	    } else {
 		# negative infinity
 		return info_from_text($sv, $self, $self->maybe_parens("-9**9**9", $cx, 21),
-				 'const_minus_inf', {});
+				 'constant float -infinity', {});
 	    }
 	} elsif ($nv != $nv) {
 	    # NaN
@@ -890,12 +891,12 @@ sub const {
 	    } elsif (pack("F", $nv) eq pack("F", -sin(9**9**9))) {
 		# the inverted kind
 		return info_from_text($sv, $self, $self->maybe_parens("-sin(9**9**9)", $cx, 21),
-				 'const_Nan_invert', {});
+				 'constant float Nan invert', {});
 	    } else {
 		# some other kind
 		my $hex = unpack("h*", pack("F", $nv));
 		return info_from_text($sv, $self, qq'unpack("F", pack("h*", "$hex"))',
-				 'const_Na_na_na', {});
+				 'constant Na na na', {});
 	    }
 	}
 	# first, try the default stringification
@@ -909,11 +910,11 @@ sub const {
 		# and atof() Perl is using here.
 		my($mant, $exp) = split_float($nv);
 		return info_from_text($sv, $self, $self->maybe_parens("$mant * 2**$exp", $cx, 19),
-				 'const_not_nv', {});
+				 'constant float not-sprintf/atof-able', {});
 	    }
 	}
 	$str = $self->maybe_parens($str, $cx, 21) if $nv < 0;
-	return info_from_text($sv, $self, $str, 'const_nv', {});
+	return info_from_text($sv, $self, $str, 'constant nv', {});
     } elsif ($sv->FLAGS & SVf_ROK && $sv->can("RV")) {
 	my $ref = $sv->RV;
 	if (class($ref) eq "AV") {
@@ -926,7 +927,8 @@ sub const {
 	    for my $k (sort keys %hash) {
 		push @elts, "$k => " . $self->const($hash{$k}, 6);
 	    }
-	    return info_from_list($sv, $self, ["{", join(", ", @elts), "}"], '', 'const_hv', {});
+	    return info_from_list($sv, $self, ["{", join(", ", @elts), "}"], '',
+				  'constant hash value', {});
 	} elsif (class($ref) eq "CV") {
 	    BEGIN {
 		if ($] > 5.0150051) {
@@ -936,10 +938,12 @@ sub const {
 	    }
 	    if ($] > 5.0150051 && $self->{curcv} &&
 		 $self->{curcv}->object_2svref == $ref->object_2svref) {
-		return info_from_text($sv, $self, $self->keyword("__SUB__"), 'const_sub', {});
+		return info_from_text($sv, $self, $self->keyword("__SUB__"),
+				      'constant sub', {});
 	    }
 	    my $sub_info = $self->deparse_sub($ref);
-	    return info_from_list($sub_info->{op}, $self, ["sub ", $sub_info->{text}], '', 'const_sub2',
+	    return info_from_list($sub_info->{op}, $self, ["sub ", $sub_info->{text}], '',
+				  'constant sub 2',
 				  {body => [$sub_info]});
 	}
 	if ($ref->FLAGS & SVs_SMG) {
@@ -967,7 +971,7 @@ sub const {
 	    return $self->single_delim($sv, "q", "'", unback $str);
 	}
     } else {
-	return info_from_text($sv, $self, "undef", 'const_undef', {});
+	return info_from_text($sv, $self, "undef", 'constant undef', {});
     }
 }
 
@@ -982,7 +986,7 @@ sub const_dumper
     if ($str =~ /^\$v/) {
         return info_from_text($sv, $self, ['${my', $str, '\$v}'], 'const_dumper_my', {});
     } else {
-        return info_from_text($sv, $self, $str, 'const_dumper', {});
+        return info_from_text($sv, $self, $str, 'constant dumper', {});
     }
 }
 
@@ -2374,25 +2378,64 @@ sub single_delim($$$$$) {
 	# FIXME: this is a workaround.
 	$str = '"';
     }
-    return info_from_list($op, $self, [$default, $str, $default], '', 'single_delim_default', {})
+    return info_from_list($op, $self, [$default, $str, $default], '',
+			  "single delimiter default $default", {})
 	if $default and index($str, $default) == -1;
     if ($q ne 'qr') {
 	(my $succeed, $str) = balanced_delim($str);
-	return info_from_list($op, $self, [$q, $str], '', 'single_delim', {}) if $succeed;
+	return info_from_list($op, $self, [$q, $str], '', "single delimiter $q", {}) if $succeed;
     }
     for my $delim ('/', '"', '#') {
 	return info_from_list($op, $self, [$q, $delim, $str,
-			   $delim], '', 'single_delim_qr', {})
+			   $delim], '', "single delimiter qr $delim", {})
 	    if index($str, $delim) == -1;
     }
     if ($default) {
 	$str =~ s/$default/\\$default/g;
 	return info_from_list($op, $self, [$default, $str, $default], '',
-	    'single_delim_qr_esc', {});
+	    "single delimiter qr escacpe $default", {});
     } else {
 	$str =~ s[/][\\/]g;
 	return info_from_list($op, $self, [$q, '/', $str, '/'], '',
-	    'single_delim_qr', {});
+	    "single delimiter qr /", {});
+    }
+}
+
+sub unop
+{
+    my($self, $op, $cx, $name, $nollafr) = @_;
+    my $kid;
+    if ($op->flags & OPf_KIDS) {
+	$kid = $op->first;
+ 	if (not $name) {
+ 	    # this deals with 'boolkeys' right now
+ 	    return $self->deparse($kid, $cx, $op);
+ 	}
+	my $builtinname = $name;
+	$builtinname =~ /^CORE::/ or $builtinname = "CORE::$name";
+	if (defined prototype($builtinname)
+	   && $builtinname ne 'CORE::readline'
+	   && prototype($builtinname) =~ /^;?\*/
+	   && $kid->name eq "rv2gv") {
+	    $kid = $kid->first;
+	}
+
+	if ($nollafr) {
+	    $kid = $self->deparse($kid, 16, $op);
+	    ($kid->{text}) =~ s/^\cS//;
+	    my $opts = {
+		body => [$kid],
+		maybe_parens => [$self, $cx, 16],
+	    };
+	    return info_from_list($op, $self, [($self->keyword($name), $kid->{text})],
+				  ' ', 'unary operator noallafr', $opts);
+	}
+	return $self->maybe_parens_unop($name, $kid, $cx, $op);
+    } else {
+	my $opts = {maybe_parens => [$self, $cx, 16]};
+	my @texts = ($self->keyword($name));
+	push @texts, '()' if $op->flags & OPf_SPECIAL;
+	return info_from_list($op, $self, \@texts, '', 'unary operator', $opts);
     }
 }
 

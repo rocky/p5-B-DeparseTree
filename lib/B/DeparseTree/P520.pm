@@ -884,43 +884,6 @@ sub pp_not
     }
 }
 
-sub unop
-{
-    my($self, $op, $cx, $name, $nollafr) = @_;
-    my $kid;
-    if ($op->flags & OPf_KIDS) {
-	$kid = $op->first;
- 	if (not $name) {
- 	    # this deals with 'boolkeys' right now
- 	    return $self->deparse($kid, $cx, $op);
- 	}
-	my $builtinname = $name;
-	$builtinname =~ /^CORE::/ or $builtinname = "CORE::$name";
-	if (defined prototype($builtinname)
-	   && prototype($builtinname) =~ /^;?\*/
-	   && $kid->name eq "rv2gv") {
-	    $kid = $kid->first;
-	}
-
-	if ($nollafr) {
-	    $kid = $self->deparse($kid, 16, $op);
-	    ($kid->{text}) =~ s/^\cS//;
-	    my $opts = {
-		body => [$kid],
-		maybe_parens => [$self, $cx, 16],
-	    };
-	    return info_from_list($op, $self, [($self->keyword($name), $kid->{text})],
-				  ' ', 'unop_noallafr', $opts);
-	}
-	return $self->maybe_parens_unop($name, $kid, $cx, $op);
-    } else {
-	my $opts = {maybe_parens => [$self, $cx, 16]};
-	my @texts = ($self->keyword($name));
-	push @texts, '()' if $op->flags & OPf_SPECIAL;
-	return info_from_list($op, $self, \@texts, '', 'unop_nokid', $opts);
-    }
-}
-
 sub pp_chop { maybe_targmy(@_, \&unop, "chop") }
 sub pp_chomp { maybe_targmy(@_, \&unop, "chomp") }
 sub pp_schop { maybe_targmy(@_, \&unop, "chop") }

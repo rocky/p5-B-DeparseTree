@@ -417,10 +417,10 @@ sub pp_entersub
 	    $subname_info->{text} = join('', $subname_info->{texts});
 	}
 	if ($op->flags & OPf_STACKED) {
-	    $type = 'entersub_prefix_or_amper_stacked';
+	    $type = 'entersub prefix or & stacked';
 	    @texts = ($prefix, $amper, $subname_info, "(", $self->combine2str(', ', \@body), ")");
 	} else {
-	    $type = 'entersub_prefix_or_amper';
+	    $type = 'entersub prefix or_&';
 	    @texts = ($prefix, $amper, $subname_info);
 	}
     } else {
@@ -430,21 +430,21 @@ sub pp_entersub
 	$subname_info->{text} =~ s/^CORE::GLOBAL:://;
 	my $dproto = defined($proto) ? $proto : "undefined";
         if (!$declared) {
-	    $type = 'entersub_not_declared';
+	    $type = 'entersub undefined';
 	    @texts = dedup_parens_func($self, $subname_info, \@body);
 	} elsif ($dproto =~ /^\s*\z/) {
-	    $type = 'entersub_null_proto';
+	    $type = 'entersub no protype';
 	    @texts = ($subname_info);
 	} elsif ($dproto eq "\$" and is_scalar($exprs[0])) {
-	    $type = 'entersub_dollar_proto';
+	    $type = 'entersub $ prototype';
 	    # is_scalar is an excessively conservative test here:
 	    # really, we should be comparing to the precedence of the
 	    # top operator of $exprs[0] (ala unop()), but that would
 	    # take some major code restructuring to do right.
-	    @texts = $self->maybe_parens_func($kid, $self->combine2str(', ', \@body), $cx, 16);
+	    @texts = $self->maybe_parens_func($sub_name, $self->combine2str(', ', \@body), $cx, 16);
 	} elsif ($dproto ne '$' and defined($proto) || $simple) { #'
-	    $type = 'entersub_proto';
-	    @texts = $self->maybe_parens_func($subname_info, $self->combine2str(', ', \@body), $cx, 5);
+	    $type = 'entersub prototype';
+	    @texts = $self->maybe_parens_func($sub_name, $self->combine2str(', ', \@body), $cx, 5);
 	} else {
 	    $type = 'entersub';
 	    @texts = dedup_parens_func($self, $subname_info, \@body);
