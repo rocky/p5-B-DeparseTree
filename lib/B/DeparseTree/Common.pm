@@ -559,7 +559,7 @@ sub pp_list
 	}
     }
     $local = "" if $local eq "either"; # no point if it's all undefs
-    if (null $kid->sibling and not $local) {
+    if (B::Deparse::null $kid->sibling and not $local) {
 	my $info = $self->deparse($kid, $cx, $op);
 	my @other_ops = $info->{other_ops} ? @{$info->{other_ops}} : ();
 	push @other_ops, $other_op;
