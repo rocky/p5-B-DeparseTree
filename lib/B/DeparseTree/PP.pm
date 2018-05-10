@@ -272,7 +272,7 @@ sub pp_cond_expr
 	my $true_info = $self->deparse($true, 6, $op);
 	my $false_info = $self->deparse($false, 8, $op);
 	my @texts = ($cond_info, '?', $true_info, ':', $false_info);
-	return info_from_list($op, $self, \@texts, ' ', 'pp_cond_expr_if_else',
+	return info_from_list($op, $self, \@texts, ' ', 'ternary ?',
 				  {maybe_parens => [$self, $cx, 8]});
     }
 
@@ -300,15 +300,18 @@ sub pp_cond_expr
 		       "\n\b}");
     }
     my $false_info;
+    my $type;
     if (!null($false)) {
 	$false_info = $self->deparse($false, 0, $op);
 	$false_info->{text} = $cuddle . "else {\n\t" . $false_info->{text} . "\n\b}\cK";
+	$type = 'if else';
     } else {
 	$false_info->{text} = "\cK";
+	$type = 'if';
     }
     my @texts = (@head, @elsifs, $false_info->{text});
     my $text = join('', @head) . join($cuddle, @elsifs) . $false_info->{text};
-    return info_from_list($op, $self, \@texts, ' ', 'pp_cond_expr', {});
+    return info_from_list($op, $self, \@texts, '', $type, {});
 }
 
 sub pp_const {

@@ -1849,24 +1849,19 @@ sub scopeop
 	    } elsif ($name eq "or") {
 		$name = $self->keyword("until");
 	    } else { # no conditional -> while 1 or until 0
-		my $body = [$self->deparse($top->first, 1, $top)];
-		return info_from_list $op, $self, [$body->{text}, 'while', '1'],
-				      ' ', 'while_1', {body =>$body};
+		my $body = $self->deparse($top->first, 1, $top);
+		return info_from_list $op, $self, [$body, 'while', '1'],
+				      ' ', "$name 1", {};
 	    }
 	    my $cond = $top->first;
 	    my $other_ops = [$cond->sibling];
 	    my $body = $cond->sibling->first; # skip lineseq
 	    my $cond_info = $self->deparse($cond, 1, $top);
 	    my $body_info = $self->deparse($body, 1, $top);
-	    my @texts = ($body_info->{text}, $name, $cond_info->{text});
-	    my $text = join(' ', @texts);
-	    return {
-		type => 'scopeop_block',
-		body => [$cond_info, $body_info],
-		texts => \@texts,
-		text => $text,
-		other_ops => $other_ops,
-	    };
+	    return  info_from_list($op, $self,
+				   [$body_info, $name, $cond_info], ' ',
+				   "$name",
+				   {other_ops => $other_ops});
 	}
     } else {
 	$kid = $op->first;
@@ -1879,18 +1874,15 @@ sub scopeop
 	my $body = $self->lineseq($op, 0, @kids);
 	my @texts = ($body->{text});
 	my $text;
+	my $type = 'scope expression';
 	unless (is_lexical_subs(@kids)) {
+	    $type = 'scope do';
 	    @texts = ('do ', "{\n\t", @texts, "\n\b}");
 	};
-	return {
-	    type => 'scope_expr',
-	    text => join('', @texts),
-	    texts => \@texts,
-	};
+	return info_from_list($op, $self, \@texts, '', $type, {});
     } else {
 	my $ls = $self->lineseq($op, $cx, @kids);
-	my $text = $ls->{text};
-	return info_from_text($op, $self, $text, 'scopeop', {});
+	return info_from_list($op, $self, [$ls], '', 'scope line sequence', {});
     }
 }
 
@@ -2422,7 +2414,7 @@ sub single_delim($$$$$) {
     if ($default) {
 	$str =~ s/$default/\\$default/g;
 	return info_from_list($op, $self, [$default, $str, $default], '',
-	    "single delimiter qr escacpe $default", {});
+	    "single delimiter qr escape $default", {});
     } else {
 	$str =~ s[/][\\/]g;
 	return info_from_list($op, $self, [$q, '/', $str, '/'], '',
