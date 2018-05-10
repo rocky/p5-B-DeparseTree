@@ -440,10 +440,10 @@ sub pp_entersub
 	    $subname_info->{text} = join('', $subname_info->{texts});
 	}
 	if ($op->flags & OPf_STACKED) {
-	    $type = 'entersub prefix or & stacked';
+	    $type = 'prefix- or &-stacked call()';
 	    @texts = ($prefix, $amper, $subname_info, "(", $self->combine2str(', ', \@body), ")");
 	} else {
-	    $type = 'entersub prefix or_&';
+	    $type = 'prefix or &- call';
 	    @texts = ($prefix, $amper, $subname_info);
 	}
     } else {
@@ -453,23 +453,23 @@ sub pp_entersub
 	$subname_info->{text} =~ s/^CORE::GLOBAL:://;
 	my $dproto = defined($proto) ? $proto : "undefined";
         if (!$declared) {
-	    $type = 'entersub undefined';
+	    $type = 'call undefined';
 	    @texts = dedup_parens_func($self, $subname_info, \@body);
 	} elsif ($dproto =~ /^\s*\z/) {
-	    $type = 'entersub no protype';
+	    $type = 'call no protype';
 	    @texts = ($subname_info);
 	} elsif ($dproto eq "\$" and is_scalar($exprs[0])) {
-	    $type = 'entersub $ prototype';
+	    $type = 'call - $ prototype';
 	    # is_scalar is an excessively conservative test here:
 	    # really, we should be comparing to the precedence of the
 	    # top operator of $exprs[0] (ala unop()), but that would
 	    # take some major code restructuring to do right.
 	    @texts = $self->maybe_parens_func($sub_name, $self->combine2str(', ', \@body), $cx, 16);
 	} elsif ($dproto ne '$' and defined($proto) || $simple) { #'
-	    $type = 'entersub prototype';
+	    $type = 'call with prototype';
 	    @texts = $self->maybe_parens_func($sub_name, $self->combine2str(', ', \@body), $cx, 5);
 	} else {
-	    $type = 'entersub';
+	    $type = 'call';
 	    @texts = dedup_parens_func($self, $subname_info, \@body);
 	}
     }
