@@ -971,33 +971,6 @@ sub cop_subs {
     return $self->seq_subs($seq);
 }
 
-sub seq_subs {
-    my ($self, $seq) = @_;
-    my @text;
-    #push @text, "# ($seq)\n";
-
-    return "" if !defined $seq;
-    my @pending;
-    while (scalar(@{$self->{'subs_todo'}})
-	   and $seq > $self->{'subs_todo'}[0][0]) {
-	my $cv = $self->{'subs_todo'}[0][1];
-	# Skip the OUTSIDE check for lexical subs.  We may be deparsing a
-	# cloned anon sub with lexical subs declared in it, in which case
-	# the OUTSIDE pointer points to the anon protosub.
-	my $lexical = ref $self->{'subs_todo'}[0][3];
-	my $outside = !$lexical && $cv && $cv->OUTSIDE;
-	if (!$lexical and $cv
-	 and ${$cv->OUTSIDE || \0} != ${$self->{'curcv'}})
-	{
-	    push @pending, shift @{$self->{'subs_todo'}};
-	    next;
-	}
-	push @text, $self->next_todo;
-    }
-    unshift @{$self->{'subs_todo'}}, @pending;
-    return @text;
-}
-
 sub pp_unstack {
     # see also leaveloop
     return info_from_text('', 'unstack', {});
@@ -1076,16 +1049,7 @@ sub pp_not
     }
 }
 
-sub pp_chop { maybe_targmy(@_, \&unop, "chop") }
-sub pp_chomp { maybe_targmy(@_, \&unop, "chomp") }
-sub pp_schop { maybe_targmy(@_, \&unop, "chop") }
-sub pp_schomp { maybe_targmy(@_, \&unop, "chomp") }
-sub pp_defined { unop(@_, "defined") }
-sub pp_undef { unop(@_, "undef") }
-sub pp_study { unop(@_, "study") }
-sub pp_ref { unop(@_, "ref") }
 sub pp_pos { maybe_local(@_, unop(@_, "pos")) }
-
 sub pp_sin { maybe_targmy(@_, \&unop, "sin") }
 sub pp_cos { maybe_targmy(@_, \&unop, "cos") }
 sub pp_rand { maybe_targmy(@_, \&unop, "rand") }

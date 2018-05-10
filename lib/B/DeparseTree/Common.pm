@@ -95,6 +95,7 @@ $VERSION = '1.1.0';
     re_uninterp
     re_uninterp_extended
     scopeop
+    seq_subs
     single_delim
     style_opts
     unback
@@ -1743,8 +1744,8 @@ sub next_todo
 	    push @texts, $name;
 	}
 	my $info = $self->deparse_sub($cv, $parent);
-	push @texts, $info->{text};
-	return info_from_list($cv, $self, \@texts, ' ', 'sub_todo', {body=>[$info]})
+	push @texts, $info;
+	return info_from_list($cv, $self, \@texts, ' ', 'sub_todo', {})
     }
 }
 
@@ -2370,6 +2371,34 @@ sub mapop
     return info_from_list $op, $self, \@texts, '', 'mapop', $opts;
 }
 
+
+sub seq_subs {
+    my ($self, $seq) = @_;
+    my @text;
+    # push @text, "# ($seq)\n";
+
+    return "" if !defined $seq;
+    my $sep = "\n\nsub ";
+    my @pending;
+    while (scalar(@{$self->{'subs_todo'}})
+	   and $seq > $self->{'subs_todo'}[0][0]) {
+	my $cv = $self->{'subs_todo'}[0][1];
+	# Skip the OUTSIDE check for lexical subs.  We may be deparsing a
+	# cloned anon sub with lexical subs declared in it, in which case
+	# the OUTSIDE pointer points to the anon protosub.
+	my $lexical = ref $self->{'subs_todo'}[0][3];
+	my $outside = !$lexical && $cv && $cv->OUTSIDE;
+	if (!$lexical and $cv
+	 and ${$cv->OUTSIDE || \0} != ${$self->{'curcv'}})
+	{
+	    push @pending, shift @{$self->{'subs_todo'}};
+	    next;
+	}
+	push @text, $sep if @text;
+	push @text, $self->next_todo;
+    }
+    return @text;
+}
 
 sub single_delim($$$$$) {
     my($self, $op, $q, $default, $str) = @_;

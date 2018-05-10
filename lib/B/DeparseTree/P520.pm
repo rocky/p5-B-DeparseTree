@@ -368,7 +368,7 @@ sub begin_is_use
     for ($svop=$svop->sibling; $svop->name ne "method_named";
 		$svop = $svop->sibling) {
 	$args .= ", " if length($args);
-	$args .= $self->deparse($svop, 6, $root);
+	$args .= $self->deparse($svop, 6, $root)->{text};
     }
 
     my $use = 'use';
@@ -809,19 +809,6 @@ sub cop_subs {
     return $self->seq_subs($seq);
 }
 
-sub seq_subs {
-    my ($self, $seq) = @_;
-    my @text;
-    # push @text, "# ($seq)\n";
-
-    return "" if !defined $seq;
-    while (scalar(@{$self->{'subs_todo'}})
-	   and $seq > $self->{'subs_todo'}[0][0]) {
-	push @text, $self->next_todo;
-    }
-    return @text;
-}
-
 my %feature_keywords = (
   # keyword => 'feature',
     state   => 'state',
@@ -884,20 +871,14 @@ sub pp_not
     }
 }
 
-sub pp_chop { maybe_targmy(@_, \&unop, "chop") }
-sub pp_chomp { maybe_targmy(@_, \&unop, "chomp") }
-sub pp_schop { maybe_targmy(@_, \&unop, "chop") }
-sub pp_schomp { maybe_targmy(@_, \&unop, "chomp") }
-sub pp_defined { unop(@_, "defined") }
-sub pp_undef { unop(@_, "undef") }
-sub pp_study { unop(@_, "study") }
-sub pp_ref { unop(@_, "ref") }
+# Note: maybe_local things can't be moved to PP yet.
 sub pp_pos { maybe_local(@_, unop(@_, "pos")) }
-
 sub pp_sin { maybe_targmy(@_, \&unop, "sin") }
 sub pp_cos { maybe_targmy(@_, \&unop, "cos") }
 sub pp_rand { maybe_targmy(@_, \&unop, "rand") }
+
 sub pp_srand { unop(@_, "srand") }
+
 sub pp_exp { maybe_targmy(@_, \&unop, "exp") }
 sub pp_log { maybe_targmy(@_, \&unop, "log") }
 sub pp_sqrt { maybe_targmy(@_, \&unop, "sqrt") }
@@ -2496,10 +2477,10 @@ sub e_method {
     my @body = ($obj);
     my $other_ops = $minfo->{other_ops};
 
-    my $meth = $minfo->{method};
+    my $meth_name = $minfo->{method};
     my $meth_info;
     if ($minfo->{variable_method}) {
-	$meth_info = $self->deparse($meth, 1, $op);
+	$meth_info = $self->deparse($meth_name, 1, $op);
 	push @body, $meth_info;
     }
     my @args = map { $self->deparse($_, 6, $op) } @{$minfo->{args}};
@@ -2507,31 +2488,34 @@ sub e_method {
     my @args_texts = map $_->{text}, @args;
     my $args = join(", ", @args_texts);
 
-    my $opts = {body => \@body, other_ops => $other_ops};
+    my $opts = {other_ops => $other_ops};
     my @texts = ();
     my $type;
 
+
+    my $meth_object = $meth_info ? defined($meth_info) : $meth_name;
     if ($minfo->{object}->name eq 'scope' && want_list $minfo->{object}) {
 	# method { $object }
 	# This must be deparsed this way to preserve list context
 	# of $object.
 	my $need_paren = $cx >= 6;
 	if ($need_paren) {
-	    @texts = ('(', $meth,  substr($obj,2),
+	    @texts = ('(', $meth_object,  substr($obj,2),
 		      $args, ')');
-	    $type = 'e_method_list_paren';
+	    $type = 'e_method list ()';
 	} else {
-	    @texts = ($meth,  substr($obj,2), $args);
-	    $type = 'e_method_list';
+	    @texts = ($meth_object,  substr($obj,2), $args);
+	    $type = 'e_method list, no ()';
 	}
 	return info_from_list($op, $self, \@texts, '', $type, $opts);
     }
+
     if (length $args) {
-	@texts = ($obj, '->', $meth_info, '(', $args, ')');
-	$type = 'e_method_args';
+	@texts = ($obj, '->', $meth_object, '(', $args, ')');
+	$type = 'e_method -> ()';
     } else {
-	@texts = ($obj, '->', $meth_info);
-	$type = 'e_method_null';
+	@texts = ($obj, '->', $meth_object);
+	$type = 'e_method -> no ()';
     }
     return info_from_list($op, $self, \@texts, '', $type, $opts);
 }

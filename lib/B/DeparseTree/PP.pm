@@ -48,43 +48,59 @@ $VERSION = '1.0.0';
 @ISA = qw(Exporter B::Deparse);
 @EXPORT = qw(
 
+    pp_and
+    pp_chomp
+    pp_chop
+    pp_complement
     pp_cond_expr
     pp_const
+    pp_dbstate
+    pp_defined
+    pp_dor
     pp_egrent pp_ehostent pp_enetent
     pp_entersub
     pp_eprotoent pp_epwent pp_eservent
     pp_exists
     pp_fork pp_getlogin pp_ggrent
+    pp_getppid
     pp_ghostent pp_gnetent pp_gprotoent
     pp_gpwent pp_grepstart pp_gservent
+    pp_grepwhile
     pp_i_negate
-    pp_mapstart
-
+    pp_i_predec
+    pp_i_preinc
     pp_leave pp_lineseq
+    pp_mapstart
+    pp_mapwhile
     pp_negate
+    pp_nextstate
     pp_once
-    pp_scope
-
-    pp_dbstate pp_nextstate pp_setstate
-
-    pp_and pp_or pp_dor pp_xor
-
-    pp_mapwhile pp_grepwhile
-
-    pp_complement
-    pp_getppid
+    pp_or
+    pp_pos
     pp_postdec
     pp_postinc
-    pp_time
-    pp_wait
-
-    pp_print pp_prtf
+    pp_predec
+    pp_preinc
+    pp_print
+    pp_prtf
+    pp_ref
     pp_repeat
-    pp_preinc pp_predec pp_i_preinc pp_i_predec
-
-    pp_say pp_sort
-    pp_sgrent pp_spwent pp_tms pp_wantarray
+    pp_say
+    pp_schomp
+    pp_schop
+    pp_scope
+    pp_setstate
+    pp_sgrent
+    pp_sort
+    pp_spwent
     pp_stub
+    pp_study
+    pp_time
+    pp_tms
+    pp_undef
+    pp_wait
+    pp_wantarray
+    pp_xor
     );
 
 BEGIN {
@@ -98,6 +114,9 @@ BEGIN {
     }
 }
 
+sub pp_chomp { maybe_targmy(@_, \&unop, "chomp") }
+sub pp_chop { maybe_targmy(@_, \&unop, "chop") }
+sub pp_defined { unop(@_, "defined") }
 sub pp_egrent { baseop(@_, "endgrent") }
 sub pp_ehostent { baseop(@_, "endhostent") }
 sub pp_enetent { baseop(@_, "endnetent") }
@@ -113,15 +132,19 @@ sub pp_gprotoent { baseop(@_, "getprotoent") }
 sub pp_gpwent { baseop(@_, "getpwent") }
 sub pp_grepstart { baseop(@_, "grep") }
 sub pp_gservent { baseop(@_, "getservent") }
-sub pp_mapstart { baseop(@_, "map") }
-sub pp_sgrent { baseop(@_, "setgrent") }
-sub pp_spwent { baseop(@_, "setpwent") }
-sub pp_tms { baseop(@_, "times") }
-sub pp_wantarray { baseop(@_, "wantarray") }
-
 sub pp_leave { scopeop(1, @_); }
 sub pp_lineseq { scopeop(0, @_); }
+sub pp_mapstart { baseop(@_, "map") }
+sub pp_ref { unop(@_, "ref") }
+sub pp_schomp { maybe_targmy(@_, \&unop, "chomp") }
+sub pp_schop { maybe_targmy(@_, \&unop, "chop") }
 sub pp_scope { scopeop(0, @_); }
+sub pp_sgrent { baseop(@_, "setgrent") }
+sub pp_spwent { baseop(@_, "setpwent") }
+sub pp_study { unop(@_, "study") }
+sub pp_tms { baseop(@_, "times") }
+sub pp_undef { unop(@_, "undef") }
+sub pp_wantarray { baseop(@_, "wantarray") }
 
 # Notice how subs and formats are inserted between statements here;
 # also $[ assignments and pragmas.
