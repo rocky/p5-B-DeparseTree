@@ -66,7 +66,6 @@ $VERSION = '1.1.0';
     deparse_sub
     deparse_subname
     dquote
-    escape_str
     gv_name
     hint_pragmas
     indent
@@ -92,18 +91,13 @@ $VERSION = '1.1.0';
     pragmata
     print_protos
     re_unback
-    re_uninterp
-    re_uninterp_extended
     scopeop
     seq_subs
     single_delim
     style_opts
     unback
-    uninterp
     unop
     );
-
-sub ASSIGN () { 2 } # has OP= variant
 
 my $bal;
 BEGIN {
@@ -658,12 +652,33 @@ sub combine($$$)
     return @result;
 }
 
+use Hash::Util qw[ lock_hash ];
+
+# Nonprinting characters with special meaning:
+my %SPECIAL_SEPARATORS = (
+        '\cS' => 1, # steal parens (see maybe_parens_unop)
+	'\n'  => 1, # newline and indent
+	'\b'  => 1, # decrease indent ('outdent')
+	'\f'  => 1, # flush left (no indent)
+	'\cK' => 1, # kill following semicolon, if any
+
+);
+lock_hash %SPECIAL_SEPARATORS;
+
+
 sub combine2str($$)
 {
     my ($self, $sep, $items) = @_;
     my $result = '';
     foreach my $item (@$items) {
-	$result .= $sep if $result;
+	if ($result) {
+	    my $expanded_sep = $sep;
+	    if (exists $SPECIAL_SEPARATORS{$sep}) {
+		# FIXME: handle them
+		$expanded_sep = $sep;
+	    }
+	    $result .= $expanded_sep;
+	}
 	if (ref $item) {
 	    if (ref $item eq 'ARRAY' and scalar(@$item) == 2) {
 		# First item is text and second item is op address.
@@ -689,118 +704,6 @@ sub main2info
     $self->{'curcv'} = B::main_cv;
     $self->pessimise(B::main_root, B::main_start);
     return $self->deparse_root(B::main_root);
-}
-
-# the same, but treat $|, $), $( and $ at the end of the string differently
-sub re_uninterp {
-    my($str) = @_;
-
-    $str =~ s/
-	  ( ^|\G                  # $1
-          | [^\\]
-          )
-
-          (                       # $2
-            (?:\\\\)*
-          )
-
-          (                       # $3
-            (\(\?\??\{$bal\}\))   # $4
-          | [\$\@]
-            (?!\||\)|\(|$)
-          | \\[uUlLQE]
-          )
-
-	/defined($4) && length($4) ? "$1$2$4" : "$1$2\\$3"/xeg;
-
-    return $str;
-}
-
-# This is for regular expressions with the /x modifier
-# We have to leave comments unmangled.
-sub re_uninterp_extended {
-    my($str) = @_;
-
-    $str =~ s/
-	  ( ^|\G                  # $1
-          | [^\\]
-          )
-
-          (                       # $2
-            (?:\\\\)*
-          )
-
-          (                       # $3
-            ( \(\?\??\{$bal\}\)   # $4  (skip over (?{}) and (??{}) blocks)
-            | \#[^\n]*            #     (skip over comments)
-            )
-          | [\$\@]
-            (?!\||\)|\(|$|\s)
-          | \\[uUlLQE]
-          )
-
-	/defined($4) && length($4) ? "$1$2$4" : "$1$2\\$3"/xeg;
-
-    return $str;
-}
-
-# escape things that cause interpolation in double quotes,
-# but not character escapes
-sub uninterp {
-    my($str) = @_;
-    $str =~ s/(^|\G|[^\\])((?:\\\\)*)([\$\@]|\\[uUlLQE])/$1$2\\$3/g;
-    return $str;
-}
-
-my %unctrl = # portable to EBCDIC
-    (
-     "\c@" => '@',	# unused
-     "\cA" => 'A',
-     "\cB" => 'B',
-     "\cC" => 'C',
-     "\cD" => 'D',
-     "\cE" => 'E',
-     "\cF" => 'F',
-     "\cG" => 'G',
-     "\cH" => 'H',
-     "\cI" => 'I',
-     "\cJ" => 'J',
-     "\cK" => 'K',
-     "\cL" => 'L',
-     "\cM" => 'M',
-     "\cN" => 'N',
-     "\cO" => 'O',
-     "\cP" => 'P',
-     "\cQ" => 'Q',
-     "\cR" => 'R',
-     "\cS" => 'S',
-     "\cT" => 'T',
-     "\cU" => 'U',
-     "\cV" => 'V',
-     "\cW" => 'W',
-     "\cX" => 'X',
-     "\cY" => 'Y',
-     "\cZ" => 'Z',
-     "\c[" => '[',	# unused
-     "\c\\" => '\\',	# unused
-     "\c]" => ']',	# unused
-     "\c_" => '_',	# unused
-    );
-
-# character escapes, but not delimiters that might need to be escaped
-sub escape_str { # ASCII, UTF8
-    my($str) = @_;
-    $str =~ s/(.)/ord($1) > 255 ? sprintf("\\x{%x}", ord($1)) : $1/eg;
-    $str =~ s/\a/\\a/g;
-#    $str =~ s/\cH/\\b/g; # \b means something different in a regex
-    $str =~ s/\t/\\t/g;
-    $str =~ s/\n/\\n/g;
-    $str =~ s/\e/\\e/g;
-    $str =~ s/\f/\\f/g;
-    $str =~ s/\r/\\r/g;
-    $str =~ s/([\cA-\cZ])/$unctrl{$1}/ge;
-    $str =~ s/([[:^print:]])/sprintf("\\%03o", ord($1))/ge;
-    return $str;
 }
 
 # Don't do this for regexen
@@ -977,7 +880,7 @@ sub const {
 	if ($ref->FLAGS & SVs_SMG) {
 	    for (my $mg = $ref->MAGIC; $mg; $mg = $mg->MOREMAGIC) {
 		if ($mg->TYPE eq 'r') {
-		    my $re = re_uninterp(escape_str(re_unback($mg->precomp)));
+		    my $re = B::Deparse::re_uninterp(B::Deparse::escape_str(re_unback($mg->precomp)));
 		    return $self->single_delim($sv, "qr", "", $re);
 		}
 	    }
@@ -994,7 +897,8 @@ sub const {
     } elsif ($sv->FLAGS & SVf_POK) {
 	my $str = $sv->PV;
 	if ($str =~ /[[:^print:]]/) {
-	    return $self->single_delim($sv, "qq", '"', uninterp escape_str unback $str);
+	    return $self->single_delim($sv, "qq", '"',
+				       B::Deparse::uninterp B::Deparse::escape_str B::Deparse::unback $str);
 	} else {
 	    return $self->single_delim($sv, "q", "'", unback $str);
 	}

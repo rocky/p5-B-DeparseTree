@@ -1928,79 +1928,6 @@ sub _op_is_or_was {
          || ($type == OP_NULL && $op->targ == $expect_type));
 }
 
-sub pp_null
-{
-    my($self, $op, $cx) = @_;
-    my $info;
-    if (class($op) eq "OP") {
-	# old value is lost
-	if ($op->targ == OP_CONST) {
-	    return info_from_text($op, $self, $self->{'ex_const'}, 'null_const', {})
-	} else {
-	    return info_from_text($op, $self, '', 'null_unknown', {});
-	}
-    } elsif (class ($op) eq "COP") {
-	    return $self->pp_nextstate($op, $cx);
-    }
-    my $kid = $op->first;
-    if ($op->first->name eq 'pushmark'
-             or $op->first->name eq 'null'
-                && $op->first->targ == OP_PUSHMARK
-                && _op_is_or_was($op, OP_LIST)) {
-	return $self->pp_list($op, $cx);
-    } elsif ($kid->name eq "enter") {
-	return $self->pp_leave($op, $cx);
-    } elsif ($kid->name eq "leave") {
-	return $self->pp_leave($kid, $cx);
-    } elsif ($kid->name eq "scope") {
-	return $self->pp_scope($kid, $cx);
-    } elsif ($op->targ == OP_STRINGIFY) {
-	return $self->dquote($op, $cx);
-    } elsif ($op->targ == OP_GLOB) {
-	my @other_ops = ($kid, $kid->first, $kid->first->first);
-	my $info = $self->pp_glob(
-	    $kid    # entersub
-	    ->first    # ex-list
-	    ->first    # pushmark
-	    ->sibling, # glob
-	    $cx
-	    );
-	push @{$info->{other_ops}}, @other_ops;
-	return $info;
-    } elsif (!null($kid->sibling) and
-    	     $kid->sibling->name eq "readline" and
-    	     $kid->sibling->flags & OPf_STACKED) {
-    	my $lhs = $self->deparse($kid, 7, $op);
-    	my $rhs = $self->deparse($kid->sibling, 7, $kid);
-    	return $self->bin_info_join_maybe_parens($op, $lhs, $rhs, '=', " ", $cx, 7,
-						 'readline');
-    } elsif (!null($kid->sibling) and
-    	     $kid->sibling->name eq "trans" and
-    	     $kid->sibling->flags & OPf_STACKED) {
-    	my $lhs = $self->deparse($kid, 20, $op);
-    	my $rhs = $self->deparse($kid->sibling, 20, $op);
-    	return $self->bin_info_join_maybe_parens($op, $lhs, $rhs, '=~', " ", $cx, 20,
-	                                         'trans');
-    } elsif ($op->flags & OPf_SPECIAL && $cx < 1 && !$op->targ) {
-    	my $kid_info = $self->deparse($kid, $cx, $op);
-	return info_from_list($op, $self, ['do', "{\n\t", $kid_info->{text},
-			       "\n\b};"], '', 'null_special',
-	    {body => [$kid_info]});
-    } elsif (!null($kid->sibling) and
-	     $kid->sibling->name eq "null" and
-	     class($kid->sibling) eq "UNOP" and
-	     $kid->sibling->first->flags & OPf_STACKED and
-	     $kid->sibling->first->name eq "rcatline") {
-	my $lhs = $self->deparse($kid, 18, $op);
-	my $rhs = $self->deparse($kid->sibling, 18, $op);
-	return $self->bin_info_join_maybe_parens($op, $lhs, $rhs, '=', " ", $cx, 20,
-						 'null_rcatline');
-    } else {
-	return $self->deparse($kid, $cx, $op);
-    }
-    Carp::confess("unhandled condition in null");
-}
-
 sub padname {
     my $self = shift;
     my $targ = shift;
@@ -2569,22 +2496,6 @@ sub check_proto {
 
 sub pp_enterwrite { unop(@_, "write") }
 
-# character escapes, but not delimiters that might need to be escaped
-sub escape_str { # ASCII, UTF8
-    my($str) = @_;
-    $str =~ s/(.)/ord($1) > 255 ? sprintf("\\x{%x}", ord($1)) : $1/eg;
-    $str =~ s/\a/\\a/g;
-#    $str =~ s/\cH/\\b/g; # \b means something different in a regex
-    $str =~ s/\t/\\t/g;
-    $str =~ s/\n/\\n/g;
-    $str =~ s/\e/\\e/g;
-    $str =~ s/\f/\\f/g;
-    $str =~ s/\r/\\r/g;
-    $str =~ s/([\cA-\cZ])/$unctrl{$1}/ge;
-    $str =~ s/([[:^print:]])/sprintf("\\%03o", ord($1))/ge;
-    return $str;
-}
-
 # For regexes with the /x modifier.
 # Leave whitespace unmangled.
 sub escape_extended_re {
@@ -2640,7 +2551,8 @@ sub dq
     my $info;
     if ($type eq "const") {
 	return info_from_text($op, $self, '$[', 'dq_const_ary', {}) if $op->private & OPpCONST_ARYBASE;
-	return info_from_text($op, $self, uninterp(escape_str(unback($self->const_sv($op)->as_string))),
+	return info_from_text($op, $self,
+			      B::Deparse::uninterp(B::Deparse::escape_str(B::Deparse::unback($self->const_sv($op)->as_string))),
 			 'dq_const', {});
     } elsif ($type eq "concat") {
 	my $first = $self->dq($op->first, $op);
@@ -2920,7 +2832,7 @@ sub tr_decode_utf8 {
     #$extra = sprintf("%04x", $extra) if defined $extra;
     #print STDERR "final: $final\n none: $none\nextra: $extra\n";
     #print STDERR $swash{'LIST'}->PV;
-    return (escape_str($from), escape_str($to));
+    return (B::Deparse::escape_str($from), B::Deparse::escape_str($to));
 }
 
 sub pp_trans {
@@ -2976,9 +2888,9 @@ sub re_dq {
 	return info_from_text($op, $self, '$[', 're_dq_const', {})
 	    if $op->private & OPpCONST_ARYBASE;
 	my $unbacked = re_unback($self->const_sv($op)->as_string);
-	return re_uninterp_extended(escape_extended_re($unbacked))
+	return B::Deparse::re_uninterp_extended(escape_extended_re($unbacked))
 	    if $extended;
-	return re_uninterp(escape_str($unbacked));
+	return B::Deparse::re_uninterp(B::Deparse::escape_str($unbacked));
     } elsif ($type eq "concat") {
 	my $first = $self->re_dq($op->first, $extended);
 	my $last  = $self->re_dq($op->last,  $extended);
@@ -3173,9 +3085,9 @@ sub matchop
     if (null $kid) {
 	my $unbacked = re_unback($op->precomp);
 	if ($extended) {
-	    $re_str = re_uninterp_extended(escape_extended_re($unbacked));
+	    $re_str = B::Deparse::re_uninterp_extended(B::Deparse::escape_extended_re($unbacked));
 	} else {
-	    $re_str = re_uninterp(escape_str(re_unback($op->precomp)));
+	    $re_str = B::Deparse::re_uninterp(B::Deparse::escape_str(B::Deparse::re_unback($op->precomp)));
 	}
     } elsif ($kid->name ne 'regcomp') {
 	carp("found ".$kid->name." where regcomp expected");
@@ -3339,10 +3251,10 @@ sub pp_subst
     if (null $kid) {
 	my $unbacked = re_unback($op->precomp);
 	if ($extended) {
-	    $re = re_uninterp_extended(escape_extended_re($unbacked));
+	    $re = B::Deparse::re_uninterp_extended(escape_extended_re($unbacked));
 	}
 	else {
-	    $re = re_uninterp(escape_str($unbacked));
+	    $re = B::Deparse::re_uninterp(B::Deparse::escape_str($unbacked));
 	}
     } else {
 	my ($re_info, $junk) = $self->regcomp($kid, 1, $extended);
