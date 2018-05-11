@@ -665,6 +665,29 @@ my %SPECIAL_SEPARATORS = (
 );
 lock_hash %SPECIAL_SEPARATORS;
 
+sub info2str($$)
+{
+    my ($self, $item) = @_;
+    my $result = '';
+    if (ref $item) {
+	if (ref $item eq 'ARRAY' and scalar(@$item) == 2) {
+	    # First item is text and second item is op address.
+	    $result = $item->[0];
+	} elsif (eval{$item->isa("B::DeparseTree::Node")}) {
+	    $result = $self->combine2str($item->{sep},
+					  $item->{texts});
+	} else {
+	    Carp::confess("Invalid ref item ref($item)");
+	}
+    } else {
+	# FIXME: add this and remove errors
+	if (index($item, '@B::DeparseTree::Node') > 0) {
+		Carp::confess("\@B::DeparseTree::Node as an item is probably wrong");
+	}
+	$result = $item;
+    }
+    return $result;
+}
 
 sub combine2str($$)
 {
@@ -682,19 +705,18 @@ sub combine2str($$)
 	if (ref $item) {
 	    if (ref $item eq 'ARRAY' and scalar(@$item) == 2) {
 		# First item is text and second item is op address.
-		$result .= $item->[0];
+		$result .= $self->info2str($item->[0]);
 	    } elsif (eval{$item->isa("B::DeparseTree::Node")}) {
 		$result .= $self->combine2str($item->{sep},
 					     $item->{texts});
-		# First item is text and second item is op address.
 	    } else {
-		$result .= $item->{text};
+		Carp::confess("Invalid ref item ref($item)");
 	    }
 	} else {
 	    # FIXME: add this and remove errors
-	    # if (index($item, '@B::DeparseTree::Node') > 0) {
-	    # 	Carp::confess("@B::DeparseTree::Node as an item is probably wrong");
-	    # }
+	    if (index($item, '@B::DeparseTree::Node') > 0) {
+	    	Carp::confess("\@B::DeparseTree::Node as an item is probably wrong");
+	    }
 	    $result .= $item;
 	}
     }

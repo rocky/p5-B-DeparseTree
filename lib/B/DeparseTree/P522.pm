@@ -2942,7 +2942,7 @@ sub re_dq {
     if ($type eq "const") {
 	return info_from_text($op, $self, '$[', 're_dq_const', {})
 	    if $op->private & OPpCONST_ARYBASE;
-	my $unbacked = re_unback($self->const_sv($op)->as_string);
+	my $unbacked = B::Deparse::re_unback($self->const_sv($op)->as_string);
 	return B::Deparse::re_uninterp_extended(escape_extended_re($unbacked))
 	    if $extended;
 	return B::Deparse::re_uninterp(B::Deparse::escape_str($unbacked));
@@ -3137,7 +3137,7 @@ sub matchop
     my $extended = ($pmflags & PMf_EXTENDED);
     my $rhs_bound_to_defsv;
     if (null $kid) {
-	my $unbacked = re_unback($op->precomp);
+	my $unbacked = B::Deparse::re_unback($op->precomp);
 	if ($extended) {
 	    $re_str = B::Deparse::re_uninterp_extended(B::Deparse::escape_extended_re($unbacked));
 	} else {
@@ -3320,7 +3320,7 @@ sub pp_subst
     }
     my $extended = ($pmflags & PMf_EXTENDED);
     if (null $kid) {
-	my $unbacked = re_unback($op->precomp);
+	my $unbacked = B::Deparse::re_unback($op->precomp);
 	if ($extended) {
 	    $re = B::Deparse::re_uninterp_extended(escape_extended_re($unbacked));
 	}

@@ -2789,7 +2789,7 @@ sub re_dq {
     my $type = $op->name;
     if ($type eq "const") {
 	return '$[' if $op->private & OPpCONST_ARYBASE;
-	my $unbacked = re_unback($self->const_sv($op)->as_string);
+	my $unbacked = B::Deparse::re_unback($self->const_sv($op)->as_string);
 	return B::Deparse::re_uninterp(escape_re($unbacked));
     } elsif ($type eq "concat") {
 	my $first = $self->re_dq($op->first);
@@ -2975,7 +2975,7 @@ sub matchop
     my $extended = ($pmflags & PMf_EXTENDED);
     my $rhs_bound_to_defsv;
     if (null $kid) {
-	my $unbacked = re_unback($op->precomp);
+	my $unbacked = B::Deparse::re_unback($op->precomp);
 	if ($extended) {
 	    $re_str = B::Deparse::re_uninterp_extended(B::Deparse::escape_extended_re($unbacked));
 	} else {
@@ -3173,7 +3173,7 @@ sub pp_subst
     if (not null my $code_list = $op->code_list) {
 	$re = $self->code_list($code_list);
     } elsif (null $kid) {
-	$re = B::Deparse::re_uninterp(escape_re(re_unback($op->precomp)));
+	$re = B::Deparse::re_uninterp(escape_re(B::Deparse::re_unback($op->precomp)));
     } else {
 	my ($re_info, $junk) = $self->regcomp($kid, 1);
 	push @body, $re_info;
