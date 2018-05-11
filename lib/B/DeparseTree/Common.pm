@@ -689,7 +689,7 @@ sub info2str($$)
     return $result;
 }
 
-sub combine2str($$)
+sub combine2str($$$)
 {
     my ($self, $sep, $items) = @_;
     my $result = '';

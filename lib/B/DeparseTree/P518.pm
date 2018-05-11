@@ -665,7 +665,7 @@ sub gv_name {
 sub stash_variable {
     my ($self, $prefix, $name, $cx) = @_;
 
-    $name = $self->combine2str('', [$name]);
+    $name = $self->info2str($name);
     return "$prefix$name" if $name =~ /::/;
 
     unless ($prefix eq '$' || $prefix eq '@' || #'

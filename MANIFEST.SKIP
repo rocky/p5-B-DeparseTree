@@ -85,7 +85,7 @@
 # Nothing in tmp
 \btmp/
 
-admin/how-to-make-a-release\.md
+\badmin$
 scripts/bug\.pm
 git2cl
 
