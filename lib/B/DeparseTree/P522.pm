@@ -620,22 +620,6 @@ sub stash_variable {
     return $prefix . $self->maybe_qualify($prefix, $name);
 }
 
-# Return just the name, without the prefix.  It may be returned as a quoted
-# string.  The second return value is a boolean indicating that.
-sub stash_variable_name {
-    my($self, $prefix, $gv) = @_;
-    my $name = $self->gv_name($gv, 1);
-    $name = $self->maybe_qualify($prefix,$name);
-    if ($name =~ /^(?:\S|(?!\d)[\ca-\cz]?(?:\w|::)*|\d+)\z/) {
-	$name =~ s/^([\ca-\cz])/'^' . $unctrl{$1}/e;
-	$name =~ /^(\^..|{)/ and $name = "{$name}";
-	return $name, 0; # not quoted
-    }
-    else {
-	$self->single_delim($gv, "q", "'", $name, $self), 1;
-    }
-}
-
 sub lex_in_scope {
     my ($self, $name, $our) = @_;
     substr $name, 0, 0, = $our ? 'o' : 'm'; # our/my
@@ -2563,34 +2547,6 @@ sub check_proto {
 }
 
 sub pp_enterwrite { unop(@_, "write") }
-
-sub balanced_delim {
-    my($str) = @_;
-    my @str = split //, $str;
-    my($ar, $open, $close, $fail, $c, $cnt, $last_bs);
-    for $ar (['[',']'], ['(',')'], ['<','>'], ['{','}']) {
-	($open, $close) = @$ar;
-	$fail = 0; $cnt = 0; $last_bs = 0;
-	for $c (@str) {
-	    if ($c eq $open) {
-		$fail = 1 if $last_bs;
-		$cnt++;
-	    } elsif ($c eq $close) {
-		$fail = 1 if $last_bs;
-		$cnt--;
-		if ($cnt < 0) {
-		    # qq()() isn't ")("
-		    $fail = 1;
-		    last;
-		}
-	    }
-	    $last_bs = $c eq '\\';
-	}
-	$fail = 1 if $cnt != 0;
-	return ($open, "$open$str$close") if not $fail;
-    }
-    return ("", $str);
-}
 
 # Split a floating point number into an integer mantissa and a binary
 # exponent. Assumes you've already made sure the number isn't zero or

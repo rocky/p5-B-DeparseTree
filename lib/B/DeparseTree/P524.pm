@@ -74,8 +74,8 @@ use vars qw/$AUTOLOAD/;
 use warnings ();
 require feature;
 
-our($VERSION, @EXPORT, @ISA);
-our $VERSION = '2.0';
+our(@EXPORT, @ISA);
+our $VERSION = '3.0.0';
 
 @ISA = qw(Exporter B::DeparseTree::Common);
 @EXPORT = qw(compile);
@@ -445,19 +445,10 @@ sub ambient_pragmas {
     $self->{'ambient_hinthash'} = $hinthash;
 }
 
-sub is_scalar {
-    my $op = shift;
-    return ($op->name eq "rv2sv" or
-	    $op->name eq "padsv" or
-	    $op->name eq "gv" or # only in array/hash constructs
-	    $op->flags & OPf_KIDS && !null($op->first)
-	      && $op->first->name eq "gvsv");
-}
-
 # Sort of like maybe_parens in that we may possibly add ().  However we take
 # an op rather than text, and return a tree node. Also, we get around
 # the 'if it looks like a function' rule.
-sub maybe_parens_unop($self, $name, $op, $cx, $parent)
+sub maybe_parens_unop($$$$$)
 {
     my $self = shift;
     my($name, $op, $cx, $parent) = @_;
@@ -632,22 +623,6 @@ sub stash_variable {
     }
 
     return $prefix . $self->maybe_qualify($prefix, $name);
-}
-
-# Return just the name, without the prefix.  It may be returned as a quoted
-# string.  The second return value is a boolean indicating that.
-sub stash_variable_name {
-    my($self, $prefix, $gv) = @_;
-    my $name = $self->gv_name($gv, 1);
-    $name = $self->maybe_qualify($prefix,$name);
-    if ($name =~ /^(?:\S|(?!\d)[\ca-\cz]?(?:\w|::)*|\d+)\z/) {
-	$name =~ s/^([\ca-\cz])/'^' . $unctrl{$1}/e;
-	$name =~ /^(\^..|{)/ and $name = "{$name}";
-	return $name, 0; # not quoted
-    }
-    else {
-	$self->single_delim($gv, "q", "'", $name, $self), 1;
-    }
 }
 
 sub lex_in_scope {
@@ -923,7 +898,7 @@ sub pp_delete
 {
     my($self, $op, $cx) = @_;
     my $arg;
-    my ($info, $body, @texts, $type);
+    my ($info, $body, $type);
     if ($op->private & OPpSLICE) {
 	if ($op->flags & OPf_SPECIAL) {
 	    # Deleting from an array, not a hash
@@ -998,7 +973,7 @@ sub anon_hash_or_list
     my($pre, $post) = @{{"anonlist" => ["[","]"],
 			 "anonhash" => ["{","}"]}->{$name}};
     my($expr, @exprs);
-    my $other_ops => [$op->first];
+    my $other_ops = [$op->first];
     $op = $op->first->sibling; # skip pushmark
     for (; !null($op); $op = $op->sibling) {
 	$expr = $self->deparse($op, 6, $op);
@@ -2359,8 +2334,7 @@ sub slice
     return info_from_list($op, $self, \@texts, '', $type, {body => \@elems});
 }
 
-sub pp_aslice { maybe_local(@_, slice(@_, "[", "]", "rv2av", "padav")) }
-sub pp_hslice { maybe_local(@_, slice(@_, "{", "}", "rv2hv", "padhv")) }
+sub pp_aslice   { maybe_local(@_, slice(@_, "[", "]", "rv2av", "padav")) }
 sub pp_kvaslice {                 slice(@_, "[", "]", "rv2av", "padav")  }
 sub pp_hslice   { maybe_local(@_, slice(@_, "{", "}", "rv2hv", "padhv")) }
 sub pp_kvhslice {                 slice(@_, "{", "}", "rv2hv", "padhv")  }
@@ -2590,34 +2564,6 @@ sub escape_extended_re {
 	($1 =~ y! \t\n!!) ? $1 : sprintf("\\%03o", ord($1))/ge;
     $str =~ s/\n/\n\f/g;
     return $str;
-}
-
-sub balanced_delim {
-    my($str) = @_;
-    my @str = split //, $str;
-    my($ar, $open, $close, $fail, $c, $cnt, $last_bs);
-    for $ar (['[',']'], ['(',')'], ['<','>'], ['{','}']) {
-	($open, $close) = @$ar;
-	$fail = 0; $cnt = 0; $last_bs = 0;
-	for $c (@str) {
-	    if ($c eq $open) {
-		$fail = 1 if $last_bs;
-		$cnt++;
-	    } elsif ($c eq $close) {
-		$fail = 1 if $last_bs;
-		$cnt--;
-		if ($cnt < 0) {
-		    # qq()() isn't ")("
-		    $fail = 1;
-		    last;
-		}
-	    }
-	    $last_bs = $c eq '\\';
-	}
-	$fail = 1 if $cnt != 0;
-	return ($open, "$open$str$close") if not $fail;
-    }
-    return ("", $str);
 }
 
 # Split a floating point number into an integer mantissa and a binary
@@ -3013,7 +2959,7 @@ sub re_dq {
     my ($op, $extended) = @_;
 
     my $type = $op->name;
-    my ($re, @texts, $type);
+    my ($re, @texts);
     my $opts = {};
     if ($type eq "const") {
 	return info_from_text($op, $self, '$[', 're_dq_const', {})

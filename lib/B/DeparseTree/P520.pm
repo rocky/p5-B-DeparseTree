@@ -692,22 +692,6 @@ sub stash_variable {
     return $prefix . $self->maybe_qualify($prefix, $name);
 }
 
-# Return just the name, without the prefix.  It may be returned as a quoted
-# string.  The second return value is a boolean indicating that.
-sub stash_variable_name {
-    my($self, $prefix, $gv) = @_;
-    my $name = $self->gv_name($gv, 1);
-    $name = $self->maybe_qualify($prefix,$name);
-    if ($name =~ /^(?:\S|(?!\d)[\ca-\cz]?(?:\w|::)*|\d+)\z/) {
-	$name =~ s/^([\ca-\cz])/'^'.($1|'@')/e;
-	$name =~ /^(\^..|{)/ and $name = "{$name}";
-	return $name, 0; # not quoted
-    }
-    else {
-	$self->single_delim($gv, "q", "'", $name, $self), 1;
-    }
-}
-
 sub lex_in_scope {
     my ($self, $name, $our) = @_;
     substr $name, 0, 0, = $our ? 'o' : 'm'; # our/my

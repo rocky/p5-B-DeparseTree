@@ -53,7 +53,6 @@ $VERSION = '1.1.0';
     %globalnames
     %ignored_hints
     %rev_feature
-    %unctrl
     POSTFIX baseop mapop pfixop indirop
     _features_from_bundle ambiant_pragmas maybe_qualify
     balanced_delim
@@ -94,6 +93,7 @@ $VERSION = '1.1.0';
     scopeop
     seq_subs
     single_delim
+    stash_variable_name
     style_opts
     unback
     unop
@@ -1815,6 +1815,22 @@ sub scopeop
     } else {
 	my $ls = $self->lineseq($op, $cx, @kids);
 	return info_from_list($op, $self, [$ls], '', 'scope line sequence', {});
+    }
+}
+
+# Return just the name, without the prefix.  It may be returned as a quoted
+# string.  The second return value is a boolean indicating that.
+sub stash_variable_name {
+    my($self, $prefix, $gv) = @_;
+    my $name = $self->gv_name($gv, 1);
+    $name = $self->maybe_qualify($prefix,$name);
+    if ($name =~ /^(?:\S|(?!\d)[\ca-\cz]?(?:\w|::)*|\d+)\z/) {
+	$name =~ s/^([\ca-\cz])/'^' . $B::Deparse::unctrl{$1}/e;
+	$name =~ /^(\^..|{)/ and $name = "{$name}";
+	return $name, 0; # not quoted
+    }
+    else {
+	$self->single_delim($gv, "q", "'", $name, $self), 1;
     }
 }
 
