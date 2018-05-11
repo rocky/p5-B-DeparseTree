@@ -11,14 +11,12 @@ my $is_cperl = $Config::Config{usecperl};
 
 my $module;
 if ($] >= 5.016 and $] < 5.018) {
+    # 5.16 and 5.18 are the same for now
+    $module = "P518";
+} elsif ($] >= 5.018 and $] < 5.020) {
+    $module = "P518";
+} elsif ($] >= 5.020 and $] < 5.022) {
     $module = "P520";
-} elsif ($] >= 5.018 and $] < 5.022) {
-    # For now 5.18 and 5.20 are the same.  If in the future they
-    # should be different, we can deal with that here.
-    $module = "P520";
-# } elsif ($] >= 5.020 and $] < 5.022) {
-#     require "B/DeparseTree/${module}.pm";
-#     *compile = \&B::DeparseTree::P520::compile;
 } elsif ($] >= 5.022 and $] < 5.024) {
     $module = "P522";
 } elsif ($] >= 5.024 and $] < 5.026) {

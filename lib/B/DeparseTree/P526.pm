@@ -72,15 +72,12 @@ use B::Deparse;
 *padname_sv = *B::Deparse::padname_sv;
 *rv2x = *B::Deparse::rv2x;
 
-# Here we need to call the routine something else.
-*maybe_local_str = *B::Deparse::maybe_local;
-
 use strict;
 use vars qw/$AUTOLOAD/;
 use warnings ();
 require feature;
 
-our($VERSION, @EXPORT, @ISA);
+our(@EXPORT, @ISA);
 our $VERSION = '3.0.0';
 
 @ISA = qw(Exporter B::DeparseTree::Common);
@@ -348,7 +345,7 @@ sub deparse_format($$$)
 	    push @body, $self->deparse($kid, -1, $op);
 	    $body[-1] =~ s/;\z//;
 	}
-	push @texts, "\f".join(", ", @body)."\n" if @body;
+	push @texts, "\f".$self->combine2str("\n", \@body) if @body;
 	$op = $op->sibling;
     }
 
@@ -473,7 +470,7 @@ sub ambient_pragmas {
 # Sort of like maybe_parens in that we may possibly add ().  However we take
 # an op rather than text, and return a tree node. Also, we get around
 # the 'if it looks like a function' rule.
-sub maybe_parens_unop($self, $name, $op, $cx, $parent)
+sub maybe_parens_unop($$$$$)
 {
     my $self = shift;
     my($name, $op, $cx, $parent) = @_;
@@ -514,7 +511,8 @@ sub maybe_parens_func($$$$$)
     }
 }
 
-sub maybe_local
+# FIXME this doesn't return a String!
+sub maybe_local_str
 {
     my($self, $op, $cx, $text) = @_;
     my $our_intro = ($op->name =~ /^(gv|rv2)[ash]v$/) ? OPpOUR_INTRO : 0;
@@ -540,6 +538,13 @@ sub maybe_local
     } else {
 	return info_from_text($op, $self, $text, 'maybe_local', {});
     }
+}
+
+# FIXME: This is weird. Regularize var_info
+sub maybe_local {
+    my($self, $op, $cx, $var_info) = @_;
+    $var_info->{parent} = $$op;
+    return maybe_local_str($self, $op, $cx, $var_info->{text});
 }
 
 sub maybe_my {
@@ -622,6 +627,7 @@ sub gv_name {
 sub stash_variable {
     my ($self, $prefix, $name, $cx) = @_;
 
+    $name = $self->combine2str('', [$name]);
     return "$prefix$name" if $name =~ /::/;
 
     unless ($prefix eq '$' || $prefix eq '@' || $prefix eq '&' || #'
@@ -852,6 +858,10 @@ sub pp_tell { unop(@_, "tell") }
 sub pp_getsockname { unop(@_, "getsockname") }
 sub pp_getpeername { unop(@_, "getpeername") }
 
+sub pp_alarm { unop(@_, "alarm") }
+
+# FIXME:
+# Different in 5.20. Go over differences to see if okay in 5.20.
 sub pp_chdir {
     my ($self, $op, $cx) = @_;
     if (($op->flags & (OPf_SPECIAL|OPf_KIDS)) == (OPf_SPECIAL|OPf_KIDS)) {
@@ -866,23 +876,8 @@ sub pp_chdir {
 }
 
 sub pp_chroot { maybe_targmy(@_, \&unop, "chroot") }
-sub pp_readlink { unop(@_, "readlink") }
-sub pp_rmdir { maybe_targmy(@_, \&unop, "rmdir") }
-sub pp_readdir { unop(@_, "readdir") }
-sub pp_telldir { unop(@_, "telldir") }
-sub pp_rewinddir { unop(@_, "rewinddir") }
 sub pp_closedir { unop(@_, "closedir") }
-sub pp_getpgrp { maybe_targmy(@_, \&unop, "getpgrp") }
-sub pp_localtime { unop(@_, "localtime") }
-sub pp_gmtime { unop(@_, "gmtime") }
-sub pp_alarm { unop(@_, "alarm") }
-sub pp_sleep { maybe_targmy(@_, \&unop, "sleep") }
 
-sub pp_dofile {
-    my $code = unop(@_, "do", 1); # llafr does not apply
-    if ($code =~ s/^((?:CORE::)?do) \{/$1({/) { $code .= ')' }
-    $code;
-}
 sub pp_entereval {
     unop(
       @_,
@@ -890,6 +885,22 @@ sub pp_entereval {
     )
 }
 
+sub pp_getpgrp { maybe_targmy(@_, \&unop, "getpgrp") }
+sub pp_gmtime { unop(@_, "gmtime") }
+sub pp_localtime { unop(@_, "localtime") }
+sub pp_readdir { unop(@_, "readdir") }
+sub pp_readlink { unop(@_, "readlink") }
+sub pp_rewinddir { unop(@_, "rewinddir") }
+sub pp_rmdir { maybe_targmy(@_, \&unop, "rmdir") }
+sub pp_sleep { maybe_targmy(@_, \&unop, "sleep") }
+sub pp_telldir { unop(@_, "telldir") }
+
+sub pp_dofile
+{
+    my $code = unop(@_, "do", 1); # llafr does not apply
+    if ($code =~ s/^((?:CORE::)?do) \{/$1({/) { $code .= ')' }
+    $code;
+}
 sub pp_ghbyname { unop(@_, "gethostbyname") }
 sub pp_gnbyname { unop(@_, "getnetbyname") }
 sub pp_gpbyname { unop(@_, "getprotobyname") }
@@ -937,7 +948,7 @@ sub pp_delete
 {
     my($self, $op, $cx) = @_;
     my $arg;
-    my ($info, $body, @texts, $type);
+    my ($info, $body, $type);
     if ($op->private & OPpSLICE) {
 	if ($op->flags & OPf_SPECIAL) {
 	    # Deleting from an array, not a hash
@@ -984,6 +995,81 @@ sub pp_require
     Carp::confess("unhandled condition in pp_require");
 }
 
+# Note 5.20 and up
+sub pp_null
+{
+    my($self, $op, $cx) = @_;
+    my $info;
+    if (class($op) eq "OP") {
+	if ($op->targ == B::Deparse::OP_CONST) {
+	    # The Perl source constant value can't be recovered.
+	    # We'll use the 'ex_const' value as a substitute
+	    return info_from_text($op, $self, $self->{'ex_const'}, 'constant unrecoverable', {})
+	} else {
+	    return info_from_text($op, $self, '', 'constant ""', {});
+	}
+    } elsif (class ($op) eq "COP") {
+	    return $self->pp_nextstate($op, $cx);
+    }
+    my $kid = $op->first;
+    if ($op->first->name eq 'pushmark'
+             or $op->first->name eq 'null'
+                && $op->first->targ == B::Deparse::OP_PUSHMARK
+	&& B::Deparse::_op_is_or_was($op, B::Deparse::OP_LIST)) {
+	return $self->pp_list($op, $cx);
+    } elsif ($kid->name eq "enter") {
+	return $self->pp_leave($op, $cx);
+    } elsif ($kid->name eq "leave") {
+	return $self->pp_leave($kid, $cx);
+    } elsif ($kid->name eq "scope") {
+	return $self->pp_scope($kid, $cx);
+    } elsif ($op->targ == B::Deparse::OP_STRINGIFY) {
+	return $self->dquote($op, $cx);
+    } elsif ($op->targ == B::Deparse::OP_GLOB) {
+	my @other_ops = ($kid, $kid->first, $kid->first->first);
+	my $info = $self->pp_glob(
+	    $kid    # entersub
+	    ->first    # ex-list
+	    ->first    # pushmark
+	    ->sibling, # glob
+	    $cx
+	    );
+	push @{$info->{other_ops}}, @other_ops;
+	return $info;
+    } elsif (!null($kid->sibling) and
+    	     $kid->sibling->name eq "readline" and
+    	     $kid->sibling->flags & OPf_STACKED) {
+    	my $lhs = $self->deparse($kid, 7, $op);
+    	my $rhs = $self->deparse($kid->sibling, 7, $kid);
+    	return $self->bin_info_join_maybe_parens($op, $lhs, $rhs, '=', " ", $cx, 7,
+						 'readline');
+    } elsif (!null($kid->sibling) and
+    	     $kid->sibling->name eq "trans" and
+    	     $kid->sibling->flags & OPf_STACKED) {
+    	my $lhs = $self->deparse($kid, 20, $op);
+    	my $rhs = $self->deparse($kid->sibling, 20, $op);
+    	return $self->bin_info_join_maybe_parens($op, $lhs, $rhs, '=~', " ", $cx, 20,
+	                                         'trans');
+    } elsif ($op->flags & OPf_SPECIAL && $cx < 1 && !$op->targ) {
+    	my $kid_info = $self->deparse($kid, $cx, $op);
+	return info_from_list($op, $self, ['do', "{\n\t", $kid_info->{text},
+			       "\n\b};"], '', 'null_special',
+	    {body => [$kid_info]});
+    } elsif (!null($kid->sibling) and
+	     $kid->sibling->name eq "null" and
+	     class($kid->sibling) eq "UNOP" and
+	     $kid->sibling->first->flags & OPf_STACKED and
+	     $kid->sibling->first->name eq "rcatline") {
+	my $lhs = $self->deparse($kid, 18, $op);
+	my $rhs = $self->deparse($kid->sibling, 18, $op);
+	return $self->bin_info_join_maybe_parens($op, $lhs, $rhs, '=', " ", $cx, 20,
+						 'null_rcatline');
+    } else {
+	return $self->deparse($kid, $cx, $op);
+    }
+    Carp::confess("unhandled condition in null");
+}
+
 sub pp_scalar
 {
     my($self, $op, $cx) = @_;
@@ -1012,7 +1098,7 @@ sub anon_hash_or_list
     my($pre, $post) = @{{"anonlist" => ["[","]"],
 			 "anonhash" => ["{","}"]}->{$name}};
     my($expr, @exprs);
-    my $other_ops => [$op->first];
+    my $other_ops = [$op->first];
     $op = $op->first->sibling; # skip pushmark
     for (; !null($op); $op = $op->sibling) {
 	$expr = $self->deparse($op, 6, $op);
@@ -1669,7 +1755,7 @@ my @threadsv_names = B::threadsv_names;
 sub pp_threadsv {
     my $self = shift;
     my($op, $cx) = @_;
-    return $self->maybe_local($op, $cx, "\$" .  $threadsv_names[$op->targ]);
+    return $self->maybe_local_str($op, $cx, "\$" .  $threadsv_names[$op->targ]);
 }
 
 sub gv_or_padgv {
@@ -1682,20 +1768,22 @@ sub gv_or_padgv {
     }
 }
 
+# FIXME: adjust use of maybe_local_str
 sub pp_gvsv
 {
     my($self, $op, $cx) = @_;
     my $gv = $self->gv_or_padgv($op);
-    my $str = $self->stash_variable("\$", $self->gv_name($gv));
-    my $text = $self->maybe_local_str($op, $cx, $str);
-    return info_from_text($op, $self, $text, 'pp_gvsv', {});
+    return $self->maybe_local_str($op, $cx,
+				  $self->stash_variable("\$",
+							$self->gv_name($gv), $cx));
 }
 
 sub pp_gv
 {
     my($self, $op, $cx) = @_;
     my $gv = $self->gv_or_padgv($op);
-    return info_from_text($op, $self, $self->gv_name($gv), 'pp_gv', {});
+    return info_from_text($op, $self, $self->gv_name($gv),
+			  'global variable', {});
 }
 
 sub pp_aelemfast_lex
@@ -1722,9 +1810,9 @@ sub pp_aelemfast
 		      '', 'pp_aelemfast', {});
 }
 
-sub pp_rv2sv { maybe_local(@_, rv2x(@_, "\$")) }
-sub pp_rv2hv { maybe_local(@_, rv2x(@_, "%")) }
-sub pp_rv2gv { maybe_local(@_, rv2x(@_, "*")) }
+sub pp_rv2sv { maybe_local_str(@_, rv2x(@_, "\$")) }
+sub pp_rv2hv { maybe_local_str(@_, rv2x(@_, "%")) }
+sub pp_rv2gv { maybe_local_str(@_, rv2x(@_, "*")) }
 
 # skip rv2av
 sub pp_av2arylen {
@@ -1789,7 +1877,8 @@ sub pp_rv2av {
 	my $av = $self->const_sv($kid);
 	return $self->list_const($kid, $cx, $av->ARRAY);
     } else {
-	return $self->maybe_local($op, $cx, $self->rv2x($op, $cx, "\@"));
+	return $self->maybe_local_str($op, $cx,
+				      $self->rv2x($op, $cx, "\@"));
     }
  }
 
@@ -2097,7 +2186,7 @@ sub slice
     return info_from_list($op, $self, \@texts, '', $type, {body => \@elems});
 }
 
-sub pp_aslice { maybe_local(@_, slice(@_, "[", "]", "rv2av", "padav")) }
+sub pp_aslice   { maybe_local(@_, slice(@_, "[", "]", "rv2av", "padav")) }
 sub pp_kvaslice {                 slice(@_, "[", "]", "rv2av", "padav")  }
 sub pp_hslice   { maybe_local(@_, slice(@_, "{", "}", "rv2hv", "padhv")) }
 sub pp_kvhslice {                 slice(@_, "{", "}", "rv2hv", "padhv")  }
@@ -2318,45 +2407,6 @@ sub check_proto {
 
 sub pp_enterwrite { unop(@_, "write") }
 
-# For regexes with the /x modifier.
-# Leave whitespace unmangled.
-sub escape_extended_re {
-    my($str) = @_;
-    $str =~ s/(.)/ord($1) > 255 ? sprintf("\\x{%x}", ord($1)) : $1/eg;
-    $str =~ s/([[:^print:]])/
-	($1 =~ y! \t\n!!) ? $1 : sprintf("\\%03o", ord($1))/age;
-    $str =~ s/\n/\n\f/g;
-    return $str;
-}
-
-sub balanced_delim {
-    my($str) = @_;
-    my @str = split //, $str;
-    my($ar, $open, $close, $fail, $c, $cnt, $last_bs);
-    for $ar (['[',']'], ['(',')'], ['<','>'], ['{','}']) {
-	($open, $close) = @$ar;
-	$fail = 0; $cnt = 0; $last_bs = 0;
-	for $c (@str) {
-	    if ($c eq $open) {
-		$fail = 1 if $last_bs;
-		$cnt++;
-	    } elsif ($c eq $close) {
-		$fail = 1 if $last_bs;
-		$cnt--;
-		if ($cnt < 0) {
-		    # qq()() isn't ")("
-		    $fail = 1;
-		    last;
-		}
-	    }
-	    $last_bs = $c eq '\\';
-	}
-	$fail = 1 if $cnt != 0;
-	return ($open, "$open$str$close") if not $fail;
-    }
-    return ("", $str);
-}
-
 # Split a floating point number into an integer mantissa and a binary
 # exponent. Assumes you've already made sure the number isn't zero or
 # some weird infinity or NaN.
@@ -2378,19 +2428,6 @@ sub split_float {
     return ($mantissa, $exponent);
 }
 
-sub pp_const {
-    my $self = shift;
-    my($op, $cx) = @_;
-    if ($op->private & OPpCONST_ARYBASE) {
-        return info_from_text($op, $self, '$[', 'const_ary', {});
-    }
-    # if ($op->private & OPpCONST_BARE) { # trouble with '=>' autoquoting
-    # 	return $self->const_sv($op)->PV;
-    # }
-    my $sv = $self->const_sv($op);
-    return $self->const($sv, $cx);;
-}
-
 sub dq
 {
     my ($self, $op, $parent) = @_;
@@ -2399,7 +2436,7 @@ sub dq
     if ($type eq "const") {
 	return info_from_text($op, $self, '$[', 'dq_const_ary', {}) if $op->private & OPpCONST_ARYBASE;
 	return info_from_text($op, $self,
-			      B::Deparse::uninterp(B::Deparse::escape_str(unback($self->const_sv($op)->as_string))),
+			      B::Deparse::uninterp(B::Deparse::escape_str(B::Deparse::unback($self->const_sv($op)->as_string))),
 			 'dq_const', {});
     } elsif ($type eq "concat") {
 	my $first = $self->dq($op->first, $op);
@@ -2873,7 +2910,8 @@ sub pp_regcomp
     return (($self->regcomp($op, $cx, 0))[0]);
 }
 
-sub re_flags {
+sub re_flags
+{
     my ($self, $op) = @_;
     my $flags = '';
     my $pmflags = $op->pmflags;
@@ -2941,7 +2979,7 @@ sub matchop
 	if ($extended) {
 	    $re_str = B::Deparse::re_uninterp_extended(B::Deparse::escape_extended_re($unbacked));
 	} else {
-	    $re_str = B::Deparse::re_uninterp(B::deparse::escape_str(B::Deparse::re_unback($op->precomp)));
+	    $re_str = B::Deparse::re_uninterp(B::Deparse::escape_str(B::Deparse::re_unback($op->precomp)));
 	}
     } elsif ($kid->name ne 'regcomp') {
 	carp("found ".$kid->name." where regcomp expected");
@@ -3225,30 +3263,6 @@ unless (caller) {
 	print '-' x 30, "\n";
     }
 }
-
-# FIXME:
-# Different in 5.20. Go over differences to see if okay in 5.20.
-sub pp_chdir {
-    my ($self, $op, $cx) = @_;
-    if (($op->flags & (OPf_SPECIAL|OPf_KIDS)) == (OPf_SPECIAL|OPf_KIDS)) {
-	my $kw = $self->keyword("chdir");
-	my $kid = $self->const_sv($op->first)->PV;
-	my $code = $kw
-		 . ($cx >= 16 || $self->{'parens'} ? "($kid)" : " $kid");
-	maybe_targmy(@_, sub { $_[3] }, $code);
-    } else {
-	maybe_targmy(@_, \&unop, "chdir")
-    }
-}
-
-sub pp_entereval
-{
-    unop(
-      @_,
-      $_[1]->private & OPpEVAL_BYTES ? 'evalbytes' : "eval"
-    )
-}
-
 
 # Not in Perl 5.20 and presumeably < 5.20. No harm in adding to 5.20?
 *pp_ncomplement = *pp_complement;

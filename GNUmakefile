@@ -109,20 +109,23 @@ pure_install:
 skipcheck :
 	perl Build --makefile_env_macros 1 skipcheck
 
-#: Same as "test". "check" is the usual autoconf name
+#: "check" but stop after 1st error, and add -v option
 check-cautious:
 	(cd t; for t in *.t; do \
 	if ! prove -w $$t; then \
 	   break; \
 	fi; done)
 
+#: Run all tests
+check-short:
+	perl Build --makefile_env_macros 1 test
+
 #: Same as "test". "check" is the usual autoconf name
 check: test
 
 #: Run all tests
-test:
-	perl Build --makefile_env_macros 1 test && \
-	(cd scripts && make test)
+test: check-short
+	cd scripts && make test
 
 #: Check code coverage
 testcover:

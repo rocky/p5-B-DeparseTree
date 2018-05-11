@@ -683,10 +683,18 @@ sub combine2str($$)
 	    if (ref $item eq 'ARRAY' and scalar(@$item) == 2) {
 		# First item is text and second item is op address.
 		$result .= $item->[0];
+	    } elsif (eval{$item->isa("B::DeparseTree::Node")}) {
+		$result .= $self->combine2str($item->{sep},
+					     $item->{texts});
+		# First item is text and second item is op address.
 	    } else {
 		$result .= $item->{text};
 	    }
 	} else {
+	    # FIXME: add this and remove errors
+	    # if (index($item, '@B::DeparseTree::Node') > 0) {
+	    # 	Carp::confess("@B::DeparseTree::Node as an item is probably wrong");
+	    # }
 	    $result .= $item;
 	}
     }

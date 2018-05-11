@@ -16,6 +16,7 @@ lib/B/DeparseTree.pod
 lib/B/DeparseTree/Common.pm
 lib/B/DeparseTree/Fragment.pm
 lib/B/DeparseTree/Node.pm
+lib/B/DeparseTree/P518.pm
 lib/B/DeparseTree/P520.pm
 lib/B/DeparseTree/P522.pm
 lib/B/DeparseTree/P524.pm
@@ -55,17 +56,11 @@ scripts/README.md
 scripts/benchtests.pl
 scripts/base/cond.t
 scripts/base/if.t
-scripts/base/lex.t
-scripts/base/num.t
 scripts/base/pat.t
-scripts/base/rs.t
-scripts/base/term.t
 scripts/base/while.t
 scripts/bug-sample.pm
 scripts/deparse.sh
 scripts/fib.pl
 scripts/frag.pl
-scripts/opbasic/arith.t
-scripts/opbasic/magic_phase.t
 scripts/opbasic/qq.t
 scripts/runtests.pl

@@ -66,9 +66,6 @@ use B::Deparse;
 *meth_sv = *B::Deparse::meth_sv;
 *meth_rclass_sv = *B::Deparse::meth_rclass_sv;
 
-# # Here we need to call the routine something else.
-# *maybe_local_str = *B::Deparse::maybe_local;
-
 use strict;
 use vars qw/$AUTOLOAD/;
 use warnings ();
@@ -323,7 +320,7 @@ sub deparse_format($$$)
 	    push @body, $self->deparse($kid, -1, $op);
 	    $body[-1] =~ s/;\z//;
 	}
-	push @texts, "\f".join(", ", @body)."\n" if @body;
+	push @texts, "\f".$self->combine2str("\n", \@body) if @body;
 	$op = $op->sibling;
     }
 
@@ -490,7 +487,7 @@ sub maybe_parens_func($$$$$)
 }
 
 # FIXME this doesn't return a String!
-sub maybe_local_str($$$$)
+sub maybe_local_str
 {
     my($self, $op, $cx, $text) = @_;
     my $our_intro = ($op->name =~ /^(gv|rv2)[ash]v$/) ? OPpOUR_INTRO : 0;
@@ -603,6 +600,7 @@ sub gv_name {
 sub stash_variable {
     my ($self, $prefix, $name, $cx) = @_;
 
+    $name = $self->combine2str('', [$name]);
     return "$prefix$name" if $name =~ /::/;
 
     unless ($prefix eq '$' || $prefix eq '@' || $prefix eq '&' || #'
@@ -1897,7 +1895,8 @@ sub pp_gv
 {
     my($self, $op, $cx) = @_;
     my $gv = $self->gv_or_padgv($op);
-    return info_from_text($op, $self, $self->gv_name($gv), 'pp_gv', {});
+    return info_from_text($op, $self, $self->gv_name($gv),
+			  'global variable', {});
 }
 
 sub pp_aelemfast_lex
@@ -2026,6 +2025,7 @@ sub pp_rv2av {
 	my $av = $self->const_sv($kid);
 	return $self->list_const($kid, $cx, $av->ARRAY);
     } else {
+	# FIXME?
 	return $self->maybe_local($op, $cx, $self->rv2x($op, $cx, "\@"));
     }
  }
@@ -2555,17 +2555,6 @@ sub check_proto {
 
 sub pp_enterwrite { unop(@_, "write") }
 
-# For regexes with the /x modifier.
-# Leave whitespace unmangled.
-sub escape_extended_re {
-    my($str) = @_;
-    $str =~ s/(.)/ord($1) > 255 ? sprintf("\\x{%x}", ord($1)) : $1/eg;
-    $str =~ s/([[:^print:]])/
-	($1 =~ y! \t\n!!) ? $1 : sprintf("\\%03o", ord($1))/ge;
-    $str =~ s/\n/\n\f/g;
-    return $str;
-}
-
 # Split a floating point number into an integer mantissa and a binary
 # exponent. Assumes you've already made sure the number isn't zero or
 # some weird infinity or NaN.
@@ -2585,19 +2574,6 @@ sub split_float {
     }
     my $mantissa = sprintf("%.0f", $f);
     return ($mantissa, $exponent);
-}
-
-sub pp_const {
-    my $self = shift;
-    my($op, $cx) = @_;
-    if ($op->private & OPpCONST_ARYBASE) {
-        return info_from_text($op, $self, '$[', 'const_ary', {});
-    }
-    # if ($op->private & OPpCONST_BARE) { # trouble with '=>' autoquoting
-    # 	return $self->const_sv($op)->PV;
-    # }
-    my $sv = $self->const_sv($op);
-    return $self->const($sv, $cx);;
 }
 
 sub dq
@@ -2909,7 +2885,7 @@ sub tr_decode_utf8 {
     #$extra = sprintf("%04x", $extra) if defined $extra;
     #print STDERR "final: $final\n none: $none\nextra: $extra\n";
     #print STDERR $swash{'LIST'}->PV;
-    return (escape_str($from), escape_str($to));
+    return (B::Deparse::escape_str($from), B::Deparse::escape_str($to));
 }
 
 sub pp_trans {
@@ -3391,6 +3367,81 @@ sub pp_clonecv {
     my $sv = $self->padname_sv($op->targ);
     my $name = substr $sv->PVX, 1; # skip &/$/@/%, like $self->padany
     return info_from_list($op, $self, ['my', 'sub', $name], ' ', 'clonev', {});
+}
+
+# Note 5.20 and up
+sub pp_null
+{
+    my($self, $op, $cx) = @_;
+    my $info;
+    if (class($op) eq "OP") {
+	if ($op->targ == B::Deparse::OP_CONST) {
+	    # The Perl source constant value can't be recovered.
+	    # We'll use the 'ex_const' value as a substitute
+	    return info_from_text($op, $self, $self->{'ex_const'}, 'constant unrecoverable', {})
+	} else {
+	    return info_from_text($op, $self, '', 'constant ""', {});
+	}
+    } elsif (class ($op) eq "COP") {
+	    return $self->pp_nextstate($op, $cx);
+    }
+    my $kid = $op->first;
+    if ($op->first->name eq 'pushmark'
+             or $op->first->name eq 'null'
+                && $op->first->targ == B::Deparse::OP_PUSHMARK
+	&& B::Deparse::_op_is_or_was($op, B::Deparse::OP_LIST)) {
+	return $self->pp_list($op, $cx);
+    } elsif ($kid->name eq "enter") {
+	return $self->pp_leave($op, $cx);
+    } elsif ($kid->name eq "leave") {
+	return $self->pp_leave($kid, $cx);
+    } elsif ($kid->name eq "scope") {
+	return $self->pp_scope($kid, $cx);
+    } elsif ($op->targ == B::Deparse::OP_STRINGIFY) {
+	return $self->dquote($op, $cx);
+    } elsif ($op->targ == B::Deparse::OP_GLOB) {
+	my @other_ops = ($kid, $kid->first, $kid->first->first);
+	my $info = $self->pp_glob(
+	    $kid    # entersub
+	    ->first    # ex-list
+	    ->first    # pushmark
+	    ->sibling, # glob
+	    $cx
+	    );
+	push @{$info->{other_ops}}, @other_ops;
+	return $info;
+    } elsif (!null($kid->sibling) and
+    	     $kid->sibling->name eq "readline" and
+    	     $kid->sibling->flags & OPf_STACKED) {
+    	my $lhs = $self->deparse($kid, 7, $op);
+    	my $rhs = $self->deparse($kid->sibling, 7, $kid);
+    	return $self->bin_info_join_maybe_parens($op, $lhs, $rhs, '=', " ", $cx, 7,
+						 'readline');
+    } elsif (!null($kid->sibling) and
+    	     $kid->sibling->name eq "trans" and
+    	     $kid->sibling->flags & OPf_STACKED) {
+    	my $lhs = $self->deparse($kid, 20, $op);
+    	my $rhs = $self->deparse($kid->sibling, 20, $op);
+    	return $self->bin_info_join_maybe_parens($op, $lhs, $rhs, '=~', " ", $cx, 20,
+	                                         'trans');
+    } elsif ($op->flags & OPf_SPECIAL && $cx < 1 && !$op->targ) {
+    	my $kid_info = $self->deparse($kid, $cx, $op);
+	return info_from_list($op, $self, ['do', "{\n\t", $kid_info->{text},
+			       "\n\b};"], '', 'null_special',
+	    {body => [$kid_info]});
+    } elsif (!null($kid->sibling) and
+	     $kid->sibling->name eq "null" and
+	     class($kid->sibling) eq "UNOP" and
+	     $kid->sibling->first->flags & OPf_STACKED and
+	     $kid->sibling->first->name eq "rcatline") {
+	my $lhs = $self->deparse($kid, 18, $op);
+	my $rhs = $self->deparse($kid->sibling, 18, $op);
+	return $self->bin_info_join_maybe_parens($op, $lhs, $rhs, '=', " ", $cx, 20,
+						 'null_rcatline');
+    } else {
+	return $self->deparse($kid, $cx, $op);
+    }
+    Carp::confess("unhandled condition in null");
 }
 
 sub pp_padcv {
