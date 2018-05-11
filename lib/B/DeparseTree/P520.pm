@@ -512,15 +512,6 @@ sub ambient_pragmas {
     $self->{'ambient_hinthash'} = $hinthash;
 }
 
-sub is_scalar {
-    my $op = shift;
-    return ($op->name eq "rv2sv" or
-	    $op->name eq "padsv" or
-	    $op->name eq "gv" or # only in array/hash constructs
-	    $op->flags & OPf_KIDS && !null($op->first)
-	      && $op->first->name eq "gvsv");
-}
-
 # Sort of like maybe_parens in that we may possibly add ().  However we take
 # an op rather than text, and return a tree node. Also, we get around
 # the 'if it looks like a function' rule.
@@ -1367,31 +1358,6 @@ sub deparse_binop_right {
     } else {
 	return $self->deparse($right, $prec, $op);
     }
-}
-
-sub binop
-{
-    my ($self, $op, $cx, $opname, $prec, $flags) = (@_, 0);
-    my $left = $op->first;
-    my $right = $op->last;
-    my $eq = "";
-    if ($op->flags & OPf_STACKED && $flags & ASSIGN) {
-	$eq = "=";
-	$prec = 7;
-    }
-    if ($flags & SWAP_CHILDREN) {
-	($left, $right) = ($right, $left);
-    }
-    my $lhs = $self->deparse_binop_left($op, $left, $prec);
-    if ($flags & LIST_CONTEXT
-	&& $lhs->{text} !~ /^(my|our|local|)[\@\(]/) {
-	$lhs->{text} = "($lhs->{text})";
-    }
-
-    my $rhs = $self->deparse_binop_right($op, $right, $prec);
-    my @texts = ($lhs, "$opname$eq", $rhs);
-    return info_from_list($op, $self, \@texts, ' ', 'binop',
-			  {maybe_parens_join => [$self, $cx, $prec]});
 }
 
 sub pp_add { maybe_targmy(@_, \&binop, "+", 18, ASSIGN) }

@@ -1277,32 +1277,6 @@ sub deparse_binop_right {
     }
 }
 
-sub binop
-{
-    my ($self, $op, $cx, $opname, $prec, $flags) = (@_, 0);
-    my $left = $op->first;
-    my $right = $op->last;
-    my $eq = "";
-    if ($op->flags & OPf_STACKED && $flags & ASSIGN) {
-	$eq = "=";
-	$prec = 7;
-    }
-    if ($flags & SWAP_CHILDREN) {
-	($left, $right) = ($right, $left);
-    }
-    my $lhs = $self->deparse_binop_left($op, $left, $prec);
-    if ($flags & LIST_CONTEXT
-	&& $lhs->{text} !~ /^(my|our|local|)[\@\(]/) {
-	# FIXME use precidence.
-	$lhs->{text} = "($lhs->{text})";
-    }
-
-    my $rhs = $self->deparse_binop_right($op, $right, $prec);
-    my @texts = ($lhs, "$opname$eq", $rhs);
-    return info_from_list($op, $self, \@texts, ' ', 'binop',
-			  {maybe_parens_join => [$self, $cx, $prec]});
-}
-
 sub pp_add { maybe_targmy(@_, \&binop, "+", 18, ASSIGN) }
 sub pp_multiply { maybe_targmy(@_, \&binop, "*", 19, ASSIGN) }
 sub pp_subtract { maybe_targmy(@_, \&binop, "-",18,  ASSIGN) }

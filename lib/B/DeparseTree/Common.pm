@@ -41,11 +41,10 @@ use B qw(class
          svref_2object
          );
 
-use B::Deparse;
-
 use Carp;
-
+use B::Deparse;
 use B::DeparseTree::Node;
+
 
 our($VERSION, @EXPORT, @ISA);
 $VERSION = '1.1.0';
@@ -58,6 +57,7 @@ $VERSION = '1.1.0';
     POSTFIX baseop mapop pfixop indirop
     _features_from_bundle ambiant_pragmas maybe_qualify
     balanced_delim
+    binop
     const
     declare_hinthash
     declare_hints
@@ -102,6 +102,8 @@ $VERSION = '1.1.0';
     uninterp
     unop
     );
+
+sub ASSIGN () { 2 } # has OP= variant
 
 my $bal;
 BEGIN {
@@ -818,6 +820,31 @@ sub re_unback {
     return $str;
 }
 
+sub binop
+{
+    my ($self, $op, $cx, $opname, $prec, $flags) = (@_, 0);
+    my $left = $op->first;
+    my $right = $op->last;
+    my $eq = "";
+    if ($op->flags & OPf_STACKED && $flags & B::Deparse::ASSIGN) {
+	$eq = "=";
+	$prec = 7;
+    }
+    if ($flags & B::Deparse::SWAP_CHILDREN) {
+	($left, $right) = ($right, $left);
+    }
+    my $lhs = $self->deparse_binop_left($op, $left, $prec);
+    if ($flags & B::Deparse::LIST_CONTEXT
+	&& $lhs->{text} !~ /^(my|our|local|)[\@\(]/) {
+	$lhs->{text} = "($lhs->{text})";
+    }
+
+    my $rhs = $self->deparse_binop_right($op, $right, $prec);
+    my @texts = ($lhs, "$opname$eq", $rhs);
+    return info_from_list($op, $self, \@texts, ' ', "binary operator $opname$eq",
+			  {maybe_parens_join => [$self, $cx, $prec]});
+}
+
 sub coderef2info
 {
     my ($self, $coderef) = @_;
@@ -1149,7 +1176,8 @@ sub walk_lineseq
     # rather than the DeparseTree::Node.
     my @texts = map { $_->{text} =~ /(?:\n#)|^\s*$/ ?
 			  $_ : "$_->{text};" } @body;
-    my $info = info_from_list($op, $self, \@texts, "\n", 'lineseq', {});
+			  # $_ : ($_, ";") } @body;
+    my $info = info_from_list($op, $self, \@texts, "\n", 'line sequence', {});
     $self->{optree}{$$op} = $info if $op;
     return $info;
 }
