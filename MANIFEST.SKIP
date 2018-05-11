@@ -85,7 +85,7 @@
 # Nothing in tmp
 \btmp/
 
-\badmin$
+\badmin
 scripts/bug\.pm
 git2cl
 
