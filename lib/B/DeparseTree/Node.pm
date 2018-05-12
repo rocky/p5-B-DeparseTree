@@ -5,10 +5,9 @@ use strict; use warnings;
 package B::DeparseTree::Node;
 use Carp;
 
-our($VERSION, @EXPORT, @ISA);
-$VERSION = '1.0.0';
-@ISA = qw(Exporter);
-@EXPORT = qw(new($$$$ from_str($$$) from_list($$$) parens_test($$$)));
+our $VERSION = '1.0.0';
+our @ISA = qw(Exporter);
+our @EXPORT = qw(new($$$$ from_str($$$) from_list($$$) parens_test($$$)));
 
 =head2 Node structure
 
@@ -35,11 +34,6 @@ to help out with statement boundaries.
 
 A reference to a list containing either strings, a Node references, or Hash references
 containing the keys I<sep> and a I<body>.
-
-* item B<body>
-
-A reference to a list of a Node references. Eventually this will this and
-texts will be merged.
 
 * item B<text>
 
@@ -103,7 +97,7 @@ sub new($$$$$)
 	sep => $sep,
     }, $class;
 
-    $self->{text} = $self->combine($sep, $texts);
+    $self->{text} = $deparse->combine2str($sep, $texts);
 
     foreach my $optname (qw(other_ops body parent_ops child_pos)) {
 	$self->{$optname} = $opts->{$optname} if $opts->{$optname};
@@ -119,51 +113,6 @@ sub new($$$$$)
 	};
     }
     return $self;
-}
-
-# Simplified class constructors
-sub from_str($$$$$)
-{
-    my ($op, $self, $str, $type, $opts) = @_;
-    __PACKAGE__->new({body=>[$str]}, '', $type, $opts);
-}
-
-sub from_list($$$$$$)
-{
-    my ($op, $self, $list, $sep, $type, $opts) = @_;
-    __PACKAGE__->new({body=>$list}, $sep, $type, $opts);
-}
-
-sub combine($$$)
-{
-    my ($self, $sep, $items) = @_;
-    # FIXME: loop over $item, testing type.
-    return $items unless ref $items;
-    Carp::confess("should be a reference to a hash: is $items") unless
-	ref $items eq 'ARRAY';
-    my $result = '';
-    foreach my $item (@{$items}) {
-	my $add;
-	if (ref $item) {
-	    if (ref $item eq 'ARRAY' and scalar(@$item) == 2) {
-		# First item is text and second item is op address.
-		$add = $item->[0];
-	    } elsif (eval{$item->isa("B::DeparseTree::Node")}) {
-		$add = $item->{text};
-		# First item is text and second item is op address.
-	    } else {
-		$add = $self->combine($item->{sep}, $item->{texts});
-	    }
-	} else {
-	    $add = $item;
-	}
-	if ($result) {
-	    $result .= ($sep . $add);
-	} else {
-	    $result = $add;
-	}
-    }
-    return $result;
 }
 
 # FIXME: replace with routines to build text on from the tree
@@ -197,15 +146,18 @@ sub maybe_parens($$$$)
 
 # Demo code
 unless(caller) {
-    my $deparse = undef;
-    *fs = \&B::DeparseTree::Node::from_str;
-    *fl = \&B::DeparseTree::Node::from_list;
-    my @list = ();
-    push @list, fs('root', undef, "X", 'string', {}),
-	fl('root', undef, ['A', 'B'], ':', 'simple-list', {});
-    push @list, fl('root', undef, \@list, '||', 'compound-list', {});
-    foreach my $item (@list) {
-	print $item->text, "\n";
+    my $old_pkg = __PACKAGE__;
+    package B::DeparseTree::NodeDemo;
+    sub new($) {
+	my ($class) = @_;
+	bless {}, $class;
     }
+    sub combine2str($$$) {
+	my ($self, $sep, $texts) = @_;
+	join($sep, @$texts);
+    }
+    my $deparse = __PACKAGE__->new();
+    my $node = $old_pkg->new('op', $deparse, ['X'], 'test', {});
+    print $node->{text}, "\n";
 }
 1;

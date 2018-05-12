@@ -47,7 +47,6 @@ use feature (sprintf(":%vd", $^V)); # to avoid relying on the feature
                                     # logic to add CORE::
 
 use B::DeparseTree;
-my $deparse = new B::DeparseTree;
 # use B::Deparse;
 # my $deparse = new B::Deparse;
 

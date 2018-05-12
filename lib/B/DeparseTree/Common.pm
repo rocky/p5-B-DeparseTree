@@ -2445,7 +2445,7 @@ unless(caller) {
     use Data::Printer;
     # p $info;
     @texts = (['a', 1], ['b', 2], 'c');
-    $info = info_from_list('op', 'deparse',\@texts, ', ', 'test', {});
+    $info = info_from_list('op', 'deparse', \@texts, ', ', 'test', {});
     p $info;
 }
 

@@ -250,7 +250,7 @@ sub pp_nextstate {
 
     push @texts, $op->label . ": " if $op->label;
 
-    my $info = B::DeparseTree::Node->new($op, $self->{deparse},
+    my $info = B::DeparseTree::Node->new($op, $self,
 					 \@texts, '', 'pp_nextstate', {});
     return $info;
 }
@@ -477,7 +477,7 @@ sub pp_entersub
 	    @texts = dedup_parens_func($self, $subname_info, \@body);
 	}
     }
-    my $info = B::DeparseTree::Node->new($op, $self->{deparse}, \@texts,
+    my $info = B::DeparseTree::Node->new($op, $self, \@texts,
 					 '', $type,
 					 {other_ops => $other_ops});
     return $info;
