@@ -28,14 +28,14 @@ scripts/Makefile
 scripts/README.md
 scripts/base/cond.t
 scripts/base/if.t
-scripts/base/pat.t
+# scripts/base/pat.t
 scripts/base/while.t
 scripts/benchtests.pl
 scripts/bug-sample.pm
 scripts/deparse.sh
 scripts/fib.pl
 scripts/frag.pl
-scripts/opbasic/qq.t
+# scripts/opbasic/qq.t
 scripts/runtests.pl
 t/20-core-516.t
 t/20-core-518.t
