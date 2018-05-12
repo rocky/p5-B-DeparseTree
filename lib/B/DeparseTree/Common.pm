@@ -99,20 +99,6 @@ $VERSION = '1.1.0';
     unop
     );
 
-my $bal;
-BEGIN {
-    use re "eval";
-    # Matches any string which is balanced with respect to {braces}
-    $bal = qr(
-      (?:
-	[^\\{}]
-      | \\\\
-      | \\[{}]
-      | \{(??{$bal})\}
-      )*
-    )x;
-}
-
 # The BEGIN {} is used here because otherwise this code isn't executed
 # when you run B::Deparse on itself.
 my %globalnames;
@@ -203,7 +189,129 @@ sub new {
     }
 }
 
-# Initialise the contextual information, either from
+sub combine($$$)
+{
+    my ($self, $sep, $items) = @_;
+    # FIXME: loop over $item, testing type.
+    Carp::confess("should be a reference to a arry: is $items") unless
+	ref $items eq 'ARRAY';
+    my @result = ();
+    foreach my $item (@$items) {
+	my $add;
+	if (ref $item) {
+	    if (ref $item eq 'ARRAY' and scalar(@$item) == 2) {
+		$add = [$item->[0], $item->[1]];
+	    } elsif (eval{$item->isa("B::DeparseTree::Node")}) {
+		$add = [$item->{text}, $item->{addr}];
+		# First item is text and second item is op address.
+	    } else {
+		Carp::confess("don't know what to do with $item");
+	    }
+	} else {
+	    $add = $item;
+	}
+	push @result, $sep if @result && $sep;
+	push @result, $add;
+    }
+    return @result;
+}
+
+# Nonprinting characters with special meaning:
+my %SPECIAL_SEPARATORS = (
+        '\cS' => 1, # steal parens (see maybe_parens_unop)
+	'\n'  => 1, # newline and indent
+	'\b'  => 1, # decrease indent ('outdent')
+	'\f'  => 1, # flush left (no indent)
+	'\cK' => 1, # kill following semicolon, if any
+
+    );
+
+use Hash::Util qw[ lock_hash ];
+lock_hash %SPECIAL_SEPARATORS;
+
+sub combine2str($$$)
+{
+    my ($self, $sep, $items) = @_;
+    my $result = '';
+    foreach my $item (@$items) {
+	if ($result) {
+	    my $expanded_sep = $sep;
+	    if (exists $SPECIAL_SEPARATORS{$sep}) {
+		# FIXME: handle them
+		$expanded_sep = $sep;
+	    }
+	    $result .= $expanded_sep;
+	}
+	if (ref $item) {
+	    if (ref $item eq 'ARRAY' and scalar(@$item) == 2) {
+		# First item is text and second item is op address.
+		$result .= $self->info2str($item->[0]);
+	    } elsif (eval{$item->isa("B::DeparseTree::Node")}) {
+		$result .= $self->combine2str($item->{sep},
+					     $item->{texts});
+	    } else {
+		Carp::confess("Invalid ref item ref($item)");
+	    }
+	} else {
+	    # FIXME: add this and remove errors
+	    if (index($item, '@B::DeparseTree::Node') > 0) {
+	    	Carp::confess("\@B::DeparseTree::Node as an item is probably wrong");
+	    }
+	    $result .= $item;
+	}
+    }
+    return $result;
+}
+
+# Unary operators that can occur as pseudo-listops inside double quotes
+sub dq_unop
+{
+    my($self, $op, $cx, $name, $prec, $flags) = (@_, 0, 0);
+    my $kid;
+    if ($op->flags & OPf_KIDS) {
+	my $other_ops = undef;
+	$kid = $op->first;
+	if (not null $kid->sibling) {
+	    # If there's more than one kid, the first is an ex-pushmark.
+	    $other_ops = [$kid];
+	    $kid = $kid->sibling;
+	}
+	my $info = $self->maybe_parens_unop($name, $kid, $cx, $op);
+	$info->{other_ops} = $other_ops if $other_ops;
+	return $info;
+    } else {
+	my @texts = ($name);
+	push @texts, '(', ')' if $op->flags & OPf_SPECIAL;
+	return info_from_list($op, $self, \@texts, '', 'dq', {});
+    }
+    Carp::confess("unhandled condition in dq_unop");
+}
+
+sub info2str($$)
+{
+    my ($self, $item) = @_;
+    my $result = '';
+    if (ref $item) {
+	if (ref $item eq 'ARRAY' and scalar(@$item) == 2) {
+	    # First item is text and second item is op address.
+	    $result = $item->[0];
+	} elsif (eval{$item->isa("B::DeparseTree::Node")}) {
+	    $result = $self->combine2str($item->{sep},
+					  $item->{texts});
+	} else {
+	    Carp::confess("Invalid ref item ref($item)");
+	}
+    } else {
+	# FIXME: add this and remove errors
+	if (index($item, '@B::DeparseTree::Node') > 0) {
+		Carp::confess("\@B::DeparseTree::Node as an item is probably wrong");
+	}
+	$result = $item;
+    }
+    return $result;
+}
+
+# Initialize the contextual information, either from
 # defaults provided with the ambient_pragmas method,
 # or from Perl's own defaults otherwise.
 sub init {
@@ -624,105 +732,6 @@ sub maybe_qualify {
       or $self->lex_in_scope($v);        # conflicts with "my" variable
     return $name;
 }
-
-sub combine($$$)
-{
-    my ($self, $sep, $items) = @_;
-    # FIXME: loop over $item, testing type.
-    Carp::confess("should be a reference to a arry: is $items") unless
-	ref $items eq 'ARRAY';
-    my @result = ();
-    foreach my $item (@$items) {
-	my $add;
-	if (ref $item) {
-	    if (ref $item eq 'ARRAY' and scalar(@$item) == 2) {
-		$add = [$item->[0], $item->[1]];
-	    } elsif (eval{$item->isa("B::DeparseTree::Node")}) {
-		$add = [$item->{text}, $item->{addr}];
-		# First item is text and second item is op address.
-	    } else {
-		Carp::confess("don't know what to do with $item");
-	    }
-	} else {
-	    $add = $item;
-	}
-	push @result, $sep if @result && $sep;
-	push @result, $add;
-    }
-    return @result;
-}
-
-use Hash::Util qw[ lock_hash ];
-
-# Nonprinting characters with special meaning:
-my %SPECIAL_SEPARATORS = (
-        '\cS' => 1, # steal parens (see maybe_parens_unop)
-	'\n'  => 1, # newline and indent
-	'\b'  => 1, # decrease indent ('outdent')
-	'\f'  => 1, # flush left (no indent)
-	'\cK' => 1, # kill following semicolon, if any
-
-);
-lock_hash %SPECIAL_SEPARATORS;
-
-sub info2str($$)
-{
-    my ($self, $item) = @_;
-    my $result = '';
-    if (ref $item) {
-	if (ref $item eq 'ARRAY' and scalar(@$item) == 2) {
-	    # First item is text and second item is op address.
-	    $result = $item->[0];
-	} elsif (eval{$item->isa("B::DeparseTree::Node")}) {
-	    $result = $self->combine2str($item->{sep},
-					  $item->{texts});
-	} else {
-	    Carp::confess("Invalid ref item ref($item)");
-	}
-    } else {
-	# FIXME: add this and remove errors
-	if (index($item, '@B::DeparseTree::Node') > 0) {
-		Carp::confess("\@B::DeparseTree::Node as an item is probably wrong");
-	}
-	$result = $item;
-    }
-    return $result;
-}
-
-sub combine2str($$$)
-{
-    my ($self, $sep, $items) = @_;
-    my $result = '';
-    foreach my $item (@$items) {
-	if ($result) {
-	    my $expanded_sep = $sep;
-	    if (exists $SPECIAL_SEPARATORS{$sep}) {
-		# FIXME: handle them
-		$expanded_sep = $sep;
-	    }
-	    $result .= $expanded_sep;
-	}
-	if (ref $item) {
-	    if (ref $item eq 'ARRAY' and scalar(@$item) == 2) {
-		# First item is text and second item is op address.
-		$result .= $self->info2str($item->[0]);
-	    } elsif (eval{$item->isa("B::DeparseTree::Node")}) {
-		$result .= $self->combine2str($item->{sep},
-					     $item->{texts});
-	    } else {
-		Carp::confess("Invalid ref item ref($item)");
-	    }
-	} else {
-	    # FIXME: add this and remove errors
-	    if (index($item, '@B::DeparseTree::Node') > 0) {
-	    	Carp::confess("\@B::DeparseTree::Node as an item is probably wrong");
-	    }
-	    $result .= $item;
-	}
-    }
-    return $result;
-}
-
 
 BEGIN { for (qw[ pushmark ]) {
     eval "sub OP_\U$_ () { " . opnumber($_) . "}"
@@ -1854,6 +1863,7 @@ sub stash_variable_name {
     my($self, $prefix, $gv) = @_;
     my $name = $self->gv_name($gv, 1);
     $name = $self->maybe_qualify($prefix,$name);
+    no warnings 'once';
     if ($name =~ /^(?:\S|(?!\d)[\ca-\cz]?(?:\w|::)*|\d+)\z/) {
 	$name =~ s/^([\ca-\cz])/'^' . $B::Deparse::unctrl{$1}/e;
 	$name =~ /^(\^..|{)/ and $name = "{$name}";
@@ -2441,11 +2451,12 @@ sub unop
 # Demo code
 unless(caller) {
     my @texts = ('a', 'b', 'c');
-    my $info; # = info_from_list('op', 'deparse',\@texts, ', ', 'test', {});
+    my $deparse = __PACKAGE__->new();
+    my $info = info_from_list('op', $deparse, \@texts, ', ', 'test', {});
     use Data::Printer;
-    # p $info;
+    p $info;
     @texts = (['a', 1], ['b', 2], 'c');
-    $info = info_from_list('op', 'deparse', \@texts, ', ', 'test', {});
+    $info = info_from_list('op', $deparse, \@texts, ', ', 'test', {});
     p $info;
 }
 

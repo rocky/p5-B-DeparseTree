@@ -819,41 +819,6 @@ sub stash_variable {
     return $prefix . $self->maybe_qualify($prefix, $name);
 }
 
-my %unctrl = # portable to EBCDIC
-    (
-     "\c@" => '@',	# unused
-     "\cA" => 'A',
-     "\cB" => 'B',
-     "\cC" => 'C',
-     "\cD" => 'D',
-     "\cE" => 'E',
-     "\cF" => 'F',
-     "\cG" => 'G',
-     "\cH" => 'H',
-     "\cI" => 'I',
-     "\cJ" => 'J',
-     "\cK" => 'K',
-     "\cL" => 'L',
-     "\cM" => 'M',
-     "\cN" => 'N',
-     "\cO" => 'O',
-     "\cP" => 'P',
-     "\cQ" => 'Q',
-     "\cR" => 'R',
-     "\cS" => 'S',
-     "\cT" => 'T',
-     "\cU" => 'U',
-     "\cV" => 'V',
-     "\cW" => 'W',
-     "\cX" => 'X',
-     "\cY" => 'Y',
-     "\cZ" => 'Z',
-     "\c[" => '[',	# unused
-     "\c\\" => '\\',	# unused
-     "\c]" => ']',	# unused
-     "\c_" => '_',	# unused
-    );
-
 sub lex_in_scope {
     my ($self, $name, $our) = @_;
     substr $name, 0, 0, = $our ? 'o' : 'm'; # our/my
@@ -2858,64 +2823,6 @@ sub check_proto {
 
 sub pp_enterwrite { unop(@_, "write") }
 
-# escape things that cause interpolation in double quotes,
-# but not character escapes
-sub uninterp {
-    my($str) = @_;
-    $str =~ s/(^|\G|[^\\])((?:\\\\)*)([\$\@]|\\[uUlLQE])/$1$2\\$3/g;
-    return $str;
-}
-
-{
-my $bal;
-BEGIN {
-    use re "eval";
-    # Matches any string which is balanced with respect to {braces}
-    $bal = qr(
-      (?:
-	[^\\{}]
-      | \\\\
-      | \\[{}]
-      | \{(??{$bal})\}
-      )*
-    )x;
-}
-
-my %unctrl = # portable to EBCDIC
-    (
-     "\c@" => '\c@',	# unused
-     "\cA" => '\cA',
-     "\cB" => '\cB',
-     "\cC" => '\cC',
-     "\cD" => '\cD',
-     "\cE" => '\cE',
-     "\cF" => '\cF',
-     "\cG" => '\cG',
-     "\cH" => '\cH',
-     "\cI" => '\cI',
-     "\cJ" => '\cJ',
-     "\cK" => '\cK',
-     "\cL" => '\cL',
-     "\cM" => '\cM',
-     "\cN" => '\cN',
-     "\cO" => '\cO',
-     "\cP" => '\cP',
-     "\cQ" => '\cQ',
-     "\cR" => '\cR',
-     "\cS" => '\cS',
-     "\cT" => '\cT',
-     "\cU" => '\cU',
-     "\cV" => '\cV',
-     "\cW" => '\cW',
-     "\cX" => '\cX',
-     "\cY" => '\cY',
-     "\cZ" => '\cZ',
-     "\c[" => '\c[',	# unused
-     "\c\\" => '\c\\',	# unused
-     "\c]" => '\c]',	# unused
-     "\c_" => '\c_',	# unused
-    );
-
 # Split a floating point number into an integer mantissa and a binary
 # exponent. Assumes you've already made sure the number isn't zero or
 # some weird infinity or NaN.
@@ -2957,8 +2864,8 @@ sub dq
     my $info;
     if ($type eq "const") {
 	return info_from_text('$[', 'dq_const_ary', {}) if $op->private & OPpCONST_ARYBASE;
-	return info_from_text(uninterp(B::Deparse::escape_str(B::Deparse::unback($self->const_sv($op)->as_string))),
-			 'dq_const', {});
+	return info_from_text(B::Deparse::uninterp(B::Deparse::escape_str(B::Deparse::unback($self->const_sv($op)->as_string))),
+			 'dq constant', {});
     } elsif ($type eq "concat") {
 	my $first = $self->dq($op->first, $op);
 	my $last  = $self->dq($op->last, $op);
