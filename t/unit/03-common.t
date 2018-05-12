@@ -30,5 +30,21 @@ is $info2->{text}, 'a, b, c:def';
 my $info3 = info_from_text(main_root, $deparse, 'foo', 'test4', {});
 is $info3->{text}, 'foo';
 
+$info = info_from_list(main_root, $deparse, \@texts, '', 'test2',
+			  {maybe_parens => [$deparse, 10, 20]});
+is $info->{text}, 'def';
+$info = info_from_list(main_root, $deparse, \@texts, '', 'test2',
+		       {maybe_parens => [$deparse, 20, 10]});
+is $info->{text}, '(def)';
+$info = info_from_list(main_root, $deparse, \@texts, '', 'test2',
+		       {maybe_parens => [$deparse, 20, 20]});
+is $info->{text}, '(def)';
+
+foreach my $cx (keys %B::DeparseTree::Node::UNARY_PRECIDENCES) {
+    $info = info_from_list(main_root, $deparse, \@texts, '', 'test2',
+		       {maybe_parens => [$deparse, $cx, $cx]});
+    is $info->{text}, 'def';
+}
+
 
 Test::More::done_testing();

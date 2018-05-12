@@ -82,10 +82,9 @@ UNARY_OP_PRECIDENCE
 sub parens_test($$$)
 {
     my ($obj, $cx, $prec) = @_;
-    return ($prec < $cx ||
-	    $obj->{'parens'} ||
-	    # Some unary ops nest just fine
-	    $prec == $cx && !exists $UNARY_PRECIDENCES{$cx});
+    # Unary ops which nest just fine
+    return 1 if ($prec == $cx && !exists $UNARY_PRECIDENCES{$cx});
+    return ($prec < $cx || $obj->{'parens'});
 }
 
 sub new($$$$$)
@@ -112,7 +111,7 @@ sub new($$$$$)
 
     $self->{text} = $deparse->combine2str($sep, $texts);
 
-    foreach my $optname (qw(other_ops body parent_ops child_pos)) {
+    foreach my $optname (qw(other_ops parent_ops child_pos)) {
 	$self->{$optname} = $opts->{$optname} if $opts->{$optname};
     }
     if ($opts->{maybe_parens}) {

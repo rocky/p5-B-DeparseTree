@@ -47,7 +47,7 @@ use B::DeparseTree::Node;
 
 
 our($VERSION, @EXPORT, @ISA);
-$VERSION = '1.1.0';
+$VERSION = '3.0.0';
 @ISA = qw(Exporter B::Deparse);
 @EXPORT = qw(
     %globalnames
@@ -87,7 +87,6 @@ $VERSION = '1.1.0';
     new WARN_MASK
     next_todo
     null
-    parens_test
     pragmata
     print_protos
     re_unback
@@ -1193,20 +1192,12 @@ sub maybe_targmy
     }
 }
 
-sub parens_test($$)
-{
-    my ($cx, $prec) = @_;
-    return ($prec < $cx
-	    # unary ops nest just fine
-	    or $prec == $cx and $cx != 4 and $cx != 16 and $cx != 21)
-}
-
 # Possibly add () around $text depending on precidence $prec and
 # context $cx. We return a string.
 sub maybe_parens($$$$)
 {
     my($self, $text, $cx, $prec) = @_;
-    if (parens_test($cx, $prec) or $self->{'parens'}) {
+    if (B::DeparseTree::Node::parens_test($self, $cx, $prec)) {
 	$text = "($text)";
 	# In a unop, let parent reuse our parens; see maybe_parens_unop
 	$text = "\cS" . $text if $cx == 16;
