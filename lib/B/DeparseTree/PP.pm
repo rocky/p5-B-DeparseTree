@@ -578,15 +578,15 @@ sub pp_exists
     if ($op->private & OPpEXISTS_SUB) {
 	# Checking for the existence of a subroutine
 	$info = $self->pp_rv2cv($op->first, 16);
-	$type = 'exists_sub';
+	$type = 'exists sub';
     } elsif ($op->flags & OPf_SPECIAL) {
 	# Array element, not hash helement
 	$info = $self->pp_aelem($op->first, 16);
-	$type = 'info_array';
+	$type = 'exists array';
     } else {
 	$info = $self->pp_helem($op->first, 16);
-	$type = 'info_hash';
+	$type = 'exists hash';
     }
     my @texts = $self->maybe_parens_func($name, $info->{text}, $cx, 16);
-    return info_from_list($op, $self, \@texts, '', $type, {body=>[$info]});
+    return info_from_list($op, $self, \@texts, '', $type, {});
 }

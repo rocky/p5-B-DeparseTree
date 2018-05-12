@@ -5,9 +5,20 @@ use strict; use warnings;
 package B::DeparseTree::Node;
 use Carp;
 
+use Hash::Util qw[ lock_hash ];
+
+# Set of unary precidences
+our %UNARY_PRECIDENCES = (
+        # 4 => 1,  # ?? Probably not used anymore
+        16 => 'sub, %, @',   # "sub", "%", "@'
+        21 => '~', # steal parens (see maybe_parens_unop)
+);
+lock_hash %UNARY_PRECIDENCES;
+
+
 our $VERSION = '1.0.0';
 our @ISA = qw(Exporter);
-our @EXPORT = qw(new($$$$ from_str($$$) from_list($$$) parens_test($$$)));
+our @EXPORT = qw(new($$$$ parens_test($$$)) %UNARY_PRECIDENCES);
 
 =head2 Node structure
 
@@ -58,7 +69,9 @@ A number as determined by the operator at this level.
 =item B<parens>
 
 'true' if we should to add parenthesis based on I<context> and
-I<precidence> values; '' if not.
+I<precidence> values; '' if not. We don't nest equal precidence
+for unuary ops. The unary op precidence is given by
+UNARY_OP_PRECIDENCE
 
 =back
 
@@ -69,10 +82,10 @@ I<precidence> values; '' if not.
 sub parens_test($$$)
 {
     my ($obj, $cx, $prec) = @_;
-    return ($prec < $cx or
-	    $obj->{'parens'} or
-	    # unary ops nest just fine
-	    $prec == $cx and $cx != 4 and $cx != 16 and $cx != 21)
+    return ($prec < $cx ||
+	    $obj->{'parens'} ||
+	    # Some unary ops nest just fine
+	    $prec == $cx && !exists $UNARY_PRECIDENCES{$cx});
 }
 
 sub new($$$$$)
