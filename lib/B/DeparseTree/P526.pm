@@ -1193,30 +1193,6 @@ sub pp_rcatline {
 			  '', 'rcatline', {});
 }
 
-# Unary operators that can occur as pseudo-listops inside double quotes
-sub dq_unop
-{
-    my($self, $op, $cx, $name, $prec, $flags) = (@_, 0, 0);
-    my $kid;
-    if ($op->flags & OPf_KIDS) {
-	my $other_ops = undef;
-	$kid = $op->first;
-	if (not null $kid->sibling) {
-	    # If there's more than one kid, the first is an ex-pushmark.
-	    $other_ops = [$kid];
-	    $kid = $kid->sibling;
-	}
-	my $info = $self->maybe_parens_unop($name, $kid, $cx, $op);
-	$info->{other_ops} = $other_ops if $other_ops;
-	return $info;
-    } else {
-	my @texts = ($name);
-	push @texts, '(', ')' if $op->flags & OPf_SPECIAL;
-	return info_from_list($op, $self, \@texts, '', 'dq', {});
-    }
-    Carp::confess("unhandled condition in dq_unop");
-}
-
 sub pp_ucfirst { dq_unop(@_, "ucfirst") }
 sub pp_lcfirst { dq_unop(@_, "lcfirst") }
 sub pp_uc { dq_unop(@_, "uc") }

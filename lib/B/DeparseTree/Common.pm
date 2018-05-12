@@ -64,6 +64,7 @@ $VERSION = '1.1.0';
     dedup_parens_func
     deparse_sub
     deparse_subname
+    dq_unop
     dquote
     gv_name
     hint_pragmas
@@ -271,7 +272,7 @@ sub dq_unop
     if ($op->flags & OPf_KIDS) {
 	my $other_ops = undef;
 	$kid = $op->first;
-	if (not null $kid->sibling) {
+	if (not B::Deparse::null $kid->sibling) {
 	    # If there's more than one kid, the first is an ex-pushmark.
 	    $other_ops = [$kid];
 	    $kid = $kid->sibling;
