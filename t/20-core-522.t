@@ -131,7 +131,7 @@ sub do_infix_keyword {
     }
 }
 
-# test a keyword that is as tandard op/function, like 'index(...)'.
+# test a keyword that is a standard op/function, like 'index(...)'.
 # narg    - how many args to test it with
 # $parens - "foo $a, $b" is deparsed as "foo($a, $b)"
 # $dollar - an extra '$_' arg will appear in the deparsed output
@@ -200,7 +200,6 @@ for my $file (@test_files) {
     }
     close $data_fh;
 }
-
 
 # Special cases
 
