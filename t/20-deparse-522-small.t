@@ -4,16 +4,12 @@
 use rlib '.'; use helper;
 use warnings; use strict;
 
-if ($] < 5.022 || $] > 5.0229) {
-    plan skip_all => 'Customized to Perl 5.22 interpreter';
+if ($] < 5.020 || $] > 5.0229) {
+    plan skip_all => 'Customized to Perl 5.20 - 5.22 interpreters';
 }
 
 my $tests = 19; # not counting those in the __DATA__ section
 
-use B::Deparse;
-use B::DeparseTree;
-my $deparse_orig = B::Deparse->new();
-my $deparse = B::DeparseTree->new();
 my %deparse;
 
 $/ = "\n####\n";

@@ -30,7 +30,6 @@ use rlib '.';
 use helper;
 
 BEGIN {
-    use Test::More;
     if ($] < 5.026 || $] > 5.0269) {
 	plan skip_all => 'Customized to Perl 5.26 interpreter';
     }
@@ -41,6 +40,7 @@ use English;
 
 use feature (sprintf(":%vd", $^V)); # to avoid relying on the feature
                                     # logic to add CORE::
+
 # for a given keyword, create a sub of that name, then
 # deparse "() = $expr", and see if it matches $expected_expr
 

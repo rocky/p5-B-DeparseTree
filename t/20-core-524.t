@@ -40,6 +40,7 @@ use English;
 
 use feature (sprintf(":%vd", $^V)); # to avoid relying on the feature
                                     # logic to add CORE::
+
 # for a given keyword, create a sub of that name, then
 # deparse "() = $expr", and see if it matches $expected_expr
 
@@ -151,8 +152,12 @@ sub do_std_keyword {
     }
 }
 
+my @test_files = ('core-base.pm');
+if ($] >= 5.020 && $] <= 5.0209) {
+    push @test_files, 'P520-core.pm';
+}
 
-for my $file ('core-base.pm') {
+for my $file (@test_files) {
     my $data_fh = open_data($file);
     while (<$data_fh>) {
 	chomp;
@@ -186,6 +191,7 @@ for my $file ('core-base.pm') {
 	    }
 	}
     }
+    close $data_fh;
 }
 
 # Special cases

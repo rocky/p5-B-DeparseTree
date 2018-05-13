@@ -10,10 +10,6 @@ if ($] < 5.018 || $] > 5.0189) {
 
 my $tests = 19; # not counting those in the __DATA__ section
 
-use B::Deparse;
-use B::DeparseTree;
-my $deparse_orig = B::Deparse->new();
-my $deparse = B::DeparseTree->new();
 my %deparse;
 
 $/ = "\n####\n";

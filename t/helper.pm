@@ -1,5 +1,6 @@
 # Routines common to tests
 
+use English;
 use File::Basename qw(dirname basename); use File::Spec;
 use constant data_dir => File::Spec->catfile(dirname(__FILE__), 'testdata');
 use Text::Diff;

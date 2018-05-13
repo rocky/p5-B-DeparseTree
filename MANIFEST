@@ -42,8 +42,8 @@ t/20-core-518.t
 t/20-core-522.t
 t/20-core-524.t
 t/20-core-526.t
-t/20-deparse-516.small.t
-t/20-deparse-518.small.t
+t/20-deparse-516-small.t
+t/20-deparse-518-small.t
 t/20-deparse-520.t
 t/20-deparse-522-small.t
 t/20-deparse-522.t

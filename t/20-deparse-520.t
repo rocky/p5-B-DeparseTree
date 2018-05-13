@@ -1,42 +1,29 @@
 #!./perl
 # Adapted from Deparse.t
-use File::Basename qw(dirname basename); use File::Spec;
-use English;
 
-use warnings;
-use strict;
-use Text::Diff;
-use rlib '../lib';
-
-use constant data_dir => File::Spec->catfile(dirname(__FILE__), 'testdata');
-
-use Test::More;
+use rlib '.'; use helper;
+use warnings; use strict;
 
 if ($] < 5.020 || $] > 5.0209) {
     plan skip_all => 'Customized to Perl 5.20 interpreter';
 }
 
-my $tests = 12; # not counting those in the __DATA__ section
+my $tests = 11; # not counting those in the __DATA__ section
 
-use B::Deparse;
-use B::DeparseTree;
-my $deparse_orig = B::Deparse->new();
-my $deparse = B::DeparseTree->new();
-isa_ok($deparse, 'B::DeparseTree', 'instantiate a B::DeparseTree object');
 my %deparse;
 
 my $short_name = $ARGV[0] || 'P520.pm';
 my $test_data = File::Spec->catfile(data_dir, $short_name);
 
 local $INPUT_RECORD_SEPARATOR = "\n";
-open(my $fh, '<', $test_data) or die "Can't open $test_data: $!";
-while (<$fh>) {
+open(my $data_fh, '<', $test_data) or die "Can't open $test_data: $!";
+while (<$data_fh>) {
     chomp;
     last if $_ eq '__DATA__'
 }
 
 local $INPUT_RECORD_SEPARATOR = "\n####\n";
-while (<$fh>) {
+while (<$data_fh>) {
     chomp;
     $tests ++;
     # This code is pinched from the t/lib/common.pl for TODO.
@@ -291,6 +278,5 @@ is($deparse->coderef2text(sub{ use utf8; /€/; }),
     /\x{20ac}/;
 }',
 "qr/euro/");
-
 
 done_testing($tests);
