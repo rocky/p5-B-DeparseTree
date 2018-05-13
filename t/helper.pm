@@ -1,6 +1,7 @@
 use File::Basename qw(dirname basename); use File::Spec;
 use constant data_dir => File::Spec->catfile(dirname(__FILE__), 'testdata');
 
+use rlib '../lib';
 use strict; use warnings;
 use B::DeparseTree;
 use vars qw($deparse $deparse_orig %SEEN %SEEN_STRENGTH %infix_map);

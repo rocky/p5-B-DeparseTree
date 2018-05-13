@@ -1,5 +1,5 @@
 #!./perl
-# Adapted from lib/B/Deparse-core.t
+# Adapted from Perl's lib/B/Deparse-core.t
 #
 # Test the core keywords.
 #
@@ -101,6 +101,10 @@ sub testit {
 	is $got_expr, $expected_expr, $desc;
     }
 }
+
+# test a keyword that is a binary infix operator, like 'cmp'.
+# $parens - "$a op $b" is deparsed as "($a op $b)"
+# $strong - keyword is strong
 
 sub do_infix_keyword {
     my ($keyword, $parens, $strong) = @_;

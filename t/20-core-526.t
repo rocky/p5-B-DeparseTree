@@ -26,36 +26,21 @@
 # Note that tests for prefixing feature.pm-enabled keywords with CORE:: when
 # feature.pm is not enabled are in deparse.t, as they fit that format better.
 
-use File::Basename qw(dirname basename); use File::Spec;
-use constant data_dir => File::Spec->catfile(dirname(__FILE__), 'testdata');
+use rlib '.';
+use helper;
 
 BEGIN {
-    require Config;
-    if (($Config::Config{extensions} !~ /\bB\b/) ){
-        print "1..0 # Skip -- Perl configured without B module\n";
-        exit 0;
-    }
     use Test::More;
     if ($] < 5.026 || $] > 5.0269) {
 	plan skip_all => 'Customized to Perl 5.26 interpreter';
     }
 }
 
-use rlib '../lib';
 use strict;
 use English;
 
 use feature (sprintf(":%vd", $^V)); # to avoid relying on the feature
                                     # logic to add CORE::
-
-use B::DeparseTree;
-my $deparse = new B::DeparseTree;
-# use B::Deparse;
-# my $deparse = new B::Deparse;
-
-my %SEEN;
-my %SEEN_STRENGH;
-
 # for a given keyword, create a sub of that name, then
 # deparse "() = $expr", and see if it matches $expected_expr
 
@@ -100,11 +85,8 @@ sub testit {
 	}
 
 	my $got_text = $deparse->coderef2text($code_ref);
-	my $got_text_orig = $deparse_orig->coderef2text($code_ref);
 
-	if ($got_text ne $got_text_orig) {
-
-	    unless ($got_text =~ /^{
+	unless ($got_text =~ /^{
     package test;
     use strict 'refs', 'subs';
     use feature [^\n]+
@@ -130,7 +112,6 @@ sub do_infix_keyword {
     $SEEN_STRENGTH{$keyword} = $strong;
     my $expr = "(\$a $keyword \$b)";
     my $nkey = $infix_map{$keyword} // $keyword;
-    my $expr = "(\$a $keyword \$b)";
     my $exp = "\$a $nkey \$b";
     $exp = "($exp)" if $parens;
     $exp .= ";";
@@ -151,7 +132,7 @@ sub do_infix_keyword {
     testit $keyword, "$keyword(\$a, \$b)", "$keyword(\$a, \$b);", 1;
 }
 
-# test a keyword that is as tandard op/function, like 'index(...)'.
+# test a keyword that is a standard op/function, like 'index(...)'.
 # narg    - how many args to test it with
 # $parens - "foo $a, $b" is deparsed as "foo($a, $b)"
 # $dollar - an extra '$_' arg will appear in the deparsed output
@@ -179,14 +160,7 @@ sub do_std_keyword {
     }
 }
 
-my $short_name = $ARGV[0] || 'P526-core.pm';
-my $test_data = File::Spec->catfile(data_dir, $short_name);
-open(my $data_fh, "<", $test_data) || die "Can't open $test_data: $!";
-
-# Skip to __DATA__
-while (<$data_fh> !~ /__DATA__/) {
-    ;
-}
+my $data_fh = open_data('P526-core.pm');
 
 while (<$data_fh>) {
     chomp;
@@ -304,7 +278,7 @@ testit splice   => q{CORE::splice @foo, 0, 1;},           q{CORE::splice(@foo, 0
 #testit split    => 'CORE::split $a, $b, $c;',    q{split(/$a/u, $b, $c);};
 
 # testit sub      => 'CORE::sub { $a, $b }',
-			"sub {\n        \$a, \$b;\n    }\n    ;";
+#			"sub {\n        \$a, \$b;\n    }\n    ;";
 
 testit system   => 'CORE::system($foo $bar);';
 
@@ -402,7 +376,7 @@ SKIP:
 		diag("keyword '$key' seen in $file, but not tested here!!");
 		$pass = 0;
 	    }
-	    if (exists $SEEN_STRENGH{$key} and $SEEN_STRENGH{$key} != $strength) {
+	    if (exists $SEEN_STRENGTH{$key} and $SEEN_STRENGTH{$key} != $strength) {
 		diag("keyword '$key' strengh as seen in $file doen't match here!!");
 		$pass = 0;
 	    }

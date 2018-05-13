@@ -2914,7 +2914,7 @@ sub pp_split
 	my $bsep = $expr0b0->{sep};
 	my $sep = $expr0->{sep};
 	$expr0b0->{texts}[1] = ' ';
-	substr($expr0b0->{text}, 1, 0) = ' ';
+	# substr($expr0b0->{text}, 1, 0) = ' ';
 	substr($expr0->{texts}[0], 1, 0) = ' ';
 	substr($expr0->{text}, 1, 0) = ' ';
     }
