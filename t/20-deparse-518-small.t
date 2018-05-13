@@ -1,23 +1,8 @@
 #!./perl
 # Adapted from Deparse.t
-use File::Basename qw(dirname basename); use File::Spec;
-use Text::Diff;
-use rlib '../lib';
 
-use constant data_dir => File::Spec->catfile(dirname(__FILE__), 'testdata');
-
-BEGIN {
-    unshift @INC, 't';
-    require Config;
-    if (($Config::Config{'extensions'} !~ /\bB\b/) ){
-        print "1..0 # Skip -- Perl configured without B module\n";
-        exit 0;
-    }
-}
-
-use warnings;
-use strict;
-use Test::More;
+use rlib '.'; use helper;
+use warnings; use strict;
 
 if ($] < 5.018 || $] > 5.0189) {
     plan skip_all => 'Customized to Perl 5.18 interpreter';
@@ -28,64 +13,61 @@ my $tests = 19; # not counting those in the __DATA__ section
 use B::Deparse;
 use B::DeparseTree;
 my $deparse_orig = B::Deparse->new();
-my $deparse_tree = B::DeparseTree->new();
-isa_ok($deparse_tree, 'B::DeparseTree', 'instantiate a B::DeparseTree object');
+my $deparse = B::DeparseTree->new();
 my %deparse;
 
 $/ = "\n####\n";
 my $eval_but_skip = $tests+1;
 
-my $short_name = $ARGV[0] || 'P518-short.pm';
-my $test_data = File::Spec->catfile(data_dir, $short_name);
-open(my $data_fh, "<", $test_data) || die "Can't open $test_data: $!";
-# Skip 1st line
-ok <$data_fh> =~ /__DATA__/;
+my @test_files = ('P518-short.pm');
+for my $file (@test_files) {
 
-while (<$data_fh>) {
-    chomp;
-    $tests ++;
-    # This code is pinched from the t/lib/common.pl for TODO.
-    # It's not clear how to avoid duplication
-    my %meta = (context => '');
-    foreach my $what (qw(skip todo context options)) {
-	s/^#\s*\U$what\E\s*(.*)\n//m and $meta{$what} = $1;
-	# If the SKIP reason starts ? then it's taken as a code snippet to
-	# evaluate. This provides the flexibility to have conditional SKIPs
-	if ($meta{$what} && $meta{$what} =~ s/^\?//) {
-	    my $temp = eval $meta{$what};
-	    ok ! $@;
-	    if ($@) {
-		die "# In \U$what\E code reason:\n# $meta{$what}\n$@";
+    my $data_fh = open_data($file);
+    while (<$data_fh>) {
+	chomp;
+	$tests ++;
+	# This code is pinched from the t/lib/common.pl for TODO.
+	# It's not clear how to avoid duplication
+	my %meta = (context => '');
+	foreach my $what (qw(skip todo context options)) {
+	    s/^#\s*\U$what\E\s*(.*)\n//m and $meta{$what} = $1;
+	    # If the SKIP reason starts ? then it's taken as a code snippet to
+	    # evaluate. This provides the flexibility to have conditional SKIPs
+	    if ($meta{$what} && $meta{$what} =~ s/^\?//) {
+		my $temp = eval $meta{$what};
+		ok ! $@;
+		if ($@) {
+		    die "# In \U$what\E code reason:\n# $meta{$what}\n$@";
+		}
+		$meta{$what} = $temp;
 	    }
-	    $meta{$what} = $temp;
 	}
-    }
 
-    s/^\s*#\s*(.*)$//mg;
-    my $desc = $1;
-    die "Missing name in test $_" unless defined $desc;
+	s/^\s*#\s*(.*)$//mg;
+	my $desc = $1;
+	die "Missing name in test $_" unless defined $desc;
 
-    if ($meta{skip}) {
-	# Like this to avoid needing a label SKIP:
-	Test::More->builder->skip($meta{skip});
-	next;
-    }
+	if ($meta{skip}) {
+	    # Like this to avoid needing a label SKIP:
+	    Test::More->builder->skip($meta{skip});
+	    next;
+	}
 
-    my ($input, $expected);
-    if (/(.*)\n>>>>\n(.*)/s) {
-	($input, $expected) = ($1, $2);
-    }
-    else {
-	($input, $expected) = ($_, $_);
-    }
+	my ($input, $expected);
+	if (/(.*)\n>>>>\n(.*)/s) {
+	    ($input, $expected) = ($1, $2);
+	}
+	else {
+	    ($input, $expected) = ($_, $_);
+	}
 
-    # parse options if necessary
-    my $deparse = $meta{options}
+	# parse options if necessary
+	my $deparse = $meta{options}
 	? $deparse{$meta{options}} ||=
 	    new B::DeparseTree split /,/, $meta{options}
-	: $deparse_tree;
+	: $deparse;
 
-    my $coderef = eval "$meta{context};\n" . <<'EOC' . "sub {$input}";
+	my $coderef = eval "$meta{context};\n" . <<'EOC' . "sub {$input}";
 # Tell B::Deparse about our ambient pragmas
 my ($hint_bits, $warning_bits, $hinthash);
 BEGIN {
@@ -98,53 +80,54 @@ $deparse->ambient_pragmas (
 );
 EOC
 
-    if ($@) {
-	is($@, "", "compilation of $desc");
-    }
-    else {
-	my ($deparsed, $deparsed_check);
-	$deparsed_check = $deparse_orig->coderef2text( $coderef );
-	eval {
-	    $deparsed = $deparse_tree->coderef2text( $coderef );
-	};
 	if ($@) {
-	    die "$coderef\n$@";
+	    is($@, "", "compilation of $desc");
 	}
-	# Something is funky with testing against final }.
-	if (substr($expected, -1) eq '}') {
-	    $expected = substr($expected, 0, -1);
-	}
-	my $regex = $expected;
-	$regex =~ s/(\S+)/\Q$1/g;
-	$regex =~ s/\s+/\\s+/g;
-	$regex = '^\{\s*' . $regex;
-
-	local $::TODO = $meta{todo};
-	if ($deparsed ne $deparsed_check) {
-	    unless(like($deparsed, qr/$regex/, $desc)) {
-		print "\n", '-' x 30, "\n";
-		print diff \$deparsed, \$expected, { STYLE => "Context" };
-		print "\n", '=' x 30, "\n";
+	else {
+	    my ($deparsed, $deparsed_check);
+	    $deparsed_check = $deparse_orig->coderef2text( $coderef );
+	    eval {
+		$deparsed = $deparse->coderef2text( $coderef );
+	    };
+	    if ($@) {
+		die "$coderef\n$@";
 	    }
+	    # Something is funky with testing against final }.
+	    if (substr($expected, -1) eq '}') {
+		$expected = substr($expected, 0, -1);
+	    }
+	    my $regex = $expected;
+	    $regex =~ s/(\S+)/\Q$1/g;
+	    $regex =~ s/\s+/\\s+/g;
+	    $regex = '^\{\s*' . $regex;
+
+	    local $::TODO = $meta{todo};
+	    if ($deparsed ne $deparsed_check) {
+		unless(like($deparsed, qr/$regex/, $desc)) {
+		    print "\n", '-' x 30, "\n";
+		    print diff \$deparsed, \$expected, { STYLE => "Context" };
+		    print "\n", '=' x 30, "\n";
+		}
+	    }
+	    ok $tests, $desc;
 	}
-	ok $tests, $desc;
     }
+
+    close($data_fh);
 }
 
-close($data_fh);
-
 use constant 'c', 'stuff';
-is((eval "sub ".$deparse_tree->coderef2text(\&c))->(), 'stuff',
+is((eval "sub ".$deparse->coderef2text(\&c))->(), 'stuff',
    'the subroutine generated by use constant deparses');
 
 # ROCKY: FIXME
 # my $a = 0;
-# is($deparse_tree->coderef2text(sub{(-1) ** $a }), "{\n    (-1) ** \$a;\n}",
+# is($deparse->coderef2text(sub{(-1) ** $a }), "{\n    (-1) ** \$a;\n}",
 #    'anon sub capturing an external lexical');
 
 use constant cr => ['hello'];
 
-# my $string = "sub " . $deparse_tree->coderef2text(\&cr);
+# my $string = "sub " . $deparse->coderef2text(\&cr);
 # my $val = (eval $string)->() or diag $string;
 
 
@@ -250,7 +233,7 @@ EOFCODE
 }
 EOCODE
   my $deparsed
-   = $deparse_tree->coderef2text(eval "sub { our \$\x{1e1f}\x{14d}\x{14d} }" );
+   = $deparse->coderef2text(eval "sub { our \$\x{1e1f}\x{14d}\x{14d} }" );
   s/$ \n//x for $deparsed, $code;
   is $deparsed, $code, 'our $funny_Unicode_chars';
 }

@@ -244,7 +244,6 @@ testit reverse  => 'CORE::reverse sort(@foo);';
 
 # note that the test does '() = split...' which is why the
 # limit is optimised to 1
-
 testit split    => 'split;',                     q{split(/ /u, $_, 1);};
 testit split    => 'CORE::split;',               q{split(/ /u, $_, 1);};
 testit split    => 'split $a;',                  q{split(/$a/u, $_, 1);};

@@ -1,5 +1,8 @@
+# Routines common to tests
+
 use File::Basename qw(dirname basename); use File::Spec;
 use constant data_dir => File::Spec->catfile(dirname(__FILE__), 'testdata');
+use Text::Diff;
 
 use rlib '../lib';
 use strict; use warnings;
@@ -9,13 +12,13 @@ $deparse = new B::DeparseTree;
 use B::Deparse;
 $deparse_orig = new B::Deparse;
 
+use Test::More;
 BEGIN {
     require Config;
     if (($Config::Config{extensions} !~ /\bB\b/) ){
         print "1..0 # Skip -- Perl configured without B module\n";
         exit 0;
     }
-    use Test::More;
 }
 
 # Deparse can't distinguish 'and' from '&&' etc

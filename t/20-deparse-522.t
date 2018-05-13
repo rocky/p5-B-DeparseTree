@@ -1,4 +1,5 @@
 #!/usr/bin/env perl
+# Adapted from Deparse.t
 use warnings;
 use strict;
 use Test::More;

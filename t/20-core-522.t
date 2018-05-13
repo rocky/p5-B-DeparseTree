@@ -30,8 +30,8 @@ use rlib '.';
 use helper;
 
 BEGIN {
-    if ($] < 5.022 || $] > 5.0229) {
-	plan skip_all => 'Customized to Perl 5.22 interpreter';
+    if ($] < 5.020 || $] > 5.0229) {
+	plan skip_all => 'Customized to Perl 5.20 - 5.22 interpreters';
     }
 }
 
@@ -119,7 +119,6 @@ sub do_infix_keyword {
     $SEEN_STRENGTH{$keyword} = $strong;
     my $expr = "(\$a $keyword \$b)";
     my $nkey = $infix_map{$keyword} // $keyword;
-    my $expr = "(\$a $keyword \$b)";
     my $exp = "\$a $nkey \$b";
     $exp = "($exp)" if $parens;
     $exp .= ";";
@@ -160,7 +159,12 @@ sub do_std_keyword {
     }
 }
 
-for my $file ('core-base.pm') {
+my @test_files = ('core-base.pm');
+if ($] >= 5.020 && $] <= 5.0209) {
+    push @test_files, 'P520-core.pm';
+}
+
+for my $file (@test_files) {
     my $data_fh = open_data($file);
     while (<$data_fh>) {
 	chomp;
@@ -243,13 +247,24 @@ testit readpipe => 'CORE::readpipe $a + $b;';
 
 testit reverse  => 'CORE::reverse sort(@foo);';
 
-# note that the test does '() = split...' which is why the
-# limit is optimised to 1
-
-#testit split    => 'split $a, $b;',              q{split(/$a/u, $b, 1);};
-#testit split    => 'CORE::split $a, $b;',        q{split(/$a/u, $b, 1);};
-#testit split    => 'split $a, $b, $c;',          q{split(/$a/u, $b, $c);};
-#testit split    => 'CORE::split $a, $b, $c;',    q{split(/$a/u, $b, $c);};
+if ($] >= 5.020 && $] <= 5.0209) {
+    # FIXME for 5.22
+    # note that the test does '() = split...' which is why the
+    # limit is optimised to 1
+    testit split    => 'split;',                     q{split(/ /u, $_, 1);};
+    testit split    => 'CORE::split;',               q{split(/ /u, $_, 1);};
+    testit split    => 'split $a;',                  q{split(/$a/u, $_, 1);};
+    testit split    => 'CORE::split $a;',            q{split(/$a/u, $_, 1);};
+    testit split    => 'split $a, $b;',              q{split(/$a/u, $b, 1);};
+    testit split    => 'CORE::split $a, $b;',        q{split(/$a/u, $b, 1);};
+    testit split    => 'split $a, $b, $c;',          q{split(/$a/u, $b, $c);};
+    testit split    => 'CORE::split $a, $b, $c;',    q{split(/$a/u, $b, $c);};
+} else {
+    testit split    => 'split;',                     q{split(/ /, $_, 1);};
+    testit split    => 'CORE::split;',               q{split(/ /, $_, 1);};
+    testit split    => 'split $a;',                  q{split(/$a/, $_, 1);};
+    testit split    => 'CORE::split $a;',            q{split(/$a/, $_, 1);};
+}
 
 testit sub      => 'CORE::sub { $a, $b }',
 			"sub {\n        \$a, \$b;\n    };";
