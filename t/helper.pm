@@ -20,6 +20,10 @@ BEGIN {
 # Deparse can't distinguish 'and' from '&&' etc
 %infix_map = qw(and && or ||);
 
+# test a keyword that is a binary infix operator, like 'cmp'.
+# $parens - "$a op $b" is deparsed as "($a op $b)"
+# $strong - keyword is strong
+
 sub open_data($)
 {
     my ($default_fn) = @_;

@@ -102,16 +102,11 @@ sub testit {
     }
 }
 
-# test a keyword that is a binary infix operator, like 'cmp'.
-# $parens - "$a op $b" is deparsed as "($a op $b)"
-# $strong - keyword is strong
-
 sub do_infix_keyword {
     my ($keyword, $parens, $strong) = @_;
     $SEEN_STRENGTH{$keyword} = $strong;
     my $expr = "(\$a $keyword \$b)";
     my $nkey = $infix_map{$keyword} // $keyword;
-    my $expr = "(\$a $keyword \$b)";
     my $exp = "\$a $nkey \$b";
     $exp = "($exp)" if $parens;
     $exp .= ";";
@@ -124,7 +119,7 @@ sub do_infix_keyword {
     }
 }
 
-# test a keyword that is as tandard op/function, like 'index(...)'.
+# test a keyword that is a standard op/function, like 'index(...)'.
 # narg    - how many args to test it with
 # $parens - "foo $a, $b" is deparsed as "foo($a, $b)"
 # $dollar - an extra '$_' arg will appear in the deparsed output

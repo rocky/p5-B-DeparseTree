@@ -112,7 +112,6 @@ sub do_infix_keyword {
     $SEEN_STRENGTH{$keyword} = $strong;
     my $expr = "(\$a $keyword \$b)";
     my $nkey = $infix_map{$keyword} // $keyword;
-    my $expr = "(\$a $keyword \$b)";
     my $exp = "\$a $nkey \$b";
     $exp = "($exp)" if $parens;
     $exp .= ";";

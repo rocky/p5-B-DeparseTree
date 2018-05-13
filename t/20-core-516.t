@@ -113,7 +113,6 @@ sub do_infix_keyword {
     $SEEN_STRENGTH{$keyword} = $strong;
     my $expr = "(\$a $keyword \$b)";
     my $nkey = $infix_map{$keyword} // $keyword;
-    my $expr = "(\$a $keyword \$b)";
     my $exp = "\$a $nkey \$b";
     $exp = "($exp)" if $parens;
     $exp .= ";";
@@ -155,7 +154,9 @@ sub do_std_keyword {
 }
 
 
-while (<DATA>) {
+my $data_fh = open_data('P516-core.pm');
+
+while (<$data_fh>) {
     chomp;
     s/#.*//;
     next unless /\S/;
