@@ -90,3 +90,9 @@ scripts/bug\.pm
 git2cl
 
 t/testdata/bug\.pm
+
+# No tarballs please
+\bB-DeparseTree-v
+
+# Nothing in tmp
+\btmp/

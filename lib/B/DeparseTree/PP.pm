@@ -70,6 +70,7 @@ $VERSION = '1.0.0';
     pp_i_predec
     pp_i_preinc
     pp_leave pp_lineseq
+    pp_leaveloop
     pp_mapstart
     pp_mapwhile
     pp_negate
@@ -134,6 +135,7 @@ sub pp_gpwent { baseop(@_, "getpwent") }
 sub pp_grepstart { baseop(@_, "grep") }
 sub pp_gservent { baseop(@_, "getservent") }
 sub pp_leave { scopeop(1, @_); }
+sub pp_leaveloop { shift->loop_common(@_, undef); }
 sub pp_lineseq { scopeop(0, @_); }
 sub pp_mapstart { baseop(@_, "map") }
 sub pp_ref { unop(@_, "ref") }
