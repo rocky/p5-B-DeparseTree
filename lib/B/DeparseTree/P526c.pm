@@ -992,8 +992,6 @@ sub pp_not
 sub pp_pos { maybe_local(@_, unop(@_, "pos")) }
 sub pp_sin { maybe_targmy(@_, \&unop, "sin") }
 sub pp_cos { maybe_targmy(@_, \&unop, "cos") }
-sub pp_rand { maybe_targmy(@_, \&unop, "rand") }
-sub pp_srand { unop(@_, "srand") }
 sub pp_exp { maybe_targmy(@_, \&unop, "exp") }
 sub pp_log { maybe_targmy(@_, \&unop, "log") }
 sub pp_sqrt { maybe_targmy(@_, \&unop, "sqrt") }

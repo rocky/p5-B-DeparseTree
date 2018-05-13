@@ -85,6 +85,7 @@ $VERSION = '1.0.0';
     pp_preinc
     pp_print
     pp_prtf
+    pp_rand
     pp_ref
     pp_repeat
     pp_say
@@ -95,8 +96,11 @@ $VERSION = '1.0.0';
     pp_sgrent
     pp_sort
     pp_spwent
+    pp_srand
     pp_stub
     pp_study
+    pp_substr
+    pp_symlink
     pp_time
     pp_tms
     pp_undef
@@ -144,6 +148,7 @@ sub pp_schop { maybe_targmy(@_, \&unop, "chop") }
 sub pp_scope { scopeop(0, @_); }
 sub pp_sgrent { baseop(@_, "setgrent") }
 sub pp_spwent { baseop(@_, "setpwent") }
+sub pp_srand { unop(@_, "srand") }
 sub pp_study { unop(@_, "study") }
 sub pp_tms { baseop(@_, "times") }
 sub pp_undef { unop(@_, "undef") }
@@ -497,6 +502,8 @@ sub pp_once
 sub pp_print { indirop(@_, "print") }
 sub pp_prtf { indirop(@_, "printf") }
 
+sub pp_rand { maybe_targmy(@_, \&unop, "rand") }
+
 # 'x' is weird when the left arg is a list
 sub pp_repeat {
     my $self = shift;
@@ -536,11 +543,9 @@ sub pp_repeat {
 }
 
 sub pp_say  { indirop(@_, "say") }
-
+sub pp_srand { unop(@_, "srand") }
 sub pp_setstate { pp_nextstate(@_) }
-
 sub pp_sort { indirop(@_, "sort") }
-
 
 sub pp_or  { logop(@_, "or",  2, "||", 10, "unless") }
 sub pp_dor { logop(@_, "//", 10) }
@@ -564,6 +569,16 @@ sub pp_predec { pfixop(@_, "--", 23) }
 sub pp_i_preinc { pfixop(@_, "++", 23) }
 sub pp_i_predec { pfixop(@_, "--", 23) }
 
+sub pp_substr {
+    my ($self,$op,$cx) = @_;
+    if ($op->private & B::Deparse::OPpSUBSTR_REPL_FIRST) {
+	my $left = listop($self, $op, 7, "substr", $op->first->sibling->sibling);
+	my $right = $self->deparse($op->first->sibling, 7, $op);
+	return info_from_list($op, $self,[$left, '=', $right], ' ',
+			      'substr_repl_first', {});
+    }
+    return maybe_local(@_, listop(@_, "substr"))
+}
 # FIXME:
 # Different between 5.20 and 5.20. We've used 5.22 tough
 # Go over and make sure this is okay.
@@ -571,6 +586,8 @@ sub pp_stub {
     my ($self, $op) = @_;
     info_from_list($op, $self, ["(", ")"], '', 'stub', {})
 };
+
+sub pp_symlink { maybe_targmy(@_, \&listop, "symlink") }
 
 sub pp_exists
 {

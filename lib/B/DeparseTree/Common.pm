@@ -460,16 +460,6 @@ sub listop
 
 sub pp_bless { listop(@_, "bless") }
 sub pp_atan2 { maybe_targmy(@_, \&listop, "atan2") }
-sub pp_substr {
-    my ($self,$op,$cx) = @_;
-    if ($op->private & OPpSUBSTR_REPL_FIRST) {
-	my $left = listop($self, $op, 7, "substr", $op->first->sibling->sibling);
-	my $right = $self->deparse($op->first->sibling, 7, $op);
-	return info_from_list($op, $self,[$left, '=', $right], ' ',
-			      'substr_repl_first', {});
-    }
-    return maybe_local(@_, listop(@_, "substr"))
-}
 sub pp_vec { maybe_local(@_, listop(@_, "vec")) }
 sub pp_index { maybe_targmy(@_, \&listop, "index") }
 sub pp_rindex { maybe_targmy(@_, \&listop, "rindex") }

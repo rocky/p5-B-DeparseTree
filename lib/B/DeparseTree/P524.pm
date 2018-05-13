@@ -781,7 +781,6 @@ sub pp_not
 sub pp_pos { maybe_local(@_, unop(@_, "pos")) }
 sub pp_sin { maybe_targmy(@_, \&unop, "sin") }
 sub pp_cos { maybe_targmy(@_, \&unop, "cos") }
-sub pp_rand { maybe_targmy(@_, \&unop, "rand") }
 
 sub pp_srand { unop(@_, "srand") }
 
