@@ -237,7 +237,7 @@ while (<DATA>) {
     my $invert1 = $flags =~ s/1//;
     my $dollar  = $flags =~ s/\$//;
     my $strong  = $flags =~ s/\+//;
-    die "unrecognised flag(s): '$flags'" unless $flags =~ /^-?$/;
+    die "unrecognized flag(s): '$flags'" unless $flags =~ /^-?$/;
 
     if ($args eq 'B') { # binary infix
 	die "$keyword: binary (B) op can't have '\$' flag\\n" if $dollar;

@@ -1,4 +1,5 @@
 #!./perl
+# Adapted from Perl's lib/B/Deparse-core.t
 
 # Test the core keywords.
 #
@@ -25,37 +26,21 @@
 # Note that tests for prefixing feature.pm-enabled keywords with CORE:: when
 # feature.pm is not enabled are in deparse.t, as they fit that format better.
 
+use rlib '.';
+use helper;
 
 BEGIN {
-    require Config;
-    my $is_cperl = $Config::Config{usecperl};
-    if (($Config::Config{extensions} !~ /\bB\b/) ){
-        print "1..0 # Skip -- Perl configured without B module\n";
-        exit 0;
-    }
-    use Test::More;
     if ($] < 5.026 || $] > 5.0269) {
 	plan skip_all => 'Customized to version 5.26 interpreter';
     }
     plan skip_all => 'Customized to Perl (not CPerl) interpreter' if $is_cperl;
 }
 
-use rlib '../lib';
 use strict;
 use English;
-# plan tests => 3886;
-plan 'no_plan';
 
 use feature (sprintf(":%vd", $^V)); # to avoid relying on the feature
                                     # logic to add CORE::
-use B::Deparse;
-my $deparse = new B::Deparse;
-use B::DeparseTree;
-my $deparse_tree = new B::DeparseTree;
-
-my %SEEN;
-my %SEEN_STRENGH;
-
 # for a given keyword, create a sub of that name, then
 # deparse "() = $expr", and see if it matches $expected_expr
 
@@ -236,7 +221,7 @@ sub do_std_keyword {
 #     my $invert1 = $flags =~ s/1//;
 #     my $dollar  = $flags =~ s/\$//;
 #     my $strong  = $flags =~ s/\+//;
-#     die "unrecognised flag(s): '$flags'" unless $flags =~ /^-?$/;
+#     die "unrecognized flag(s): '$flags'" unless $flags =~ /^-?$/;
 
 #     if ($args eq 'B') { # binary infix
 # 	die "$keyword: binary (B) op can't have '\$' flag\\n" if $dollar;
