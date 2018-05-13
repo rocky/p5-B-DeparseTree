@@ -5,7 +5,7 @@
 #
 # Initially this test file just checked that CORE::foo got correctly
 # deparsed as CORE::foo, hence the name. It's since been expanded
-# to fully test both CORE:: verses none, plus that any arguments
+# to fully test both CORE:: versus none, plus that any arguments
 # are correctly deparsed. It also cross-checks against regen/keywords.pl
 # to make sure we've tested all keywords, and with the correct strength.
 #
@@ -89,28 +89,26 @@ sub testit {
 	my $got_text = $deparse->coderef2text($code_ref);
 	my $got_text_orig = $deparse_orig->coderef2text($code_ref);
 
-	unless ($got_text =~ /^{
+	if ($got_text ne $got_text_orig) {
+
+	    unless ($got_text =~ /^{
     package test;
     BEGIN \{\$\{\^WARNING_BITS} = "[^"]*"}
     use strict 'refs', 'subs';
     use feature [^\n]+
     \Q$vars\E\(\) = (.*)
 }/s) {
-	    ::fail($desc);
-	    ::diag("couldn't extract line from boilerplate\n");
-	    ::diag($got_text);
-	    return;
-	}
+		::fail($desc);
+		::diag("couldn't extract line from boilerplate\n");
+		::diag($got_text);
+		return;
+	    }
 
-	my $got_expr = $1;
-	is $got_expr, $expected_expr, $desc;
+	    my $got_expr = $1;
+	    is $got_expr, $expected_expr, $desc;
+	}
     }
 }
-
-
-# Deparse can't distinguish 'and' from '&&' etc
-my %infix_map = qw(and && or ||);
-
 
 # test a keyword that is a binary infix operator, like 'cmp'.
 # $parens - "$a op $b" is deparsed as "($a op $b)"
@@ -118,7 +116,7 @@ my %infix_map = qw(and && or ||);
 
 sub do_infix_keyword {
     my ($keyword, $parens, $strong) = @_;
-    $SEEN_STRENGH{$keyword} = $strong;
+    $SEEN_STRENGTH{$keyword} = $strong;
     my $expr = "(\$a $keyword \$b)";
     my $nkey = $infix_map{$keyword} // $keyword;
     my $expr = "(\$a $keyword \$b)";
@@ -144,7 +142,7 @@ sub do_infix_keyword {
 sub do_std_keyword {
     my ($keyword, $narg, $parens, $dollar, $strong) = @_;
 
-    $SEEN_STRENGH{$keyword} = $strong;
+    $SEEN_STRENGTH{$keyword} = $strong;
 
     for my $core (0,1) { # if true, add CORE:: to keyword being deparsed
 	my @code;
@@ -350,7 +348,7 @@ SKIP:
 		diag("keyword '$key' seen in $file, but not tested here!!");
 		$pass = 0;
 	    }
-	    if (exists $SEEN_STRENGH{$key} and $SEEN_STRENGH{$key} != $strength) {
+	    if (exists $SEEN_STRENGTH{$key} and $SEEN_STRENGTH{$key} != $strength) {
 		diag("keyword '$key' strengh as seen in $file doen't match here!!");
 		$pass = 0;
 	    }

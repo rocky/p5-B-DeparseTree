@@ -26,7 +26,6 @@
 # Note that tests for prefixing feature.pm-enabled keywords with CORE:: when
 # feature.pm is not enabled are in deparse.t, as they fit that format better.
 
-
 use rlib '.';
 use helper;
 
@@ -110,11 +109,6 @@ sub testit {
 	}
     }
 }
-
-
-# Deparse can't distinguish 'and' from '&&' etc
-my %infix_map = qw(and && or ||);
-
 
 # test a keyword that is a binary infix operator, like 'cmp'.
 # $parens - "$a op $b" is deparsed as "($a op $b)"
@@ -249,11 +243,6 @@ testit reverse  => 'CORE::reverse sort(@foo);';
 # note that the test does '() = split...' which is why the
 # limit is optimised to 1
 
-testit split    => 'split;',                     q{split(/ /, $_, 1);};
-testit split    => 'CORE::split;',               q{split(/ /, $_, 1);};
-testit split    => 'split $a;',                  q{split(/$a/, $_, 1);};
-testit split    => 'CORE::split $a;',            q{split(/$a/, $_, 1);};
-## FIXME
 #testit split    => 'split $a, $b;',              q{split(/$a/u, $b, 1);};
 #testit split    => 'CORE::split $a, $b;',        q{split(/$a/u, $b, 1);};
 #testit split    => 'split $a, $b, $c;',          q{split(/$a/u, $b, $c);};

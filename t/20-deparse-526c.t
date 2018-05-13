@@ -147,11 +147,6 @@ sub testit {
     }
 }
 
-
-# Deparse can't distinguish 'and' from '&&' etc
-my %infix_map = qw(and && or ||);
-
-
 # test a keyword that is a binary infix operator, like 'cmp'.
 # $parens - "$a op $b" is deparsed as "($a op $b)"
 # $strong - keyword is strong
