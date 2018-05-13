@@ -152,38 +152,43 @@ sub do_std_keyword {
     }
 }
 
+# Note the P522-core is not a typo.
+# 5.20 and 5.18 use the same differences off of core-base.pm
+for my $file ('core-base.pm', 'P520-core.pm') {
+    my $data_fh = open_data($file);
+    while (<$data_fh>) {
+	chomp;
+	s/#.*//;
+	next unless /\S/;
 
-while (<DATA>) {
-    chomp;
-    s/#.*//;
-    next unless /\S/;
+	my @fields = split;
+	die "not 3 fields" unless @fields == 3;
+	my ($keyword, $args, $flags) = @fields;
 
-    my @fields = split;
-    die "not 3 fields" unless @fields == 3;
-    my ($keyword, $args, $flags) = @fields;
+	$args = '012' if $args eq '@';
 
-    $args = '012' if $args eq '@';
+	my $parens  = $flags =~ s/p//;
+	my $invert1 = $flags =~ s/1//;
+	my $dollar  = $flags =~ s/\$//;
+	my $strong  = $flags =~ s/\+//;
+	die "unrecognized flag(s): '$flags'" unless $flags =~ /^-?$/;
 
-    my $parens  = $flags =~ s/p//;
-    my $invert1 = $flags =~ s/1//;
-    my $dollar  = $flags =~ s/\$//;
-    my $strong  = $flags =~ s/\+//;
-    die "unrecognized flag(s): '$flags'" unless $flags =~ /^-?$/;
-
-    if ($args eq 'B') { # binary infix
-	die "$keyword: binary (B) op can't have '\$' flag\\n" if $dollar;
-	die "$keyword: binary (B) op can't have '1' flag\\n" if $invert1;
-	do_infix_keyword($keyword, $parens, $strong);
-    }
-    else {
-	my @narg = split //, $args;
-	for my $n (0..$#narg) {
-	    my $narg = $narg[$n];
-	    my $p = $parens;
-	    $p = !$p if ($n == 0 && $invert1);
-	    do_std_keyword($keyword, $narg, $p, (!$n && $dollar), $strong);
+	if ($args eq 'B') { # binary infix
+	    die "$keyword: binary (B) op can't have '\$' flag\\n" if $dollar;
+	    die "$keyword: binary (B) op can't have '1' flag\\n" if $invert1;
+	    do_infix_keyword($keyword, $parens, $strong);
+	}
+	else {
+	    my @narg = split //, $args;
+	    for my $n (0..$#narg) {
+		my $narg = $narg[$n];
+		my $p = $parens;
+		$p = !$p if ($n == 0 && $invert1);
+		do_std_keyword($keyword, $narg, $p, (!$n && $dollar), $strong);
+	    }
 	}
     }
+    close $data_fh;
 }
 
 
