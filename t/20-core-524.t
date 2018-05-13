@@ -1,5 +1,5 @@
 #!./perl
-# Adapted from Perl 5.26's lib/B/Deparse-core.t
+# Adapted from lib/B/Deparse-core.t
 #
 # Test the core keywords.
 #
@@ -108,7 +108,7 @@ sub testit {
 
 sub do_infix_keyword {
     my ($keyword, $parens, $strong) = @_;
-    $SEEN_STRENGH{$keyword} = $strong;
+    $SEEN_STRENGTH{$keyword} = $strong;
     my $expr = "(\$a $keyword \$b)";
     my $nkey = $infix_map{$keyword} // $keyword;
     my $expr = "(\$a $keyword \$b)";
@@ -134,7 +134,7 @@ sub do_infix_keyword {
 sub do_std_keyword {
     my ($keyword, $narg, $parens, $dollar, $strong) = @_;
 
-    $SEEN_STRENGH{$keyword} = $strong;
+    $SEEN_STRENGTH{$keyword} = $strong;
 
     for my $core (0,1) { # if true, add CORE:: to keyword being deparsed
 	my @code;
@@ -153,7 +153,7 @@ sub do_std_keyword {
 }
 
 
-my $data_fh = open_data('P522-core.pm');
+my $data_fh = open_data('P524-core.pm');
 
 while (<$data_fh>) {
     chomp;
@@ -343,7 +343,7 @@ SKIP:
 		diag("keyword '$key' seen in $file, but not tested here!!");
 		$pass = 0;
 	    }
-	    if (exists $SEEN_STRENGH{$key} and $SEEN_STRENGH{$key} != $strength) {
+	    if (exists $SEEN_STRENGTH{$key} and $SEEN_STRENGTH{$key} != $strength) {
 		diag("keyword '$key' strengh as seen in $file doen't match here!!");
 		$pass = 0;
 	    }
