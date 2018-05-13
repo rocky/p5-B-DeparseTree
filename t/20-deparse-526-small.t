@@ -4,8 +4,8 @@
 use rlib '.'; use helper;
 use warnings; use strict;
 
-if ($] < 5.026 || $] > 5.0269) {
-    plan skip_all => 'Customized to Perl 5.26 interpreter';
+if ($] < 5.024 || $] > 5.0269) {
+    plan skip_all => 'Customized to Perl 5.24 - 5.26 interpreters';
 }
 
 my $tests = 19; # not counting those in the __DATA__ section
@@ -15,7 +15,12 @@ my %deparse;
 $/ = "\n####\n";
 my $eval_but_skip = $tests+1;
 
-my @test_files = ('P526-short.pm');
+my @test_files;
+if ($] >= 5.024 && $] <= 5.0249) {
+    @test_files = ('P524-short.pm');
+} else {
+    @test_files = ('P526-short.pm');
+}
 for my $file (@test_files) {
 
     my $data_fh = open_data($file);
@@ -303,6 +308,5 @@ is($deparse->coderef2text(sub{ use utf8; /€/; }),
     /\x{20ac}/;
 }',
 "qr/euro/");
-
 
 done_testing();

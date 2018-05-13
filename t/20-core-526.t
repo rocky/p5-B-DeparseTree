@@ -31,13 +31,12 @@ use helper;
 
 BEGIN {
     if ($] < 5.026 || $] > 5.0269) {
-	plan skip_all => 'Customized to Perl 5.26 interpreter';
+	plan skip_all => 'Customized to the Perl 5.26 interpreter';
     }
+    plan skip_all => 'Customized to Perl (not CPerl) interpreter' if $is_cperl;
 }
 
 use strict;
-use English;
-
 use feature (sprintf(":%vd", $^V)); # to avoid relying on the feature
                                     # logic to add CORE::
 
