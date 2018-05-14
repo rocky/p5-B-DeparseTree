@@ -133,14 +133,22 @@ sub new {
     $self->{'ex_const'} = "'???'";
     $self->{'expand'} = 0;
     $self->{'files'} = {};
+
+    # How many spaces per indent nesting?
     $self->{'indent_size'} = 4;
+
     $self->{'opaddr'} = 0;
     $self->{'linenums'} = 0;
     $self->{'parens'} = 0;
     $self->{'subs_todo'} = [];
     $self->{'unquote'} = 0;
     $self->{'use_dumper'} = 0;
+
+    # Compress spaces with tabs? 1 tab = 8 spaces
     $self->{'use_tabs'} = 0;
+
+    # Indentation level
+    $self->{'level'} = 0;
 
     $self->{'ambient_arybase'} = 0;
     $self->{'ambient_warnings'} = undef; # Assume no lexical warnings
@@ -290,6 +298,36 @@ sub dq_unop
 	return info_from_list($op, $self, \@texts, '', 'dq', {});
     }
     Carp::confess("unhandled condition in dq_unop");
+}
+
+sub indent_value($) {
+    my ($self) = @_;
+    my $level = $self->{level};
+    if ($self->{'use_tabs'}) {
+	return "\t" x ($level / 8) . " " x ($level % 8);
+    } else {
+	return " " x $level;
+    }
+}
+
+sub indent_less($$) {
+    my ($self, $check_level) = @_;
+    $check_level = 0 if !defined $check_level;
+
+    $self->{level} -= $self->{'indent_size'};
+    my $level = $self->{level};
+    if ($check_level < 0) {
+	Carp::confess("mismatched indent/dedent") if $check_level;
+	$level = 0;
+	$self->{level} = 0;
+    }
+    return $self->indent_value();
+}
+
+sub indent_more($) {
+    my ($self) = @_;
+    $self->{level} += $self->{'indent_size'};
+    return $self->indent_value();
 }
 
 sub info2str($$)
@@ -2550,6 +2588,66 @@ sub single_delim($$$$$) {
     }
 }
 
+# FIXME: make this like uncompyle6
+sub template_engine($$$$) {
+    my ($self, $fmt, $indexes, $args) = @_;
+
+    # use Data::Dumper;
+    # print "-----\n";
+    # p $args;
+    # print "'======\n";
+    # print $fmt, "\n"
+    # print $args, "\n";
+
+    my $i = 0;
+
+    my $result = '';
+    while ((my $k=index($fmt, '%')) >= 0) {
+	$result .= substr($fmt, 0, $k);
+	my $spec = substr($fmt, $k, 2);
+	$fmt = substr($fmt, $k+2);
+
+	if ($spec eq '%%') {
+	    $result .= '%';
+	} elsif ($spec eq '%+') {
+	    $result .= $self->indent_more();
+	} elsif ($spec eq '%-') {
+	    $result .= $self->indent_less();
+	} elsif ($spec eq '%|') {
+	    $result .= $self->indent_value();
+	} elsif ($spec eq "%c") {
+	    # Insert child entry
+	    my $index = $indexes->[$i++];
+	    $result .= $self->info2str($args->[$index])
+	} elsif ($spec eq "%C") {
+	    # Insert list child entry
+	    my ($low, $high, $sep) = @{$indexes->[$i++]};
+	    # FIXME? handle $sep escape characters like %|, %+, %- ?
+	    my $list = '';
+	    for (my $j=$low; $j<=$high; $j++) {
+		$list .= $sep if $list;
+		$list .= $self->info2str($args->[$j]);
+	    }
+	    $result .= $list;
+	} elsif ($spec eq "%f") {
+	    # New line - no indent
+	    $result .= "\n";
+	# } elsif ($spec eq "\cC") {
+	#     # Override separator, null string
+	#     $result = $old_result;
+	} elsif ($spec eq "\cS") {
+	    # FIXME: not handled yet
+	    ;
+	} elsif ($spec eq "\cK") {
+	    # FIXME: not handled yet
+	    ;
+	}
+    }
+    $result .= $fmt if $fmt;
+    return $result;
+
+}
+
 sub unop
 {
     my($self, $op, $cx, $name, $nollafr) = @_;
@@ -2593,11 +2691,16 @@ unless(caller) {
     my @texts = ('a', 'b', 'c');
     my $deparse = __PACKAGE__->new();
     my $info = info_from_list('op', $deparse, \@texts, ', ', 'test', {});
-    use Data::Printer;
-    p $info;
-    @texts = (['a', 1], ['b', 2], 'c');
-    $info = info_from_list('op', $deparse, \@texts, ', ', 'test', {});
-    p $info;
+
+    print $deparse->template_engine("100%% ", [], ["is", "now", "the", "time"]), "\n";
+    print $deparse->template_engine("%c,\n%+%c\n%|%c %c!",
+				    [1, 0, 2, 3],
+				    ["is", "now", "the", "time"]), "\n";
+    # use Data::Printer;
+    # p $info;
+    # @texts = (['a', 1], ['b', 2], 'c');
+    # $info = info_from_list('op', $deparse, \@texts, ', ', 'test', {});
+    # p $info;
 }
 
 

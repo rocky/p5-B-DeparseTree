@@ -46,5 +46,12 @@ foreach my $cx (keys %B::DeparseTree::Node::UNARY_PRECIDENCES) {
     is $info->{text}, 'def';
 }
 
+Test::More::note ( "template_engine() testing" );
 
+is $deparse->template_engine("100%% ", [], []), "100% ";
+
+my $str = $deparse->template_engine("%c,\n%+%c\n%|%c %c!",
+				    [1, 0, 2, 3],
+				    ["is", "now", "the", "time"]);
+is $str, "now,\n    is\n    the time!";
 Test::More::done_testing();
