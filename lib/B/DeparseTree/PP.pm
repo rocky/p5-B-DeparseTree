@@ -69,8 +69,10 @@ $VERSION = '1.0.0';
     pp_i_negate
     pp_i_predec
     pp_i_preinc
-    pp_leave pp_lineseq
+    pp_leave
     pp_leaveloop
+    pp_lineseq
+    pp_list
     pp_mapstart
     pp_mapwhile
     pp_negate
@@ -141,6 +143,101 @@ sub pp_gservent { baseop(@_, "getservent") }
 sub pp_leave { scopeop(1, @_); }
 sub pp_leaveloop { shift->loop_common(@_, undef); }
 sub pp_lineseq { scopeop(0, @_); }
+
+sub pp_list
+{
+    my($self, $op, $cx) = @_;
+    my($expr, @exprs);
+
+    my $other_op = $op->first;
+    my $kid = $op->first->sibling; # skip a pushmark
+
+    if (class($kid) eq 'NULL') {
+	return info_from_text($op, $self, '', 'list_null',
+			      {other_ops => [$other_op]});
+    }
+    my $lop;
+    my $local = "either"; # could be local(...), my(...), state(...) or our(...)
+    for ($lop = $kid; !null($lop); $lop = $lop->sibling) {
+	# This assumes that no other private flags equal 128, and that
+	# OPs that store things other than flags in their op_private,
+	# like OP_AELEMFAST, won't be immediate children of a list.
+	#
+	# OP_ENTERSUB and OP_SPLIT can break this logic, so check for them.
+	# I suspect that open and exit can too.
+	# XXX This really needs to be rewritten to accept only those ops
+	#     known to take the OPpLVAL_INTRO flag.
+
+	if (!($lop->private & (B::Deparse::OPpLVAL_INTRO|B::Deparse::OPpOUR_INTRO)
+		or $lop->name eq "undef")
+	    or $lop->name =~ /^(?:entersub|exit|open|split)\z/)
+	{
+	    $local = ""; # or not
+	    last;
+	}
+	if ($lop->name =~ /^pad[ash]v$/) {
+	    if ($lop->private & B::Deparse::OPpPAD_STATE) { # state()
+		($local = "", last) if $local =~ /^(?:local|our|my)$/;
+		$local = "state";
+	    } else { # my()
+		($local = "", last) if $local =~ /^(?:local|our|state)$/;
+		$local = "my";
+	    }
+	} elsif ($lop->name =~ /^(gv|rv2)[ash]v$/
+			&& $lop->private & B::Deparse::OPpOUR_INTRO
+		or $lop->name eq "null" && $lop->first->name eq "gvsv"
+			&& $lop->first->private & B::Deparse::OPpOUR_INTRO) { # our()
+	    ($local = "", last) if $local =~ /^(?:my|local|state)$/;
+	    $local = "our";
+	} elsif ($lop->name ne "undef"
+		# specifically avoid the "reverse sort" optimisation,
+		# where "reverse" is nullified
+		&& !($lop->name eq 'sort' && ($lop->flags & B::Deparse::OPpSORT_REVERSE)))
+	{
+	    # local()
+	    ($local = "", last) if $local =~ /^(?:my|our|state)$/;
+	    $local = "local";
+	}
+    }
+    $local = "" if $local eq "either"; # no point if it's all undefs
+    if (B::Deparse::null $kid->sibling and not $local) {
+	my $info = $self->deparse($kid, $cx, $op);
+	my @other_ops = $info->{other_ops} ? @{$info->{other_ops}} : ();
+	push @other_ops, $other_op;
+	$info->{other_ops} = \@other_ops;
+	return $info;
+    }
+
+    for (; !null($kid); $kid = $kid->sibling) {
+	if ($local) {
+	    if (class($kid) eq "UNOP" and $kid->first->name eq "gvsv") {
+		$lop = $kid->first;
+	    } else {
+		$lop = $kid;
+	    }
+	    $self->{'avoid_local'}{$$lop}++;
+	    $expr = $self->deparse($kid, 6, $op);
+	    delete $self->{'avoid_local'}{$$lop};
+	} else {
+	    $expr = $self->deparse($kid, 6, $op);
+	}
+	push @exprs, $expr;
+    }
+
+    if ($local) {
+	return $self->info_from_template("$local list", $op,
+					 "$local (%C)", [[0, $#exprs, ', ']],
+					 \@exprs);
+
+    } else {
+	# FIXME: handle maybe parens
+	return $self->info_from_template("list", $op,
+					 "%C", [[0, $#exprs, ', ']],
+					 \@exprs);
+    }
+}
+
+
 sub pp_mapstart { baseop(@_, "map") }
 sub pp_ref { unop(@_, "ref") }
 sub pp_schomp { maybe_targmy(@_, \&unop, "chomp") }

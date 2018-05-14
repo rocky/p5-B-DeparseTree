@@ -48,10 +48,25 @@ foreach my $cx (keys %B::DeparseTree::Node::UNARY_PRECIDENCES) {
 
 Test::More::note ( "template_engine() testing" );
 
+$deparse->{level} = 0;
 is $deparse->template_engine("100%% ", [], []), "100% ";
+is $deparse->{level}, 0;
 
+$deparse->{'indent_size'} = 2;
 my $str = $deparse->template_engine("%c,\n%+%c\n%|%c %c!",
 				    [1, 0, 2, 3],
 				    ["is", "now", "the", "time"]);
-is $str, "now,\n    is\n    the time!";
+is $str, "now,\n  is\n  the time!", '%c';
+is $deparse->{level}, 2;
+
+$info = $deparse->info_from_template("demo", undef, "%C",
+				     [[0, 1, ";\n%|"]],
+				     ['$x=1', '$y=2']);
+is $info->{text}, "\$x=1;\n  \$y=2", '%|';
+
+$deparse->{level} = 0;
+@texts = ("use warnings;", "use strict", "my(\$a)");
+$info = $deparse->info_from_template("demo", undef, "%;", [], \@texts);
+is $info->{text}, "use warnings;\nuse strict;\nmy(\$a)";
+
 Test::More::done_testing();

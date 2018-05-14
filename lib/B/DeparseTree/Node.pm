@@ -109,7 +109,7 @@ sub new($$$$$)
 	sep => $sep,
     }, $class;
 
-    $self->{text} = $deparse->combine2str($sep, $texts);
+    $self->{text} = $deparse->combine2str($sep, $texts) if defined $sep;
 
     foreach my $optname (qw(other_ops parent_ops child_pos)) {
 	$self->{$optname} = $opts->{$optname} if $opts->{$optname};

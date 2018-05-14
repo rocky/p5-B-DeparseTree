@@ -73,6 +73,7 @@ $VERSION = '3.0.0';
     indent_list
     info_from_list
     info_from_text
+    info_from_template
     is_miniwhile is_lexical_subs %strict_bits
     is_scalar
     is_scope
@@ -260,8 +261,11 @@ sub combine2str($$$)
 		# First item is text and second item is op address.
 		$result .= $self->info2str($item->[0]);
 	    } elsif (eval{$item->isa("B::DeparseTree::Node")}) {
-		$result .= $self->combine2str($item->{sep},
-					     $item->{texts});
+		if (exists $item->{fmt}) {
+		    $result .= $self->template2str($item);
+		} else {
+		    $result .= $self->info2str($item->{sep});
+		}
 	    } else {
 		Carp::confess("Invalid ref item ref($item)");
 	    }
@@ -330,6 +334,50 @@ sub indent_more($) {
     return $self->indent_value();
 }
 
+# Create an info structure from a list of strings
+# FIXME: $deparse (or rather $self) should be first
+sub info_from_list($$$$$$)
+{
+    my ($op, $deparse, $texts, $sep, $type, $opts) = @_;
+    my $text = '';
+    my $info = B::DeparseTree::Node->new($op, $deparse, $texts, $sep, $type, $opts);
+    foreach my $item (@$texts) {
+	$text .= $sep if $text and $sep;
+	if(ref($item) eq 'ARRAY'){
+	    $text .= $item->[0];
+	} elsif (eval{$item->isa("B::DeparseTree::Node")}) {
+	    $text .= $item->{text};
+	} else {
+	    $text .= $item;
+	}
+    }
+    $info->{text} = $text;
+    if ($opts->{maybe_parens}) {
+	my ($self, $cx, $prec) = @{$opts->{maybe_parens}};
+	$info->{text} = $self->maybe_parens($info->{text}, $cx, $prec);
+	$info->{maybe_parens} = {context => $cx , precidence => $prec};
+    }
+    return $info
+}
+
+# Create an info structure a template pattern
+sub info_from_template($$$$) {
+    my ($self, $type, $op, $fmt, $indexes, $args) = @_;
+    my $info = B::DeparseTree::Node->new($op, $self, $args, '', $type, {});
+    $info->{'fmt'}  = $fmt;
+    $info->{'indexes'} = $indexes if $indexes;
+    $info->{'text'} = $self->template_engine($fmt, $indexes, $args);
+    return $info;
+}
+
+# Create an info structure from a single string
+# FIXME: $deparse (or rather $self) should be first
+sub info_from_text($$$$$)
+{
+    my ($op, $deparse, $text, $type, $opts) = @_;
+    return info_from_list($op, $deparse, [[$text, $$op]], '', $type, $opts)
+}
+
 sub info2str($$)
 {
     my ($self, $item) = @_;
@@ -339,8 +387,13 @@ sub info2str($$)
 	    # First item is text and second item is op address.
 	    $result = $item->[0];
 	} elsif (eval{$item->isa("B::DeparseTree::Node")}) {
-	    $result = $self->combine2str($item->{sep},
-					  $item->{texts});
+	    if (exists $item->{fmt}) {
+		$result .= $self->template2str($item);
+	    } else {
+		$result = $self->combine2str($item->{sep},
+					     $item->{texts});
+	    }
+
 	} else {
 	    Carp::confess("Invalid ref item ref($item)");
 	}
@@ -638,101 +691,6 @@ sub pp_truncate
     } else {
 	return info_from_list($op, $self, [$name, $args], '', 'truncate', $opts);
     }
-}
-
-sub pp_list
-{
-    my($self, $op, $cx) = @_;
-    my($expr, @exprs);
-
-    my $other_op = $op->first;
-    my $kid = $op->first->sibling; # skip a pushmark
-
-    if (class($kid) eq 'NULL') {
-	return info_from_text($op, $self, '', 'list_null',
-			      {other_ops => [$other_op]});
-    }
-    my $lop;
-    my $local = "either"; # could be local(...), my(...), state(...) or our(...)
-    for ($lop = $kid; !null($lop); $lop = $lop->sibling) {
-	# This assumes that no other private flags equal 128, and that
-	# OPs that store things other than flags in their op_private,
-	# like OP_AELEMFAST, won't be immediate children of a list.
-	#
-	# OP_ENTERSUB and OP_SPLIT can break this logic, so check for them.
-	# I suspect that open and exit can too.
-	# XXX This really needs to be rewritten to accept only those ops
-	#     known to take the OPpLVAL_INTRO flag.
-
-	if (!($lop->private & (OPpLVAL_INTRO|OPpOUR_INTRO)
-		or $lop->name eq "undef")
-	    or $lop->name =~ /^(?:entersub|exit|open|split)\z/)
-	{
-	    $local = ""; # or not
-	    last;
-	}
-	if ($lop->name =~ /^pad[ash]v$/) {
-	    if ($lop->private & OPpPAD_STATE) { # state()
-		($local = "", last) if $local =~ /^(?:local|our|my)$/;
-		$local = "state";
-	    } else { # my()
-		($local = "", last) if $local =~ /^(?:local|our|state)$/;
-		$local = "my";
-	    }
-	} elsif ($lop->name =~ /^(gv|rv2)[ash]v$/
-			&& $lop->private & OPpOUR_INTRO
-		or $lop->name eq "null" && $lop->first->name eq "gvsv"
-			&& $lop->first->private & OPpOUR_INTRO) { # our()
-	    ($local = "", last) if $local =~ /^(?:my|local|state)$/;
-	    $local = "our";
-	} elsif ($lop->name ne "undef"
-		# specifically avoid the "reverse sort" optimisation,
-		# where "reverse" is nullified
-		&& !($lop->name eq 'sort' && ($lop->flags & OPpSORT_REVERSE)))
-	{
-	    # local()
-	    ($local = "", last) if $local =~ /^(?:my|our|state)$/;
-	    $local = "local";
-	}
-    }
-    $local = "" if $local eq "either"; # no point if it's all undefs
-    if (B::Deparse::null $kid->sibling and not $local) {
-	my $info = $self->deparse($kid, $cx, $op);
-	my @other_ops = $info->{other_ops} ? @{$info->{other_ops}} : ();
-	push @other_ops, $other_op;
-	$info->{other_ops} = \@other_ops;
-	return $info;
-    }
-
-    for (; !null($kid); $kid = $kid->sibling) {
-	if ($local) {
-	    if (class($kid) eq "UNOP" and $kid->first->name eq "gvsv") {
-		$lop = $kid->first;
-	    } else {
-		$lop = $kid;
-	    }
-	    $self->{'avoid_local'}{$$lop}++;
-	    $expr = $self->deparse($kid, 6, $op);
-	    delete $self->{'avoid_local'}{$$lop};
-	} else {
-	    $expr = $self->deparse($kid, 6, $op);
-	}
-	push @exprs, $expr;
-    }
-
-    my $type;
-    my @texts;
-    my $opts = {};
-    if ($local) {
-	$type = 'list_local';
-	@texts = ($local, '(', $self->combine(", ", \@exprs), ')');
-    } else {
-	$type = 'list';
-	@texts = ($self->combine(", ", \@exprs));
-	$opts->{maybe_parens} = [$self, $cx, 6];
-
-    }
-    return info_from_list($op, $self, \@texts, '', $type, $opts);
 }
 
 sub map_texts($$)
@@ -1093,45 +1051,11 @@ sub is_for_loop($)
     return 0;
 }
 
-# Create an info structure from a list of strings
-# FIXME: $deparse (or rather $self) should be first
-sub info_from_list($$$$$$)
-{
-    my ($op, $deparse, $texts, $sep, $type, $opts) = @_;
-    my $text = '';
-    my $info = B::DeparseTree::Node->new($op, $deparse, $texts, $sep, $type, $opts);
-    foreach my $item (@$texts) {
-	$text .= $sep if $text and $sep;
-	if(ref($item) eq 'ARRAY'){
-	    $text .= $item->[0];
-	} elsif (eval{$item->isa("B::DeparseTree::Node")}) {
-	    $text .= $item->{text};
-	} else {
-	    $text .= $item;
-	}
-    }
-    $info->{text} = $text;
-    if ($opts->{maybe_parens}) {
-	my ($self, $cx, $prec) = @{$opts->{maybe_parens}};
-	$info->{text} = $self->maybe_parens($info->{text}, $cx, $prec);
-	$info->{maybe_parens} = {context => $cx , precidence => $prec};
-    }
-    return $info
-}
-
-# Create an info structure from a single string
-# FIXME: $deparse (or rather $self) should be first
-sub info_from_text($$$$$)
-{
-    my ($op, $deparse, $text, $type, $opts) = @_;
-    return info_from_list($op, $deparse, [[$text, $$op]], '', $type, $opts)
-}
-
 sub walk_lineseq
 {
     my ($self, $op, $kids, $callback) = @_;
     my @kids = @$kids;
-    my @body = ();
+    my @body = (); # Accumulated node structures
     my $expr;
     for (my $i = 0; $i < @kids; $i++) {
 	if (is_state $kids[$i]) {
@@ -1151,6 +1075,9 @@ sub walk_lineseq
 	    next;
 	}
 	$expr = $self->deparse($kids[$i], (@kids != 1)/2, $op);
+
+	# Perform semantic action on $expr accumulating the result
+	# in @body. $op is the parent, and $i is the child position
 	$callback->(\@body, $i, $expr, $op);
     }
 
@@ -1159,10 +1086,13 @@ sub walk_lineseq
     # assume will always be the last line in the text and start after a \n.
     # FIXME: not quite ideal when adding ';' because we record only the text
     # rather than the DeparseTree::Node.
-    my @texts = map { $_->{text} =~ /(?:\n#)|^\s*$/ ?
-			  $_ : "$_->{text};" } @body;
-			  # $_ : ($_, ";") } @body;
-    my $info = info_from_list($op, $self, \@texts, "\n", 'line sequence', {});
+
+    # my @texts = map { $_->{text} =~ /(?:\n#)|^\s*$/ ?
+    # 			  $_ : "$_->{text};" } @body;
+    # 			  # $_ : ($_, ";") } @body;
+    # my $info = info_from_list($op, $self, \@texts, "\n", 'line sequence', {});
+
+    my $info = $self->info_from_template("statements", $op, "%;", [], \@body);
     $self->{optree}{$$op} = $info if $op;
     return $info;
 }
@@ -1349,7 +1279,7 @@ sub lineseq {
 	$text =~ s/\f//;
 	$text =~ s/\n$//;
 	$text =~ s/;\n?\z//;
-	$info->{type} = $op->name;
+	$info->{type} = $op->name unless $info->{type};
 	$info->{op} = $op;
 	if ($parent) {
 	    Carp::confess("nonref parent, op: $op->name") if !ref($parent);
@@ -1819,10 +1749,10 @@ sub deparse_sub($$$)
 	else {
 	    $body = $self->deparse($root->first, 0, $root);
 	}
-	my @texts = ("{\n\t", $body, "\n\b}");
-	unshift @texts, $proto if $proto;
-	$info = info_from_list($root, $self, \@texts, '', 'sub',
-			       {other_ops =>[$lineseq]});
+
+	$info = $self->info_from_template('sub', $root, "{\n%+%c\n%-}",
+					  [0], [$body]);
+
 	$self->{optree}{$$lineseq} = $info;
 
     } else {
@@ -2098,19 +2028,23 @@ sub hint_pragmas {
     return @pragmas;
 }
 
+# Return a list of info nodes for "use" and "no" pragmas.
 sub declare_hints
 {
     my ($self, $from, $to) = @_;
     my $use = $to   & ~$from;
     my $no  = $from & ~$to;
-    my $decls = "";
+
+    my @decls = ();
     for my $pragma (hint_pragmas($use)) {
-	$decls .= $self->keyword("use") . " $pragma;\n";
+	my $type = $self->keyword("use") . " $pragma";
+	push @decls, $self->info_from_template($type, undef, "%|$type\n", [], []);
     }
     for my $pragma (hint_pragmas($no)) {
-        $decls .= $self->keyword("no") . " $pragma;\n";
+	my $type = $self->keyword("no") . " $pragma";
+	push @decls, $self->info_from_template($type, undef, "%|$type\n", [], []);
     }
-    return $decls;
+    return @decls;
 }
 
 # Internal implementation hints that the core sets automatically, so don't need
@@ -2588,7 +2522,33 @@ sub single_delim($$$$$) {
     }
 }
 
-# FIXME: make this like uncompyle6
+sub expand_simple_spec($$)
+{
+    my ($self, $fmt) = @_;
+    my $result = '';
+    while ((my $k=index($fmt, '%')) >= 0) {
+	$result .= substr($fmt, 0, $k);
+	my $spec = substr($fmt, $k, 2);
+	$fmt = substr($fmt, $k+2);
+
+	if ($spec eq '%%') {
+	    $result .= '%';
+	} elsif ($spec eq '%+') {
+	    $result .= $self->indent_more();
+	} elsif ($spec eq '%-') {
+	    $result .= $self->indent_less();
+	} elsif ($spec eq '%|') {
+	    $result .= $self->indent_value();
+	} else {
+	    Carp::confess("Unknown spec $spec")
+	}
+    }
+    $result .= $fmt if $fmt;
+    return $result;
+}
+
+# List of suffic characters that are handled by "expand_simple_spec()
+use constant SIMPLE_SPEC => '%+-|';
 sub template_engine($$$$) {
     my ($self, $fmt, $indexes, $args) = @_;
 
@@ -2607,31 +2567,36 @@ sub template_engine($$$$) {
 	my $spec = substr($fmt, $k, 2);
 	$fmt = substr($fmt, $k+2);
 
-	if ($spec eq '%%') {
-	    $result .= '%';
-	} elsif ($spec eq '%+') {
-	    $result .= $self->indent_more();
-	} elsif ($spec eq '%-') {
-	    $result .= $self->indent_less();
-	} elsif ($spec eq '%|') {
-	    $result .= $self->indent_value();
+	if (index(SIMPLE_SPEC, substr($spec, 1, 1)) >= 0) {
+	    $result .= $self->expand_simple_spec($spec);
 	} elsif ($spec eq "%c") {
 	    # Insert child entry
 	    my $index = $indexes->[$i++];
 	    $result .= $self->info2str($args->[$index])
 	} elsif ($spec eq "%C") {
 	    # Insert list child entry
-	    my ($low, $high, $sep) = @{$indexes->[$i++]};
-	    # FIXME? handle $sep escape characters like %|, %+, %- ?
+	    my ($low, $high, $sub_spec) = @{$indexes->[$i++]};
+	    my $sep = $self->expand_simple_spec($sub_spec);
 	    my $list = '';
 	    for (my $j=$low; $j<=$high; $j++) {
 		$list .= $sep if $list;
 		$list .= $self->info2str($args->[$j]);
 	    }
 	    $result .= $list;
-	} elsif ($spec eq "%f") {
-	    # New line - no indent
-	    $result .= "\n";
+	} elsif ($spec eq "%;") {
+	    # Insert semicolons and newlines between statements
+	    my $sep = $self->expand_simple_spec(";\n%|");
+	    my $str = '';
+	    foreach my $arg (@$args) {
+		if ($str) {
+		    # Remove any prior ;\n
+		    $str = substr($str, 0, -1) if substr($str, -1) eq "\n";
+		    $str = substr($str, 0, -1) if substr($str, -1) eq ";";
+		    $str .= $sep;
+		}
+		$str .= $self->info2str($arg);
+	    }
+	    $result .= $str;
 	# } elsif ($spec eq "\cC") {
 	#     # Override separator, null string
 	#     $result = $old_result;
@@ -2646,6 +2611,13 @@ sub template_engine($$$$) {
     $result .= $fmt if $fmt;
     return $result;
 
+}
+
+sub template2str($$) {
+    my ($self, $info) = @_;
+    return $self->template_engine($info->{fmt},
+				  $info->{indexes},
+				  $info->{texts});
 }
 
 sub unop
@@ -2692,12 +2664,26 @@ unless(caller) {
     my $deparse = __PACKAGE__->new();
     my $info = info_from_list('op', $deparse, \@texts, ', ', 'test', {});
 
-    print $deparse->template_engine("100%% ", [], ["is", "now", "the", "time"]), "\n";
-    print $deparse->template_engine("%c,\n%+%c\n%|%c %c!",
-				    [1, 0, 2, 3],
-				    ["is", "now", "the", "time"]), "\n";
-    # use Data::Printer;
-    # p $info;
+    # print $deparse->template_engine("100%% "), "\n";
+    # print $deparse->template_engine("%c,\n%+%c\n%|%c %c!",
+    # 				    [1, 0, 2, 3],
+    # 				    ["is", "now", "the", "time"]), "\n";
+
+    # $info = $deparse->info_from_template("demo", undef, "%C",
+    # 					 [[0, 1, ";\n%|"]],
+    # 					 ['$x=1', '$y=2']);
+
+    # @texts = ("use warnings;", "use strict", "my(\$a)");
+    # $info = $deparse->info_from_template("demo", undef, "%;", [], \@texts);
+
+    $info = $deparse->info_from_template("list", undef,
+					 "%C", [[0, $#texts, ', ']],
+					 \@texts);
+
+    use Data::Printer;
+    p $info;
+
+
     # @texts = (['a', 1], ['b', 2], 'c');
     # $info = info_from_list('op', $deparse, \@texts, ', ', 'test', {});
     # p $info;
