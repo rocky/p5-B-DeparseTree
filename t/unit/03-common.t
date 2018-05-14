@@ -69,4 +69,10 @@ $deparse->{level} = 0;
 $info = $deparse->info_from_template("demo", undef, "%;", [], \@texts);
 is $info->{text}, "use warnings;\nuse strict;\nmy(\$a)";
 
+my ($found_str, $pos) = $deparse->template_engine("<--%c-->", [0], [$info1], $info2->{addr});
+print $found_str, "\n";
+print ' ' x $pos->[0] . '-' x $pos->[1], "\n";
+use Data::Printer; p $pos;
+
+
 Test::More::done_testing();

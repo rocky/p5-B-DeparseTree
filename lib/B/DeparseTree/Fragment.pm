@@ -68,34 +68,48 @@ sub extract_node_info($)
     my @texts = @{$parent_info->{texts}};
     my $parent_line = '';
     my $text_len = $#texts;
-    my $result = '';
+	my $result = '';
 
-    for (my $i=0; $i <= $text_len; $i++) {
-	my $text = $texts[$i];
-	$result .= $separator if $result;
+    if (exists $parent_info->{fmt}) {
+	my $fmt = $parent_info->{fmt};
+	my $indexes = $parent_info->{indexes};
+	my $args = $parent_info->{texts};
+	my ($str, $found_pos) = $deparsed->template_engine($fmt, $indexes, $args,
+							   $child_addr);
+	if (defined($found_pos)) {
+	    my $parent_underline = ' ' x $found_pos->[0];
+	    $parent_underline .= '-' x $found_pos->[1];
+	    return trim_line_pair($str, $child_text, $parent_underline, 0);
+	}
+	$result = $str;
+    } else {
+	for (my $i=0; $i <= $text_len; $i++) {
+	    my $text = $texts[$i];
+	    $result .= $separator if $result;
 
-	if (ref($text)) {
-	    if ((ref($text) eq 'ARRAY') and scalar(@$text) == 2) {
-		if ($text->[1] == $child_addr) {
-		    # Note $text->[0] may be different from $child_text.
-		    # as in exec "$foo $bar" vs "$foo"
-		    # FIXE: What do we do then?
-		    $child_text = $text->[0];
-		    my $parent_underline = ' ' x length($result);
+	    if (ref($text)) {
+		if ((ref($text) eq 'ARRAY') and scalar(@$text) == 2) {
+		    if ($text->[1] == $child_addr) {
+			# Note $text->[0] may be different from $child_text.
+			# as in exec "$foo $bar" vs "$foo"
+			# FIXE: What do we do then?
+			$child_text = $text->[0];
+			my $parent_underline = ' ' x length($result);
 		    $result .= $text->[0];
-		    $parent_underline .= '-' x length($text->[0]);
-		    if ($i < $text_len) {
-			$result .= $separator;
-			my @remain_texts = @texts[$i+1..$#texts];
-			my $tail = $deparsed->combine2str($separator, \@remain_texts);
-			$result .=  $tail;
+			$parent_underline .= '-' x length($text->[0]);
+			if ($i < $text_len) {
+			    $result .= $separator;
+			    my @remain_texts = @texts[$i+1..$#texts];
+			    my $tail = $deparsed->combine2str($separator, \@remain_texts);
+			    $result .=  $tail;
+			}
+			return trim_line_pair($result, $child_text, $parent_underline, 0);
+		    } else {
+			$result .= $text->[0];
 		    }
-		    return trim_line_pair($result, $child_text, $parent_underline, 0);
-		} else {
-		    $result .= $text->[0];
-		}
-	    } elsif (eval{$text->isa("B::DeparseTree::Node")}) {
-		if ($text->{addr} == $child_addr) {
+		} elsif ($text->{addr} == $child_addr) {
+		    # WARNING: this branch is going away when we have
+		    # everything templatized (when not a simple string).
 		    my $parent_underline = ' ' x length($result);
 		    $result .= $text->{text};
 		    $parent_underline .= '-' x length($text->{text});
@@ -109,9 +123,9 @@ sub extract_node_info($)
 		} else {
 		    $result .= $text->{text};
 		}
+	    } else {
+		$result .= $text;
 	    }
-	} else {
-	    $result .= $text;
 	}
     }
     # Can't find by node address info, so just try to find the string
@@ -140,7 +154,8 @@ sub extract_node_info($)
 unless (caller) {
     sub bug() {
 	no strict;
-	CORE::exec($foo $bar);
+	my ($a, $b, $c);
+	# CORE::exec($foo $bar);
     }
 
     my $child_text = '$foo $bar';

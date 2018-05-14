@@ -2550,7 +2550,7 @@ sub expand_simple_spec($$)
 # List of suffic characters that are handled by "expand_simple_spec()
 use constant SIMPLE_SPEC => '%+-|';
 sub template_engine($$$$) {
-    my ($self, $fmt, $indexes, $args) = @_;
+    my ($self, $fmt, $indexes, $args, $find_addr) = @_;
 
     # use Data::Dumper;
     # print "-----\n";
@@ -2560,8 +2560,10 @@ sub template_engine($$$$) {
     # print $args, "\n";
 
     my $i = 0;
+    $find_addr = -2 unless $find_addr;
 
     my $result = '';
+    my $find_pos = undef;
     while ((my $k=index($fmt, '%')) >= 0) {
 	$result .= substr($fmt, 0, $k);
 	my $spec = substr($fmt, $k, 2);
@@ -2572,31 +2574,49 @@ sub template_engine($$$$) {
 	} elsif ($spec eq "%c") {
 	    # Insert child entry
 	    my $index = $indexes->[$i++];
-	    $result .= $self->info2str($args->[$index])
+
+	    # FIXME: Remove duplicate code
+	    my $info = $args->[$index];
+	    my $str = $self->info2str($info);
+	    if (ref($info) && $info->{'addr'} == $find_addr) {
+		$find_pos = [length($result), length($str)];
+	    }
+	    $result .= $str;
 	} elsif ($spec eq "%C") {
 	    # Insert list child entry
 	    my ($low, $high, $sub_spec) = @{$indexes->[$i++]};
 	    my $sep = $self->expand_simple_spec($sub_spec);
 	    my $list = '';
 	    for (my $j=$low; $j<=$high; $j++) {
-		$list .= $sep if $list;
-		$list .= $self->info2str($args->[$j]);
+		$result .= $sep if $j > $low;
+
+		# FIXME: Remove duplicate code
+		my $info = $args->[$j];
+		my $str = $self->info2str($info);
+		if (ref($info) && $info->{'addr'} == $find_addr) {
+		    $find_pos = [length($result), length($str)];
+		}
+		$result .= $str;
 	    }
-	    $result .= $list;
 	} elsif ($spec eq "%;") {
 	    # Insert semicolons and newlines between statements
 	    my $sep = $self->expand_simple_spec(";\n%|");
-	    my $str = '';
-	    foreach my $arg (@$args) {
-		if ($str) {
+	    for (my $j=0; $j< @$args; $j++) {
+		if ($j > 0) {
 		    # Remove any prior ;\n
-		    $str = substr($str, 0, -1) if substr($str, -1) eq "\n";
-		    $str = substr($str, 0, -1) if substr($str, -1) eq ";";
-		    $str .= $sep;
+		    $result = substr($result, 0, -1) if substr($result, -1) eq "\n";
+		    $result = substr($result, 0, -1) if substr($result, -1) eq ";";
+		    $result .= $sep;
 		}
-		$str .= $self->info2str($arg);
+
+		# FIXME: Remove duplicate code
+		my $info = $args->[$j];
+		my $str = $self->info2str($info);
+		if (ref($info) && $info->{'addr'} == $find_addr) {
+		    $find_pos = [length($result), length($str)];
+		}
+		$result .= $str
 	    }
-	    $result .= $str;
 	# } elsif ($spec eq "\cC") {
 	#     # Override separator, null string
 	#     $result = $old_result;
@@ -2609,6 +2629,9 @@ sub template_engine($$$$) {
 	}
     }
     $result .= $fmt if $fmt;
+    if ($find_addr != -2) {
+	return $result, $find_pos;
+    }
     return $result;
 
 }
