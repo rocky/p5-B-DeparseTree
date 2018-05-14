@@ -27,17 +27,17 @@ Test::More::cmp_ok $node->{'text'}, 'eq', 'X';
 Test::More::note ( "parens_test() testing" );
 
 my $obj = {parens => 1};
-my $got = B::DeparseTree::Node::parens_test($obj, 4, 4);
+my $got = B::DeparseTree::Node::parens_test($obj, 9, 9);
 Test::More::cmp_ok $got, '==', 1, 'parens_test() equal precidence parens => 1';
 
 $obj = {'parens' => 0};
-foreach my $tup ([3,1], [4,1]) {
+foreach my $tup ([8,1], [9,1]) {
     my ($prec, $expect) = @$tup;
-    my $true_value = B::DeparseTree::Node::parens_test($obj, 4, $prec);
-    Test::More::ok $true_value, "parens_test() parens=>0, $prec <= 4";
+    my $true_value = B::DeparseTree::Node::parens_test($obj, 9, $prec);
+    Test::More::ok $true_value, "parens_test() parens=>0, $prec <= 9";
 }
-my $false_value = B::DeparseTree::Node::parens_test($obj, 4, 5);
-Test::More::ok !$false_value, 'parens_test() parens=>0, 4 < 5';
+my $false_value = B::DeparseTree::Node::parens_test($obj, 9, 10);
+Test::More::ok !$false_value, 'parens_test() parens=>0, 10 < 9';
 
 foreach my $cx (keys %B::DeparseTree::Node::UNARY_PRECIDENCES) {
     $got = B::DeparseTree::Node::parens_test($obj, $cx, $cx);

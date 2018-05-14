@@ -9,7 +9,7 @@ use Hash::Util qw[ lock_hash ];
 
 # Set of unary precidences
 our %UNARY_PRECIDENCES = (
-        # 4 => 1,  # ?? Probably not used anymore
+         4 => 1,  # ?? Probably not used anymore
         16 => 'sub, %, @',   # "sub", "%", "@'
         21 => '~', # steal parens (see maybe_parens_unop)
 );
@@ -79,6 +79,47 @@ UNARY_OP_PRECIDENCE
 =cut
 
 
+# # FIXME: make this like uncompyle6
+# sub template_engine($$$$) {
+#     my ($self, $result, $old_result, $sep, $level, $check_level) = @_;
+#     if ($sep eq "\t" or $sep eq "\b") {
+# 	# New line - increase/decrease indentation
+# 	$result .= "\n";
+# 	$level += ($sep eq "\t" ? 1 : -1) * $self->{'indent_size'};
+# 	if ($level < 0) {
+# 	    Carp::confess("mismatched indent/dedent") if $check_level;
+# 	    $level = 0;
+# 	}
+# 	if ($self->{'use_tabs'}) {
+# 	    $result .= "\t" x ($level / 8) . " " x ($level % 8);
+# 	} else {
+# 	    $result .= " " x $level;
+# 	}
+#     } elsif ($sep eq "\f") {
+# 	# New line - no indent
+# 	$result .= "\n";
+#     } elsif ($sep eq "\n") {
+# 	# New line and indent
+# 	$result .= "\n";
+# 	if ($self->{'use_tabs'}) {
+# 	    $result .= "\t" x ($level / 8) . " " x ($level % 8);
+# 	} else {
+# 	    $result .= (" " x $level);
+# 	}
+#     } elsif ($sep eq "\cC") {
+# 	# Override separator, null string
+# 	$result = $old_result;
+#     } elsif ($sep eq "\cS") {
+# 	# FIXME: not handled yet
+# 	;
+#     } elsif ($sep eq "\cK") {
+# 	# FIXME: not handled yet
+# 	;
+#     }
+#     return ($result, $level);
+
+# }
+
 sub parens_test($$$)
 {
     my ($obj, $cx, $prec) = @_;
@@ -126,14 +167,6 @@ sub new($$$$$)
     }
     return $self;
 }
-
-# FIXME: replace with routines to build text on from the tree
-#
-sub text($)
-{
-    return shift()->{text};
-}
-
 
 # Possibly add () around $text depending on precidence $prec and
 # context $cx. We return a string.
