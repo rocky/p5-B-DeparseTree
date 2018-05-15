@@ -18,27 +18,54 @@ sub deparse_offset
     get_addr_info($deparse, $address);
 }
 
+sub get_addr($$)
+{
+    my ($deparse, $addr) = @_;
+    return undef unless $addr;
+    return $deparse->{optree}{$addr};
+}
+
 sub get_addr_info($$)
 {
     my ($deparse, $addr) = @_;
-    return unless $addr;
-    my $op_info = $deparse->{optree}{$addr};
-    if ($op_info) {
-	# use Data::Printer; Data::Printer::p $op_info;
-	return $op_info;
-    }
-    return undef;
+    my $op_info = get_addr($deparse, $addr);
+    return $op_info;
 }
 
-sub get_parent_addr_info($)
+sub get_parent_addr($)
 {
     my ($op_info) = @_;
 
     return undef unless $op_info && $op_info->{parent};
     my $deparse = $op_info->{deparse};
     return undef unless $deparse;
-    my $parent_addr = $op_info->{parent};
+    return $op_info->{parent};
+}
+
+sub get_parent_addr_info($)
+{
+    my ($op_info) = @_;
+    my $parent_addr = get_parent_addr($op_info);
+    my $deparse = $op_info->{deparse};
     return $deparse->{optree}{$parent_addr};
+}
+
+sub get_prev_addr($)
+{
+    my ($op_info) = @_;
+
+    return undef unless $op_info && $op_info->{prev_op};
+    my $deparse = $op_info->{deparse};
+    return undef unless $deparse;
+    return $op_info->{prev_op};
+}
+
+sub get_prev_addr_info($)
+{
+    my ($op_info) = @_;
+    my $prev_addr = get_prev_addr($op_info);
+    my $deparse = $op_info->{deparse};
+    return $deparse->{optree}{$prev_addr};
 }
 
 sub trim_line_pair($$$$) {

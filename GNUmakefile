@@ -23,7 +23,7 @@ GIT2CL ?= git2cl
 
 #: Build everything
 all:
-	perl Build --makefile_env_macros 1
+	perl ./Build --makefile_env_macros 1
 
 #: Build program, e.g. copy to blib
 build:
@@ -40,23 +40,23 @@ config_data:
 	perl Build --makefile_env_macros 1 config_data
 
 diff:
-	perl Build --makefile_env_macros 1 diff
+	perl ./Build --makefile_env_macros 1 diff
 
 #: Create distribution tarball
 dist:
-	perl Build --makefile_env_macros 1 dist
+	perl ./Build --makefile_env_macros 1 dist
 
 distcheck:
-	perl Build --makefile_env_macros 1 distcheck
+	perl ./Build --makefile_env_macros 1 distcheck
 
 distclean:
-	perl Build --makefile_env_macros 1 distclean
+	perl ./Build --makefile_env_macros 1 distclean
 
 distdir:
-	perl Build --makefile_env_macros 1 distdir
+	perl ./Build --makefile_env_macros 1 distdir
 
 distmeta:
-	perl Build --makefile_env_macros 1 distmeta
+	perl ./Build --makefile_env_macros 1 distmeta
 
 distsign:
 	perl Build --makefile_env_macros 1 distsign
