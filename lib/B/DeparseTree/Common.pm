@@ -1033,10 +1033,11 @@ sub walk_lineseq
     my @kids = @$kids;
     my @body = (); # Accumulated node structures
     my $expr;
+    my $prev_op = undef;
     for (my $i = 0; $i < @kids; $i++) {
 	if (is_state $kids[$i]) {
 	    $expr = ($self->deparse($kids[$i], 0, $op));
-	    $callback->(\@body, $i, $expr);
+	    $callback->(\@body, $i, $expr, $prev_op);
 	    $i++;
 	    if ($i > $#kids) {
 		last;
@@ -1053,20 +1054,13 @@ sub walk_lineseq
 
 	# Perform semantic action on $expr accumulating the result
 	# in @body. $op is the parent, and $i is the child position
-	$callback->(\@body, $i, $expr, $op);
+	$callback->(\@body, $i, $expr, $op, $prev_op);
+	$prev_op = $op;
     }
 
-    # Add semicolons between statements. Don't add them to blank lines,
-    # or to comment lines, which we
-    # assume will always be the last line in the text and start after a \n.
-    # FIXME: not quite ideal when adding ';' because we record only the text
-    # rather than the DeparseTree::Node.
-
-    # my @texts = map { $_->{text} =~ /(?:\n#)|^\s*$/ ?
-    # 			  $_ : "$_->{text};" } @body;
-    # 			  # $_ : ($_, ";") } @body;
-    # my $info = info_from_list($op, $self, \@texts, "\n", 'line sequence', {});
-
+    # Add semicolons between statements. Don't null statements
+    # (which can happen for nexstate which doesn't have source code
+    # associated with it.
     my $info = $self->info_from_template("statements", $op, "%;", [], \@body);
     $self->{optree}{$$op} = $info if $op;
     return $info;
@@ -1270,9 +1264,11 @@ sub lineseq {
     local $self->{'limit_seq'} = $limit_seq;
 
     my $fn = sub {
-	my ($exprs, $i, $info, $parent) = @_;
+	my ($exprs, $i, $info, $parent, $prev_op) = @_;
 	my $op = $ops[$i];
 	$info->{type} = $op->name unless $info->{type};
+	$info->{prev_op} = $prev_op;
+	$info->{child_pos} = $i;
 	$info->{op} = $op;
 	if ($parent) {
 	    Carp::confess("nonref parent, op: $op->name") if !ref($parent);
