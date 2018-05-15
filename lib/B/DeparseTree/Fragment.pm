@@ -3,7 +3,8 @@ package B::DeparseTree::Fragment;
 use strict; use warnings;
 use vars qw(@ISA @EXPORT);
 @ISA = ('Exporter');
-@EXPORT = qw(deparse_offset get_addr_info get_parent_addr_info extract_node_info);
+@EXPORT = qw(deparse_offset get_addr_info get_parent_addr_info
+             extract_node_info get_prev_addr_info);
 
 sub deparse_offset
 {
@@ -46,6 +47,7 @@ sub get_parent_addr_info($)
 {
     my ($op_info) = @_;
     my $parent_addr = get_parent_addr($op_info);
+    return undef unless $parent_addr;
     my $deparse = $op_info->{deparse};
     return $deparse->{optree}{$parent_addr};
 }
