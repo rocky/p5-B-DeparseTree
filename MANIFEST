@@ -62,7 +62,7 @@ t/testdata/README.md
 t/testdata/README.pod
 t/testdata/bug-sample.pm
 t/testdata/core-base.pm
-t/unit/00-load.t
 t/unit/01-test-pod.t
 t/unit/02-node.t
 t/unit/03-common.t
+t/unit/04-load.t
