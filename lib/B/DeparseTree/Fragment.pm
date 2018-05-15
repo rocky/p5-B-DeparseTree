@@ -67,6 +67,7 @@ sub get_prev_addr_info($)
     my ($op_info) = @_;
     my $prev_addr = get_prev_addr($op_info);
     my $deparse = $op_info->{deparse};
+    return undef unless $prev_addr;
     return $deparse->{optree}{$prev_addr};
 }
 
