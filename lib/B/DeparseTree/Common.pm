@@ -1200,27 +1200,29 @@ sub loop_common
 	    push @states, $state;
 	}
 	$body_info = $self->lineseq(undef, 0, @states);
-	if (defined $cond_info and not is_scope $cont and $self->{'expand'} < 3) {
+	if (defined $cond_info and not is_scope($cont) and $self->{'expand'} < 3) {
 	    my $cont_info = $self->deparse($cont, 1, $op);
 	    my $init = defined($init) ? $init : ' ';
-	    @head = ($init, $cont_info);
+	    @head = ($init, $cond_info, $cont_info);
 	    # @head_text = ('for', '(', "$init_text;", $cont_info->{text}, ')');
-	    $fmt = 'for (%c; %c)';
-	    @args_spec = (0, 1);
+	    $fmt = 'for (%c; %c; %c) ';
+	    @args_spec = (0, 1, 2);
 	    $opts->{'omit_next_semicolon'} = 1;
 	} else {
 	    my $cont_info = $self->deparse($cont, 0, $op);
-	    push @head, $cont_info;
+	    @head =  ($init, $cont_info);
+	    @args_spec = (0, 1);
 	    $opts->{'omit_next_semicolon'} = 1;
 	    @cont_text = ($cuddle, 'continue', "{\n\t",
 			  $cont_info->{text} , "\n\b}");
 	}
     } else {
-	return info_from_text($op, $self, [''], 'loop_no_body', {}) if !defined $body;
+	return info_from_text($op, $self, [''], 'loop_no_body', {})
+	    if !defined $body;
 	if (defined $init) {
 	    # @head_text = ('for', '(', "$init->{text};", "$cond_info->{text};", ")");
 	    @head = ($init, $cond_info);
-	    $fmt = '%|for (%c; %c;)';
+	    $fmt = '%|for (%c; %c;) ';
 	}
 	$opts->{'omit_next_semicolon'} = 1;
 	$body_info = $self->deparse($body, 0, $op);
@@ -2349,15 +2351,15 @@ sub pfixop
     my $type;
     my @texts;
     if ($flags & POSTFIX) {
-	@texts = ($operand, $operator);
-	$type = 'prefix_op';
+	@texts = ($operator, $operand);
+	$type = 'prefix operator';
     } elsif ($operator eq '-' && $operand->{text} =~ /^[a-zA-Z](?!\w)/) {
 	# avoid confusion with filetests
-	$type = 'prefix_filetest';
+	$type = 'prefix filetest';
 	@texts = ($operand, '(', $operator, ')');
     } else {
-	$type = 'postfix_op';
-	@texts = ($operator, $operand);
+	$type = 'postfix operator';
+	@texts = ($operand, $operator);
     }
 
     return info_from_list $op, $self, \@texts, '', $type,

@@ -11,6 +11,7 @@ after_failure:
 install:
   # Prerequisites
   - "cpanm $PREREQS"
+  - perl ./Build.PL
   - "GIT2CL='./git2cl' make ChangeLog distmeta distcheck"
 
 test:

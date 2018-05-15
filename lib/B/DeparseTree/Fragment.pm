@@ -182,7 +182,7 @@ sub extract_node_info($)
 unless (caller) {
     sub bug() {
 	no strict;
-	while ($x) {
+	for ($i=1; $i<5; $i++) {
 	    $x = 1;
 	}
 	# my ($a, $b, $c);
