@@ -182,9 +182,7 @@ sub extract_node_info($)
 unless (caller) {
     sub bug() {
 	no strict;
-	for ($i=1; $i<5; $i++) {
-	    $x = 1;
-	}
+	for ( $i=0; $i;) {};
 	# my ($a, $b, $c);
 	# CORE::exec($foo $bar);
 	# exec $foo $bar;

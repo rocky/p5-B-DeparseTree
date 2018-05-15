@@ -695,7 +695,7 @@ sub pp_substr {
 # Go over and make sure this is okay.
 sub pp_stub {
     my ($self, $op) = @_;
-    info_from_list($op, $self, ["(", ")"], '', 'stub', {})
+    info_from_text($op, $self, "()", 'stub', {})
 };
 
 sub pp_symlink { maybe_targmy(@_, \&listop, "symlink") }

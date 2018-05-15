@@ -453,7 +453,7 @@ sub listop
 	my $text = $nollafr
 	    ? $self->maybe_parens($fullname, $cx, 7)
 	    : $fullname . '()' x (7 < $cx);
-	return info_from_text($op, $self, $text, "listop $fullname", {});
+	return info_from_text($op, $self, $text, "listop $name", {});
     }
     my $first;
     my $fullname = $self->keyword($name);
@@ -471,7 +471,8 @@ sub listop
 	$first = $self->deparse($kid, 6, $op);
     }
     if ($name eq "chmod" && $first->{text} =~ /^\d+$/) {
-	$first = info_from_text($first->{op}, $self, sprintf("%#o", $first->{text}), 'listop_chmod', {});
+	$first = info_from_text($first->{op}, $self, sprintf("%#o", $first->{text}),
+				'listop chmod', {});
     }
     $first->{text} = "+" + $first->{text}
 	if not $parens and not $nollafr and substr($first->{text}, 0, 1) eq "(";
@@ -495,34 +496,43 @@ sub listop
     }
 
     my $opts = {};
-    my @texts = @exprs;
+    my $type;
+    my $fmt;
 
     if ($name =~ /^(system|exec)$/
 	&& ($op->flags & OPf_STACKED)
-	&& @texts > 1)
+	&& @exprs > 1)
     {
 	# handle the "system(prog a1, a2, ...)" form
 	# where there is no ', ' between the first two arguments.
-	my $prog = shift @texts;
-	my $first_arg = shift @texts;
-	my @two_args = ($prog, $first_arg);
-	unshift @texts, info_from_list($prog->{op}, $self, [$prog, $first_arg],
-				       ' ', 'system|exec', {});
+	if ($parens && $nollafr) {
+	    $fmt = "($fullname %c %C)";
+	    $type = "listop ($fullname)";
+	} elsif ($parens) {
+	    $fmt = "$fullname(%c %C)";
+	    $type = "listop $fullname()";
+	} else {
+	    $fmt = "$fullname %c %C";
+	    $type = "listop $fullname";
+	}
+	return $self->info_from_template($type, $op, $fmt,
+					 [0, [1, $#exprs, ', ']], \@exprs);
+
     }
 
-    my $type;
-
+    $fmt = "%c %C";
     if ($parens && $nollafr) {
-	@texts = ("($fullname ", $self->combine(', ', \@texts), ')');
+	$fmt = "($fullname %C)";
 	$type = "listop ($fullname)";
     } elsif ($parens) {
-	@texts = ("$fullname(", $self->combine(", ", \@texts), ')');
+	$fmt = "$fullname(%C)";
 	$type = "listop $fullname()";
     } else {
-	@texts = ("$fullname ", $self->combine(', ', \@texts));
+	$fmt = "$fullname %C";
 	$type = 'listop $fullname';
     }
-    return info_from_list($op, $self, \@texts, '', $type, $opts);
+    return $self->info_from_template($type, $op, $fmt,
+				     [[0, $#exprs, ', ']], \@exprs);
 }
 
 sub pp_accept { listop(@_, "accept") }
@@ -1220,9 +1230,9 @@ sub loop_common
 	return info_from_text($op, $self, [''], 'loop_no_body', {})
 	    if !defined $body;
 	if (defined $init) {
-	    # @head_text = ('for', '(', "$init->{text};", "$cond_info->{text};", ")");
 	    @head = ($init, $cond_info);
 	    $fmt = '%|for (%c; %c;) ';
+	    @args_spec = (0, 1);
 	}
 	$opts->{'omit_next_semicolon'} = 1;
 	$body_info = $self->deparse($body, 0, $op);
@@ -2523,6 +2533,9 @@ sub template_engine($$$$) {
 	    my $index = $indexes->[$i++];
 
 	    # FIXME: Remove duplicate code
+	    # if (! eval{$args->[$index]}) {
+	    # 	use Enbugger "trepan"; Enbugger->stop;
+	    # }
 	    my $info = $args->[$index];
 	    my $str = $self->info2str($info);
 	    if (ref($info) && $info->{'addr'} == $find_addr) {
