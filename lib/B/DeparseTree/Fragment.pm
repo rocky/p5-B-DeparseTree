@@ -25,7 +25,6 @@ sub get_addr_info($$)
     my $op_info = $deparse->{optree}{$addr};
     if ($op_info) {
 	# use Data::Printer; Data::Printer::p $op_info;
-	# my $text = $deparse->indent_info($op_info);
 	return $op_info;
     }
     return undef;
@@ -70,6 +69,11 @@ sub extract_node_info($)
     my $text_len = $#texts;
 	my $result = '';
 
+    if (!exists $parent_info->{fmt}
+	and scalar(@texts) == 1
+	and eval{$texts[0]->isa("B::DeparseTree::Node")}) {
+	$parent_info = $texts[0];
+    }
     if (exists $parent_info->{fmt}) {
 	my $fmt = $parent_info->{fmt};
 	my $indexes = $parent_info->{indexes};
@@ -88,14 +92,11 @@ sub extract_node_info($)
 	    $result .= $separator if $result;
 
 	    if (ref($text)) {
-		if ((ref($text) eq 'ARRAY') and scalar(@$text) == 2) {
+		if (ref($text) eq 'ARRAY' and (scalar(@$text) == 2)) {
 		    if ($text->[1] == $child_addr) {
-			# Note $text->[0] may be different from $child_text.
-			# as in exec "$foo $bar" vs "$foo"
-			# FIXE: What do we do then?
 			$child_text = $text->[0];
 			my $parent_underline = ' ' x length($result);
-		    $result .= $text->[0];
+			$result .= $text->[0];
 			$parent_underline .= '-' x length($text->[0]);
 			if ($i < $text_len) {
 			    $result .= $separator;
@@ -154,8 +155,13 @@ sub extract_node_info($)
 unless (caller) {
     sub bug() {
 	no strict;
-	my ($a, $b, $c);
+	while ($x) {
+	    $x = 1;
+	}
+	# my ($a, $b, $c);
 	# CORE::exec($foo $bar);
+	# exec $foo $bar;
+	# exec $foo $bar;
     }
 
     my $child_text = '$foo $bar';

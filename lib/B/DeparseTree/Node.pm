@@ -9,7 +9,7 @@ use Hash::Util qw[ lock_hash ];
 
 # Set of unary precidences
 our %UNARY_PRECIDENCES = (
-         4 => 1,  # ?? Probably not used anymore
+         4 => 1,  # right not
         16 => 'sub, %, @',   # "sub", "%", "@'
         21 => '~', # steal parens (see maybe_parens_unop)
 );
@@ -111,7 +111,7 @@ sub new($$$$$)
 
     $self->{text} = $deparse->combine2str($sep, $texts) if defined $sep;
 
-    foreach my $optname (qw(other_ops parent_ops child_pos)) {
+    foreach my $optname (qw(other_ops parent_ops child_pos maybe_parens omit_next_semicolon)) {
 	$self->{$optname} = $opts->{$optname} if $opts->{$optname};
     }
     if ($opts->{maybe_parens}) {

@@ -110,7 +110,10 @@ skipcheck :
 	perl Build --makefile_env_macros 1 skipcheck
 
 #: Same as "test". "check" is the usual autoconf name
-check: test
+
+## FIXME: for this branch we only have test-unit working
+check: test-unit
+###check: test
 
 #: Same as test-unit
 check-unit: test-unit

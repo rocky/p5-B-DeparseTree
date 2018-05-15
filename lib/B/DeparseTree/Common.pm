@@ -68,9 +68,6 @@ $VERSION = '3.0.0';
     dquote
     gv_name
     hint_pragmas
-    indent
-    indent_info
-    indent_list
     info_from_list
     info_from_text
     info_from_template
@@ -226,36 +223,12 @@ sub combine($$$)
     return @result;
 }
 
-# Nonprinting characters with special meaning:
-my %SPECIAL_SEPARATORS = (
-	"\n"  => 1, # newline and indent
- 	"\b"  => 1, # increase indent
- 	"\t"  => 1, # decrease indent
-	"\f"  => 1, # flush left (no indent)
-        "\cC" => 1, # Overide separator - no space
-
-        # FIXME: not implemented - are they needed?
-        "\cS" => 1, # steal parens (see maybe_parens_unop)
-	"\cK" => 1, # kill following semicolon, if any
-
-    );
-
-use Hash::Util qw[ lock_hash ];
-lock_hash %SPECIAL_SEPARATORS;
-
 sub combine2str($$$)
 {
     my ($self, $sep, $items) = @_;
     my $result = '';
     foreach my $item (@$items) {
-	if ($result) {
-	    my $expanded_sep = $sep;
-	    if (exists $SPECIAL_SEPARATORS{$sep}) {
-		# FIXME: handle them
-		$expanded_sep = $sep;
-	    }
-	    $result .= $expanded_sep;
-	}
+	$result .= $sep if $result;
 	if (ref $item) {
 	    if (ref $item eq 'ARRAY' and scalar(@$item) == 2) {
 		# First item is text and second item is op address.
@@ -264,7 +237,7 @@ sub combine2str($$$)
 		if (exists $item->{fmt}) {
 		    $result .= $self->template2str($item);
 		} else {
-		    $result .= $self->info2str($item->{sep});
+		    $result .= $self->info2str($item);
 		}
 	    } else {
 		Carp::confess("Invalid ref item ref($item)");
@@ -361,9 +334,10 @@ sub info_from_list($$$$$$)
 }
 
 # Create an info structure a template pattern
-sub info_from_template($$$$) {
-    my ($self, $type, $op, $fmt, $indexes, $args) = @_;
-    my $info = B::DeparseTree::Node->new($op, $self, $args, '', $type, {});
+sub info_from_template($$$$$) {
+    my ($self, $type, $op, $fmt, $indexes, $args, $opts) = @_;
+    $opts = {} unless defined($opts);
+    my $info = B::DeparseTree::Node->new($op, $self, $args, '', $type, $opts);
     $info->{'fmt'}  = $fmt;
     $info->{'indexes'} = $indexes if $indexes;
     $info->{'text'} = $self->template_engine($fmt, $indexes, $args);
@@ -475,10 +449,11 @@ sub listop
     # (return)+1 or setpgrp()+1.  When the llafr does not apply, we use a
     # precedence of 6 (< comma), as "return, 1" does not need parentheses.
     if (B::Deparse::null $kid) {
+	my $fullname = $self->keyword($name);
 	my $text = $nollafr
-	    ? $self->maybe_parens($self->keyword($name), $cx, 7)
-	    : $self->keyword($name) . '()' x (7 < $cx);
-	return info_from_text($op, $self, $text, 'null_listop', {});
+	    ? $self->maybe_parens($fullname, $cx, 7)
+	    : $fullname . '()' x (7 < $cx);
+	return info_from_text($op, $self, $text, "listop $fullname", {});
     }
     my $first;
     my $fullname = $self->keyword($name);
@@ -536,15 +511,16 @@ sub listop
     }
 
     my $type;
+
     if ($parens && $nollafr) {
 	@texts = ("($fullname ", $self->combine(', ', \@texts), ')');
-	$type = 'listop_parens_noallfr';
+	$type = "listop ($fullname)";
     } elsif ($parens) {
 	@texts = ("$fullname(", $self->combine(", ", \@texts), ')');
-	$type = 'listop_parens';
+	$type = "listop $fullname()";
     } else {
 	@texts = ("$fullname ", $self->combine(', ', \@texts));
-	$type = 'listop';
+	$type = 'listop $fullname';
     }
     return info_from_list($op, $self, \@texts, '', $type, $opts);
 }
@@ -793,7 +769,7 @@ sub coderef2text
 
     $self->init();
     my $info = $self->coderef2info($func);
-    return $self->indent($info->{text});
+    return $self->info2str($info);
 }
 
 sub const {
@@ -1068,7 +1044,6 @@ sub walk_lineseq
 	}
 	if (is_for_loop($kids[$i])) {
 	    my $loop_expr = $self->for_loop($kids[$i], 0);
-	    $loop_expr =~ s/\cK//;
 	    $callback->(\@body,
 			$i += $kids[$i]->sibling->name eq "unstack" ? 2 : 1,
 			$loop_expr);
@@ -1106,23 +1081,27 @@ sub loop_common
     local(@$self{qw'curstash warnings hints hinthash'})
 		= @$self{qw'curstash warnings hints hinthash'};
 
-    my ($body, @body, @other_ops, $type);
-    my (@head, @head_text) = ((), ());
+    my ($body, @body, @other_ops);
+    my @head = ();
     my ($bare, $cond_info) = (0, undef);
+    my $fmt = '%|';
+    my @args_spec = ();
+    my $opts = {};
+    my $type = 'loop';
 
     if ($kid->name eq "lineseq") {
 	# bare or infinite loop
-	$type = 'while (1)';
+	$type .= ' while (1)';
 
 	if ($kid->last->name eq "unstack") { # infinite
-	    @head_text = ("while", "(1)"); # Can't use for(;;) if there's a continue
+	    $fmt .= 'while (1)';
 	} else {
 	    $bare = 1;
 	}
 	$body = $kid;
     } elsif ($enter->name eq "enteriter") {
 	# foreach
-	$type = 'foreach';
+	$type .= ' foreach';
 
 	push @other_ops, $enter->first;
 	my $ary = $enter->first->sibling; # first was pushmark
@@ -1182,19 +1161,23 @@ sub loop_common
 	    return info_from_list($body->{op}, $self, \@texts, ' ', 'foreach ()',
 				  {other_ops => \@other_ops});
 	}
-	@head_text = ("foreach", @var_text, '(', @ary_text, ')');
+	$fmt = "foreach %c (%c)";
+	@args_spec = (0, 1);
+	push @head, @var_text, @ary_text;
     } elsif ($kid->name eq "null") {
 	# while/until
 
 	$kid = $kid->first;
 	my $name = {"and" => "while", "or" => "until"}->{$kid->name};
-	$type = $name;
+	$type .= " $name";
 	$cond_info = $self->deparse($kid->first, 1, $op);
-	@head_text = ($name,  "($cond_info->{text})");
+	$fmt = "$name (%c) ";
+	push @head, $cond_info;
 	$body = $kid->first->sibling;
+	@args_spec = (0);
     } elsif ($kid->name eq "stub") {
 	# bare and empty
-	return info_from_list($op, $self, ['{', ';', '}'], '', 'loop stub', {});
+	return info_from_text($op, $self, '{;}', 'empty loop', {});
     }
 
     # If there isn't a continue block, then the next pointer for the loop
@@ -1225,29 +1208,43 @@ sub loop_common
 	$body_info = $self->lineseq(undef, 0, @states);
 	if (defined $cond_info and not is_scope $cont and $self->{'expand'} < 3) {
 	    my $cont_info = $self->deparse($cont, 1, $op);
-	    push @head, $cont_info;
-	    my $init_text = defined($init) ? $init->{text} : ' ';
-	    @head_text = ('for', '(', "$init_text;", $cont_info->{text}, ')');
-	    @cont_text = ("\cK");
+	    my $init = defined($init) ? $init : ' ';
+	    @head = ($init, $cont_info);
+	    # @head_text = ('for', '(', "$init_text;", $cont_info->{text}, ')');
+	    $fmt = 'for (%c; %c)';
+	    @args_spec = (0, 1);
+	    $opts->{'omit_next_semicolon'} = 1;
 	} else {
 	    my $cont_info = $self->deparse($cont, 0, $op);
 	    push @head, $cont_info;
+	    $opts->{'omit_next_semicolon'} = 1;
 	    @cont_text = ($cuddle, 'continue', "{\n\t",
-			  $cont_info->{text} , "\n\b}\cK");
+			  $cont_info->{text} , "\n\b}");
 	}
     } else {
 	return info_from_text($op, $self, [''], 'loop_no_body', {}) if !defined $body;
 	if (defined $init) {
-	    @head_text = ('for', '(', "$init->{text};", "$cond_info->{text};", ")");
+	    # @head_text = ('for', '(', "$init->{text};", "$cond_info->{text};", ")");
+	    @head = ($init, $cond_info);
+	    $fmt = '%|for (%c; %c;)';
 	}
-	@cont_text = ("\cK");
+	$opts->{'omit_next_semicolon'} = 1;
 	$body_info = $self->deparse($body, 0, $op);
     }
-    (my $body_text = $body_info->{text}) =~ s/;?$/;\n/;
 
-    my @texts = (@head_text, "{\n\t", $body_text, "\b}", @cont_text);
-    return info_from_list($op, $self, \@texts, ' ', $type,
-			  {body => [$body_info]});
+    # (my $body_text = $body_info->{text}) =~ s/;?$/;\n/;
+    # my @texts = (@head_text, "{\n\t", $body_text, "\b}", @cont_text);
+
+    my @exprs = (@head, $body_info);
+    push @args_spec, $#exprs;
+    $fmt .= "{\n%+%c%-\n}";
+    if (@cont_text) {
+	push @exprs, @cont_text;
+	push @args_spec, $#exprs;
+	$type .= ' cont';
+	$fmt .= '%c';
+    }
+    return $self->info_from_template($type, $op, $fmt, \@args_spec, \@exprs, $opts)
 }
 
 # $root should be the op which represents the root of whatever
@@ -1274,11 +1271,7 @@ sub lineseq {
 
     my $fn = sub {
 	my ($exprs, $i, $info, $parent) = @_;
-	my $text = $info->{text};
 	my $op = $ops[$i];
-	$text =~ s/\f//;
-	$text =~ s/\n$//;
-	$text =~ s/;\n?\z//;
 	$info->{type} = $op->name unless $info->{type};
 	$info->{op} = $op;
 	if ($parent) {
@@ -1286,7 +1279,6 @@ sub lineseq {
 	    $info->{parent} = $$parent ;
 	}
 	$self->{optree}{$$op} = $info;
-	$info->{text} = $text;
 	push @$exprs, $info;
     };
     return $self->walk_lineseq($root, \@ops, $fn);
@@ -1617,7 +1609,7 @@ sub compile {
 	    unless (null $root) {
 		$self->pessimise($root, main_start);
 		# Print deparsed program
-		print $self->indent_info($self->deparse_root($root)), "\n";
+		print $self->deparse_root($root)->{text}, "\n";
 	    }
 	} else {
 	    unless (null $root) {
@@ -1641,7 +1633,7 @@ sub compile {
 		    $self->pessimise($root, main_start);
 		    # Print deparsed program
 		    my $root_tree = $self->deparse_root($root);
-		    print $self->indent_info($root_tree), "\n";
+		    print $root_tree->{text}, "\n";
 		}
 	    }
 	}
@@ -1838,58 +1830,6 @@ sub deparse_subname($$$)
 			  'deparse_subname', {body=>[$info]})
 }
 
-sub indent_list($$)
-{
-    my ($self, $lines_ref) = @_;
-    my $leader = "";
-    my $level = 0;
-    for my $line (@{$lines_ref}) {
-	my $cmd = substr($line, 0, 1);
-	if ($cmd eq "\t" or $cmd eq "\b") {
-	    $level += ($cmd eq "\t" ? 1 : -1) * $self->{'indent_size'};
-	    if ($self->{'use_tabs'}) {
-		$leader = "\t" x ($level / 8) . " " x ($level % 8);
-	    } else {
-		$leader = " " x $level;
-	    }
-	    $line = substr($line, 1);
-	}
-	if (index($line, "\f") > 0) {
-		$line =~ s/\f/\n/;
-	}
-	if (substr($line, 0, 1) eq "\f") {
-	    $line = substr($line, 1); # no indent
-	} else {
-	    $line = $leader . $line;
-	}
-	$line =~ s/\cK;?//g;
-    }
-
-    my @lines = grep $_ !~ /^\s*$/, @$lines_ref;
-    return join("\n", @lines)
-}
-
-sub indent($$)
-{
-    my ($self, $text) = @_;
-    my @lines = split(/\n/, $text);
-    return $self->indent_list(\@lines);
-}
-
-# Like indent, but takes an info object and removes leading
-# parenthesis.
-sub indent_info($$)
-{
-    my ($self, $info) = @_;
-    my $text = $info->{text};
-    if ($info->{maybe_parens} and
-	substr($text, 0, 1) eq '(' and
-	substr($text, -1) eq ')' ) {
-	$text = substr($text, 1, length($text) -2)
-    }
-    return $self->indent($text);
-}
-
 sub is_lexical_subs {
     my (@ops) = shift;
     for my $op (@ops) {
@@ -1951,17 +1891,19 @@ sub scopeop
     if ($cx > 0) {
 	# inside an expression, (a do {} while for lineseq)
 	my $body = $self->lineseq($op, 0, @kids);
-	my @texts = ($body->{text});
 	my $text;
-	my $type = 'scope expression';
-	unless (is_lexical_subs(@kids)) {
-	    $type = 'scope do';
-	    @texts = ('do ', "{\n\t", @texts, "\n\b}");
-	};
-	return info_from_list($op, $self, \@texts, '', $type, {});
+	if (is_lexical_subs(@kids)) {
+	    return $self->info_from_template("scoped do", $op,
+					     '%|do {\n%+%c\n%-}',
+					     [0], [$body]);
+
+	} else {
+	    return $self->info_from_template("scoped expression", $op,
+					     '%c',[0], [$body]);
+	}
     } else {
 	my $ls = $self->lineseq($op, $cx, @kids);
-	return info_from_list($op, $self, [$ls], '', 'scope line sequence', {});
+	return info_from_list($op, $self, [$ls], '', 'scoped statements', {});
     }
 }
 
@@ -2212,18 +2154,24 @@ sub pragmata {
 }
 
 
+# Create a "use", "no", or "BEGIN" block to set warnings.
 sub declare_warnings
 {
     my ($self, $from, $to) = @_;
     if (($to & WARN_MASK) eq (warnings::bits("all") & WARN_MASK)) {
-	return $self->keyword("use") . " warnings;\n";
+	my $type = $self->keyword("use") . " warnings";
+	return $self->info_from_template($type, undef, "%|$type;\n",
+					 [], []);
     }
     elsif (($to & WARN_MASK) eq ("\0"x length($to) & WARN_MASK)) {
-	return $self->keyword("no") . " warnings;\n";
+	my $type = $self->keyword("no") . " warnings";
+	return $self->info_from_template($type, undef, "%|$type;\n",
+					 [], []);
     }
-    return "BEGIN {\${^WARNING_BITS} = \""
-           . join("", map { sprintf("\\x%02x", ord $_) } split "", $to)
-           . "\"}\n\cK";
+    my $bit_expr = join('', map { sprintf("\\x%02x", ord $_) } split "", $to);
+    my $str = "%|BEGIN {\n%+\${^WARNING_BITS} = \"$bit_expr;\n%-";
+    return $self->info_from_template('warning bits begin', undef,
+				     "%|$str\n", [], [], {omit_next_semicolon=>1});
 }
 
 sub is_scope {
@@ -2547,8 +2495,9 @@ sub expand_simple_spec($$)
     return $result;
 }
 
-# List of suffic characters that are handled by "expand_simple_spec()
+# List of suffix characters that are handled by "expand_simple_spec()".
 use constant SIMPLE_SPEC => '%+-|';
+
 sub template_engine($$$$) {
     my ($self, $fmt, $indexes, $args, $find_addr) = @_;
 
@@ -2599,10 +2548,14 @@ sub template_engine($$$$) {
 		$result .= $str;
 	    }
 	} elsif ($spec eq "%;") {
-	    # Insert semicolons and newlines between statements
+	    # Insert semicolons and indented newlines between statements.
+	    # Don't insert them around empty strings - some OPs
+	    # don't have an text associated with them.
 	    my $sep = $self->expand_simple_spec(";\n%|");
+	    my $start_size = length($result);
 	    for (my $j=0; $j< @$args; $j++) {
-		if ($j > 0) {
+		my $old_result = $result;
+		if ($j > 0 && length($result) > $start_size) {
 		    # Remove any prior ;\n
 		    $result = substr($result, 0, -1) if substr($result, -1) eq "\n";
 		    $result = substr($result, 0, -1) if substr($result, -1) eq ";";
@@ -2615,7 +2568,11 @@ sub template_engine($$$$) {
 		if (ref($info) && $info->{'addr'} == $find_addr) {
 		    $find_pos = [length($result), length($str)];
 		}
-		$result .= $str
+		if (!$str) {
+		    $result = $old_result;
+		} else {
+		    $result .= $str
+		}
 	    }
 	# } elsif ($spec eq "\cC") {
 	#     # Override separator, null string
@@ -2623,15 +2580,14 @@ sub template_engine($$$$) {
 	} elsif ($spec eq "\cS") {
 	    # FIXME: not handled yet
 	    ;
-	} elsif ($spec eq "\cK") {
-	    # FIXME: not handled yet
-	    ;
 	}
     }
     $result .= $fmt if $fmt;
     if ($find_addr != -2) {
+	# want result and position
 	return $result, $find_pos;
     }
+    # want just result
     return $result;
 
 }
@@ -2711,6 +2667,5 @@ unless(caller) {
     # $info = info_from_list('op', $deparse, \@texts, ', ', 'test', {});
     # p $info;
 }
-
 
 1;
