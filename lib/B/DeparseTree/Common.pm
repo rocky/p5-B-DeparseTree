@@ -1740,7 +1740,7 @@ sub deparse_sub($$$)
 	    $body = $self->deparse($root->first, 0, $root);
 	}
 
-	$info = $self->info_from_template('sub', $root, "{\n%+%c\n%-}",
+	$info = $self->info_from_template('sub', $root, "\n%|{\n%+%c\n%-}",
 					  [0], [$body]);
 
 	$self->{optree}{$$lineseq} = $info;
@@ -2047,7 +2047,7 @@ sub declare_hinthash {
     }
     @decls and
 	push @ret,
-	     join("\n" . (" " x $indent), "BEGIN {", @decls) . "\n}\n\cK";
+	     join("\n" . (" " x $indent), "BEGIN {", @decls) . "\n}\n";
     return @ret;
 }
 

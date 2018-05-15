@@ -260,7 +260,7 @@ sub pp_nextstate {
     my @texts;
     my $opts = {};
     my @args_spec = ();
-    my $fmt = '';
+    my $fmt = '%;';
     push @texts, $self->cop_subs($op);
     if (@texts) {
 	# Special marker to swallow up the semicolon
@@ -270,15 +270,11 @@ sub pp_nextstate {
     my $stash = $op->stashpv;
     if ($stash ne $self->{'curstash'}) {
 	push @texts, $self->keyword("package") . " $stash;";
-	$fmt .= "%|%c\n";
-	push @args_spec, scalar(@args_spec);
 	$self->{'curstash'} = $stash;
     }
 
     if (OPpCONST_ARYBASE && $self->{'arybase'} != $op->arybase) {
 	push @texts, '$[ = '. $op->arybase .";";
-	$fmt .= "%|%c\n";
-	push @args_spec, scalar(@args_spec);
 	$self->{'arybase'} = $op->arybase;
     }
 
@@ -299,21 +295,19 @@ sub pp_nextstate {
 
     if (defined ($warning_bits) and
        !defined($self->{warnings}) || $self->{'warnings'} ne $warning_bits) {
-	my $str = $self->declare_warnings($self->{'warnings'}, $warning_bits);
-	push @args_spec, scalar(@args_spec);
-	$fmt .= "%|%c";
-    	push @texts, $str;
+	my @warnings = $self->declare_warnings($self->{'warnings'}, $warning_bits);
+	foreach my $warning (@warnings) {
+	    push @texts, $warning;
+	}
     	$self->{'warnings'} = $warning_bits;
     }
 
     my $hints = $] < 5.008009 ? $op->private : $op->hints;
     my $old_hints = $self->{'hints'};
     if ($self->{'hints'} != $hints) {
-	my $str = $self->declare_hints($self->{'hints'}, $hints);
-	if ($str) {
-	    push @args_spec, scalar(@args_spec);
-	    push @texts, $str;
-	    $fmt .= "%|%c\n";
+	my @hints = $self->declare_hints($self->{'hints'}, $hints);
+	foreach my $hint (@hints) {
+	    push @texts, $hint;
 	}
 	$self->{'hints'} = $hints;
     }
@@ -341,24 +335,19 @@ sub pp_nextstate {
 		my $bundle =
 		    $feature::hint_bundles[$to >> $feature::hint_shift];
 		$bundle =~ s/(\d[13579])\z/$1+1/e; # 5.11 => 5.12
-		$fmt .= "%|%c\n%|%c\n";
-		push @args_spec, scalar(@args_spec), scalar(@args_spec) + 1;
 		push @texts,
-		    $self->keyword("no") . " feature ':all';",
-		    $self->keyword("use") . " feature ':$bundle';";
+		    $self->keyword("no") . " feature ':all'",
+		    $self->keyword("use") . " feature ':$bundle'";
 	    }
 	}
     }
 
     if ($] > 5.009) {
-	my $str = $self->declare_hinthash(
-	    $self->{'hinthash'}, $newhh,
-	    $self->{indent_size}, $self->{hints},
-	    );
-	if ($str) {
-	    push @args_spec, scalar(@args_spec);
-	    $fmt .= "%|%c\n";
-	    push @texts, $str;
+	# FIXME use format specifiers
+	my @hints = $self->declare_hinthash(
+	    $self->{'hinthash'}, $newhh, 0, $self->{hints});
+	foreach my $hint (@hints) {
+	    push @texts, $hint;
 	}
 	$self->{'hinthash'} = $newhh;
     }

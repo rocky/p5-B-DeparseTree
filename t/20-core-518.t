@@ -54,7 +54,8 @@ sub testit {
     # lex=1:   my ($a,$b); () = foo($a,$b,$c)
     # lex=2:   () = foo(my $a,$b,$c)
     #for my $lex (0, 1, 2) {
-    for my $lex (0, 1) {
+    #for my $lex (0, 1) {
+    for my $lex (0) {
 	if ($lex) {
 	    next if $keyword =~ /local|our|state|my/;
 	}
@@ -86,9 +87,9 @@ sub testit {
 	my $got_text = $deparse->coderef2text($code_ref);
 
 	unless ($got_text =~ /^{
-    package test;
-    use strict 'refs', 'subs';
-    use feature [^\n]+
+    \s*package test;
+    \s*use strict 'refs', 'subs';
+    \s*use feature [^\n]+
     \Q$vars\E\(\) = (.*)
 }/s) {
 	    ::fail($desc);
@@ -145,7 +146,7 @@ sub do_std_keyword {
 			? "($args)"
 			:  @args ? " $args" : "";
 	    push @code, (($core && !($do_exp && $strong)) ? "CORE::" : "")
-						       	. "$keyword$args;";
+						       	. "$keyword$args";
 	}
 	testit $keyword, @code; # code[0]: to run; code[1]: expected
     }
