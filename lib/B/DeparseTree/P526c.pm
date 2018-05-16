@@ -87,6 +87,7 @@ use B::DeparseTree::PP;
 *padname_sv = *B::Deparse::padname_sv;
 *meth_sv = *B::Deparse::meth_sv;
 *meth_rclass_sv = *B::Deparse::meth_rclass_sv;
+*tr_chr = *B::Deparse::tr_chr;
 
 use strict;
 use vars qw/$AUTOLOAD/;
@@ -2581,19 +2582,6 @@ sub tr_decode_byte {
     $to = collapse(@to);
     $from .= "-" if $delhyphen;
     return ($from, $to);
-}
-
-sub tr_chr {
-    my $x = shift;
-    if ($x == ord "-") {
-	return "\\-";
-    } elsif ($x == ord "\\") {
-	return "\\\\";
-    } else {
-	return chr $x;
-    }
-    return $self->info_from_template($type, $op->first->sibling,
-				     $fmt, [$re_dq_info], [0]);
 }
 
 # XXX This doesn't yet handle all cases correctly either

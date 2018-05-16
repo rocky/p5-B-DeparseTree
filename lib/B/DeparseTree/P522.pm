@@ -65,6 +65,8 @@ use B::Deparse;
 *padname_sv = *B::Deparse::padname_sv;
 *meth_sv = *B::Deparse::meth_sv;
 *meth_rclass_sv = *B::Deparse::meth_rclass_sv;
+*re_flags = *B::Deparse::re_flags;
+*tr_chr = *B::Deparse::tr_chr;
 
 use strict;
 use vars qw/$AUTOLOAD/;
@@ -2445,19 +2447,6 @@ sub tr_decode_byte {
     return ($from, $to);
 }
 
-sub tr_chr {
-    my $x = shift;
-    if ($x == ord "-") {
-	return "\\-";
-    } elsif ($x == ord "\\") {
-	return "\\\\";
-    } else {
-	return chr $x;
-    }
-    return $self->info_from_template($type, $op->first->sibling,
-				     $fmt, [$re_dq_info], [0]);
-}
-
 # XXX This doesn't yet handle all cases correctly either
 
 sub tr_decode_utf8 {
@@ -2600,6 +2589,7 @@ sub re_dq_disambiguate {
 sub re_dq {
     my $self = shift;
     my ($op, $extended) = @_;
+    my ($re_dq_info, $fmt);
 
     my $type = $op->name;
     my ($re, @texts);
@@ -2616,29 +2606,29 @@ sub re_dq {
 	my $last  = $self->re_dq($op->last,  $extended);
 	return re_dq_disambiguate($first, $last);
     } elsif ($type eq "uc") {
-	$re = $self->re_dq($op->first->sibling, $extended);
-	@texts = ['\U', $re->{text},'\E'];
-	$type = 're_dq_U';
+	$re_dq_info = $self->re_dq($op->first->sibling, $extended);
+	$fmt = '\U%c\E';
+	$type .= ' uc';
     } elsif ($type eq "lc") {
-	$re = $self->re_dq($op->first->sibling, $extended);
-	@texts = ['\L', $re->{text},'\E'];
-	$type = 're_dq_L';
+	$re_dq_info = $self->re_dq($op->first->sibling, $extended);
+	$fmt = '\L%c\E';
+	$type .= ' lc';
     } elsif ($type eq "ucfirst") {
-	$re = $self->re_dq($op->first->sibling, $extended);
-	@texts = ['\u', $re->{text}];
-	$type = 're_dq_u';
+	$re_dq_info = $self->re_dq($op->first->sibling, $extended);
+	$fmt = '\u%c';
+	$type .= ' ucfirst';
     } elsif ($type eq "lcfirst") {
-	$re = $self->re_dq($op->first->sibling, $extended);
-	@texts = ['\l', $re->{text}];
-	$type = 're_dq_l';
+	$re_dq_info = $self->re_dq($op->first->sibling, $extended);
+	$fmt = '\u%c';
+	$type .= ' lcfirst';
     } elsif ($type eq "quotemeta") {
 	$re = $self->re_dq($op->first->sibling, $extended);
 	@texts = ['\Q', $re->{text},'\E'];
-	$type = 're_dq_Q';
+	$type .= ' quotemeta';
     } elsif ($type eq "fc") {
 	$re = $self->re_dq($op->first->sibling, $extended);
 	@texts = ['\F', $re->{text},'\E'];
-	$type = 're_dq_Q';
+	$type .= ' fc';
     } elsif ($type eq "join") {
 	return $self->deparse($op->last, 26, $op); # was join($", @ary)
     } else {

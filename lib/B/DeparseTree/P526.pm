@@ -72,6 +72,7 @@ use B::Deparse;
 *padname_sv = *B::Deparse::padname_sv;
 *re_flags = *B::Deparse::re_flags;
 *rv2x = *B::Deparse::rv2x;
+*tr_chr = *B::Deparse::tr_chr;
 
 use strict;
 use vars qw/$AUTOLOAD/;
@@ -2394,17 +2395,6 @@ sub tr_decode_byte {
     return ($from, $to);
 }
 
-sub tr_chr {
-    my $x = shift;
-    if ($x == ord "-") {
-	return "\\-";
-    } elsif ($x == ord "\\") {
-	return "\\\\";
-    } else {
-	return chr $x;
-    }
-}
-
 # XXX This doesn't yet handle all cases correctly either
 
 sub tr_decode_utf8 {
@@ -2561,21 +2551,27 @@ sub re_dq {
     } elsif ($type eq "uc") {
 	$re_dq_info = $self->re_dq($op->first->sibling);
 	$fmt = '\U%c\E';
+	$type .= ' uc';
     } elsif ($type eq "lc") {
 	$re_dq_info = $self->re_dq($op->first->sibling);
 	$fmt = '\L%c\E';
+	$type .= ' lc';
     } elsif ($type eq "ucfirst") {
 	$re_dq_info = $self->re_dq($op->first->sibling);
 	$fmt = '\u%c';
+	$type .= ' ucfirst';
     } elsif ($type eq "lcfirst") {
 	$re_dq_info = $self->re_dq($op->first->sibling);
-	$fmt = '\l%c';
+	$fmt = '\u%c';
+	$type .= ' lcfirst';
     } elsif ($type eq "quotemeta") {
 	$re_dq_info = $self->re_dq($op->first->sibling);
 	$fmt = '\Q%c\E';
+	$type .= ' quotemeta';
     } elsif ($type eq "fc") {
 	$re_dq_info = $self->re_dq($op->first->sibling);
 	$fmt = '\F%c\E';
+	$type .= ' fc';
     } elsif ($type eq "join") {
 	return $self->deparse($op->last, 26); # was join($", @ary)
     } else {

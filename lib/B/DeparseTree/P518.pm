@@ -1,4 +1,4 @@
-# B::DeparseTree::P520.pm
+# B::DeparseTree::P518.pm
 # Copyright (c) 1998-2000, 2002, 2003, 2004, 2005, 2006 Stephen McCamant.
 # Copyright (c) 2015, 2018 Rocky Bernstein
 # All rights reserved.
@@ -33,6 +33,14 @@ use B qw(class opnumber
 
 use B::DeparseTree::Common;
 use B::DeparseTree::PP;
+use B::Deparse;
+
+# Copy unchanged functions from B::Deparse
+*begin_is_use = *B::Deparse::begin_is_use;
+*const_sv = *B::Deparse::const_sv;
+*padname_sv = *B::Deparse::padname_sv;
+*re_flags = *B::Deparse::re_flags;
+*tr_chr = *B::Deparse::tr_chr;
 
 use strict;
 use vars qw/$AUTOLOAD/;
@@ -294,109 +302,6 @@ sub deparse_format($$$)
     $info->{text} = $self->combine2str(\@texts) . "\f.";
     $info->{texts} = \@texts;
     return $info;
-}
-
-# Return a "use" declaration for this BEGIN block, if appropriate
-sub begin_is_use
-{
-    my ($self, $cv) = @_;
-    my $root = $cv->ROOT;
-    local @$self{qw'curcv curcvlex'} = ($cv);
-    local $B::overlay = {};
-    $self->pessimise($root, $cv->START);
-    # require B::Debug;
-    # B::walkoptree($cv->ROOT, "debug");
-    my $lineseq = $root->first;
-    return if $lineseq->name ne "lineseq";
-
-    my $req_op = $lineseq->first->sibling;
-    return if $req_op->name ne "require";
-
-    my $module;
-    if ($req_op->first->private & OPpCONST_BARE) {
-	# Actually it should always be a bareword
-	$module = $self->const_sv($req_op->first)->PV;
-	$module =~ s[/][::]g;
-	$module =~ s/.pm$//;
-    }
-    else {
-	$module = $self->const($self->const_sv($req_op->first), 6);
-    }
-
-    my $version;
-    my $version_op = $req_op->sibling;
-    return if class($version_op) eq "NULL";
-    if ($version_op->name eq "lineseq") {
-	# We have a version parameter; skip nextstate & pushmark
-	my $constop = $version_op->first->next->next;
-
-	return unless $self->const_sv($constop)->PV eq $module;
-	$constop = $constop->sibling;
-	$version = $self->const_sv($constop);
-	if (class($version) eq "IV") {
-	    $version = $version->int_value;
-	} elsif (class($version) eq "NV") {
-	    $version = $version->NV;
-	} elsif (class($version) ne "PVMG") {
-	    # Includes PVIV and PVNV
-	    $version = $version->PV;
-	} else {
-	    # version specified as a v-string
-	    $version = 'v'.join '.', map ord, split //, $version->PV;
-	}
-	$constop = $constop->sibling;
-	return if $constop->name ne "method_named";
-	return if $self->const_sv($constop)->PV ne "VERSION";
-    }
-
-    $lineseq = $version_op->sibling;
-    return if $lineseq->name ne "lineseq";
-    my $entersub = $lineseq->first->sibling;
-    if ($entersub->name eq "stub") {
-	return "use $module $version ();\n" if defined $version;
-	return "use $module ();\n";
-    }
-    return if $entersub->name ne "entersub";
-
-    # See if there are import arguments
-    my $args = '';
-
-    my $svop = $entersub->first->sibling; # Skip over pushmark
-    return unless $self->const_sv($svop)->PV eq $module;
-
-    # Pull out the arguments
-    for ($svop=$svop->sibling; $svop->name ne "method_named";
-		$svop = $svop->sibling) {
-	$args .= ", " if length($args);
-	$args .= $self->deparse($svop, 6, $root)->{text};
-    }
-
-    my $use = 'use';
-    my $method_named = $svop;
-    return if $method_named->name ne "method_named";
-    my $method_name = $self->const_sv($method_named)->PV;
-
-    if ($method_name eq "unimport") {
-	$use = 'no';
-    }
-
-    # Certain pragmas are dealt with using hint bits,
-    # so we ignore them here
-    if ($module eq 'strict' || $module eq 'integer'
-	|| $module eq 'bytes' || $module eq 'warnings'
-	|| $module eq 'feature') {
-	return "";
-    }
-
-    if (defined $version && length $args) {
-	return "$use $module $version ($args);\n";
-    } elsif (defined $version) {
-	return "$use $module $version;\n";
-    } elsif (length $args) {
-	return "$use $module ($args);\n";
-    } else {
-	return "$use $module;\n";
-    }
 }
 
 sub ambient_pragmas {
@@ -2417,19 +2322,6 @@ sub tr_decode_byte {
     return ($from, $to);
 }
 
-sub tr_chr {
-    my $x = shift;
-    if ($x == ord "-") {
-	return "\\-";
-    } elsif ($x == ord "\\") {
-	return "\\\\";
-    } else {
-	return chr $x;
-    }
-    return $self->info_from_template($type, $op->first->sibling,
-				     $fmt, [$re_dq_info], [0]);
-}
-
 # XXX This doesn't yet handle all cases correctly either
 
 sub tr_decode_utf8 {
@@ -2572,6 +2464,7 @@ sub re_dq_disambiguate {
 sub re_dq {
     my $self = shift;
     my ($op, $extended) = @_;
+    my ($re_dq_info, $fmt);
 
     my $type = $op->name;
     my ($re, @texts);
@@ -2588,29 +2481,29 @@ sub re_dq {
 	my $last  = $self->re_dq($op->last,  $extended);
 	return re_dq_disambiguate($first, $last);
     } elsif ($type eq "uc") {
-	$re = $self->re_dq($op->first->sibling, $extended);
-	@texts = ['\U', $re->{text},'\E'];
-	$type = 're_dq_U';
+	$re_dq_info = $self->re_dq($op->first->sibling, $extended);
+	$fmt = '\U%c\E';
+	$type .= ' uc';
     } elsif ($type eq "lc") {
-	$re = $self->re_dq($op->first->sibling, $extended);
-	@texts = ['\L', $re->{text},'\E'];
-	$type = 're_dq_L';
+	$re_dq_info = $self->re_dq($op->first->sibling, $extended);
+	$fmt = '\L%c\E';
+	$type .= ' lc';
     } elsif ($type eq "ucfirst") {
-	$re = $self->re_dq($op->first->sibling, $extended);
-	@texts = ['\u', $re->{text}];
-	$type = 're_dq_u';
+	$re_dq_info = $self->re_dq($op->first->sibling, $extended);
+	$fmt = '\u%c';
+	$type .= ' ucfirst';
     } elsif ($type eq "lcfirst") {
-	$re = $self->re_dq($op->first->sibling, $extended);
-	@texts = ['\l', $re->{text}];
-	$type = 're_dq_l';
+	$re_dq_info = $self->re_dq($op->first->sibling, $extended);
+	$fmt = '\u%c';
+	$type .= ' lcfirst';
     } elsif ($type eq "quotemeta") {
 	$re = $self->re_dq($op->first->sibling, $extended);
 	@texts = ['\Q', $re->{text},'\E'];
-	$type = 're_dq_Q';
+	$type .= ' quotemeta';
     } elsif ($type eq "fc") {
 	$re = $self->re_dq($op->first->sibling, $extended);
 	@texts = ['\F', $re->{text},'\E'];
-	$type = 're_dq_Q';
+	$type .= ' fc';
     } elsif ($type eq "join") {
 	return $self->deparse($op->last, 26, $op); # was join($", @ary)
     } else {
@@ -2708,39 +2601,6 @@ sub regcomp
 	return ($info, 1);
     }
     return ($self->deparse($kid, $cx, $op), 0, $op);
-}
-
-sub re_flags
-{
-    my ($self, $op) = @_;
-    my $flags = '';
-    my $pmflags = $op->pmflags;
-    $flags .= "g" if $pmflags & PMf_GLOBAL;
-    $flags .= "i" if $pmflags & PMf_FOLD;
-    $flags .= "m" if $pmflags & PMf_MULTILINE;
-    $flags .= "o" if $pmflags & PMf_KEEP;
-    $flags .= "s" if $pmflags & PMf_SINGLELINE;
-    $flags .= "x" if $pmflags & PMf_EXTENDED;
-    $flags .= "p" if $pmflags & RXf_PMf_KEEPCOPY;
-    if (my $charset = $pmflags & RXf_PMf_CHARSET) {
-	# Hardcoding this is fragile, but B does not yet export the
-	# constants we need.
-	$flags .= qw(d l u a aa)[$charset >> 5]
-    }
-    # The /d flag is indicated by 0; only show it if necessary.
-    elsif ($self->{hinthash} and
-	     $self->{hinthash}{reflags_charset}
-	    || $self->{hinthash}{feature_unicode}
-	or $self->{hints} & $feature::hint_mask
-	  && ($self->{hints} & $feature::hint_mask)
-	       != $feature::hint_mask
-	  && do {
-		$self->{hints} & $feature::hint_uni8bit;
-	     }
-  ) {
-	$flags .= 'd';
-    }
-    $flags;
 }
 
 # osmic acid -- see osmium tetroxide
