@@ -508,7 +508,7 @@ sub maybe_my {
 	my $my_str = $op->private & OPpPAD_STATE
 	    ? $self->keyword("state")
 	    : "my";
-	if ($forbid_parens || want_scalar($op)) {
+	if ($forbid_parens || B::Deparse::want_scalar($op)) {
 	    return info_from_list($op, $self, [$my_str,  $text], ' ',
 				  'maybe_my_no_parens', {});
 	} else {
@@ -2112,7 +2112,7 @@ sub check_proto {
 	    $arg = shift @args;
 	    last unless $arg;
 	    if ($chr eq "\$" || $chr eq "_") {
-		if (want_scalar $arg) {
+		if (B::Deparse::want_scalar $arg) {
 		    push @reals, $self->deparse($arg, 6, $op);
 		} else {
 		    return ('&', []);

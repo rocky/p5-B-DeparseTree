@@ -43,6 +43,8 @@ sub get_parent_op($)
     my ($op_info) = @_;
     return undef unless $op_info;
     my $deparse = $op_info->{deparse};
+
+    # FIXME:
     return $deparse->{ops}{$op_info->{addr}}{parent};
 }
 
@@ -50,9 +52,11 @@ sub get_parent_addr_info($)
 {
     my ($op_info) = @_;
     my $deparse = $op_info->{deparse};
-    my $parent_op = get_parent_op($op_info);
-    return undef unless $parent_op;
-    return $deparse->{optree}{$$parent_op};
+    # FIXME
+    # my $parent_op = get_parent_op($op_info);
+    my $parent_addr = $op_info->{parent};
+    return undef unless $parent_addr;
+    return $deparse->{optree}{$parent_addr};
 }
 
 sub get_prev_op($)
