@@ -1,9 +1,11 @@
 package B::DeparseTree::Fragment;
 
 use strict; use warnings;
+use Data::Printer;
 use vars qw(@ISA @EXPORT);
 @ISA = ('Exporter');
 @EXPORT = qw(deparse_offset
+             dump
              extract_node_info
              get_addr_info
              get_parent_addr_info get_parent_op
@@ -182,6 +184,31 @@ sub extract_node_info($)
     }
 }
 
+# Dump out the entire list of texts
+sub dump($) {
+    my ($deparse_tree) = @_;
+    my @addrs = sort keys %{$deparse_tree->{optree}};
+    for (my $i=0; $i < $#addrs; $i++) {
+	print $i, '-' x 50, "\n";
+	my $info = get_addr_info($deparse_tree, $addrs[$i]);
+	if ($info) {
+	    printf "0x%0x\n", $addrs[$i];
+	    p $info ;
+	}
+	if ($info->{parent}) {
+	    my $parent = get_parent_addr_info($info);
+	    if ($parent) {
+		p $parent ;
+		my $texts = extract_node_info($info);
+		if ($texts) {
+		    print join("\n", @$texts), "\n";
+		}
+	    }
+	}
+	print $i, '-' x 50, "\n";
+    }
+}
+
 unless (caller) {
     sub bug() {
 	no strict;
@@ -227,27 +254,7 @@ unless (caller) {
     $deparse->coderef2info(\&bug);
     # $deparse->coderef2info(\&get_addr_info);
     my @addrs = sort keys %{$deparse->{optree}}, "\n";
-    use Data::Printer;
-    # for (my $i=9; $i<=15; $i++) {
-    for (my $i=0; $i < $#addrs; $i++) {
-	print $i, '-' x 50, "\n";
-	my $info = get_addr_info($deparse, $addrs[$i]);
-	if ($info) {
-	    printf "0x%0x\n", $addrs[$i];
-	    p $info ;
-	}
-	if ($info->{parent}) {
-	    my $parent = get_parent_addr_info($info);
-	    if ($parent) {
-		p $parent ;
-		my $texts = extract_node_info($info);
-		if ($texts) {
-		    print join("\n", @$texts), "\n";
-		}
-	    }
-	}
-	print $i, '-' x 50, "\n";
-    }
+    $deparse->dump();
 }
 
 1;

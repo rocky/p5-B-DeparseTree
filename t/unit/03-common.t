@@ -32,13 +32,17 @@ is $info3->{text}, 'foo';
 
 $info = info_from_list(main_root, $deparse, \@texts, '', 'test2',
 			  {maybe_parens => [$deparse, 10, 20]});
-is $info->{text}, 'def';
+is $info->{text}, 'def', 'precedence does not require parens';
 $info = info_from_list(main_root, $deparse, \@texts, '', 'test2',
 		       {maybe_parens => [$deparse, 20, 10]});
-is $info->{text}, '(def)';
+is $info->{text}, '(def)', 'precedence requires parens';
 $info = info_from_list(main_root, $deparse, \@texts, '', 'test2',
 		       {maybe_parens => [$deparse, 20, 20]});
-is $info->{text}, '(def)';
+is $info->{text}, '(def)', 'not special-case UNARY_PRECIDENCE';
+
+$info = info_from_list(main_root, $deparse, \@texts, '', 'test2',
+		       {maybe_parens => [$deparse, 16, 16]});
+is $info->{text}, 'def', 'special-case UNARY_PRECIDENCE';
 
 foreach my $cx (keys %B::DeparseTree::Node::UNARY_PRECEDENCES) {
     $info = info_from_list(main_root, $deparse, \@texts, '', 'test2',
@@ -62,14 +66,15 @@ is $deparse->{level}, 2;
 $info = $deparse->info_from_template("demo", undef, "%C",
 				     [[0, 1, ";\n%|"]],
 				     ['$x=1', '$y=2']);
-is $info->{text}, "\$x=1;\n  \$y=2", '%|';
+is $info->{text}, "\$x=1;\n  \$y=2", 'template %|';
 
 $deparse->{level} = 0;
 @texts = ("use warnings;", "use strict", "my(\$a)");
 $info = $deparse->info_from_template("demo", undef, "%;", [], \@texts);
 is $info->{text}, "use warnings;\nuse strict;\nmy(\$a)";
 
-my ($found_str, $pos) = $deparse->template_engine("<--%c-->", [0], [$info1], $info2->{addr});
+my ($found_str, $pos) = $deparse->template_engine("<--%c-->", [0],
+						  [$info1], $info2->{addr});
 print $found_str, "\n";
 print ' ' x $pos->[0] . '-' x $pos->[1], "\n";
 # use Data::Printer; p $pos;

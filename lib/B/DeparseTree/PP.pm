@@ -226,7 +226,7 @@ sub pp_list
 
     if ($local) {
 	return $self->info_from_template("$local list", $op,
-					 "$local (%C)", [[0, $#exprs, ', ']],
+					 "$local(%C)", [[0, $#exprs, ', ']],
 					 \@exprs);
 
     } else {

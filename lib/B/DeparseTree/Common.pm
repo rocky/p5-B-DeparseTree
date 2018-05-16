@@ -317,9 +317,14 @@ sub indent_more($) {
 # FIXME: $deparse (or rather $self) should be first
 sub info_from_list($$$$$$)
 {
-    my ($op, $deparse, $texts, $sep, $type, $opts) = @_;
+    my ($op, $self, $texts, $sep, $type, $opts) = @_;
+
+    # Set undef in "texts" argument position because we are going to create
+    # our own text from the $texts.
+    my $info = B::DeparseTree::Node->new($op, $self, $texts, undef,
+					 $type, $opts);
+    $info->{sep} = $sep;
     my $text = '';
-    my $info = B::DeparseTree::Node->new($op, $deparse, $texts, $sep, $type, $opts);
     foreach my $item (@$texts) {
 	$text .= $sep if $text and $sep;
 	if(ref($item) eq 'ARRAY'){
@@ -330,12 +335,20 @@ sub info_from_list($$$$$$)
 	    $text .= $item;
 	}
     }
+
     $info->{text} = $text;
     if ($opts->{maybe_parens}) {
-	my ($self, $cx, $prec) = @{$opts->{maybe_parens}};
-	$info->{text} = $self->maybe_parens($info->{text}, $cx, $prec);
-	$info->{maybe_parens} = {context => $cx , precedence => $prec};
+	my ($obj, $context, $precedence) = @{$opts->{maybe_parens}};
+	my $parens = B::DeparseTree::Node::parens_test($obj, $context, $precedence);
+	$self->{maybe_parens} = {
+	    context => $context,
+	    precedence => $precedence,
+	    force => $obj->{'parens'},
+	    parens => $parens ? 'true' : ''
+	};
+	$info->{text} = "($info->{text})" if exists $info->{text} and $parens;
     }
+
     return $info
 }
 
@@ -343,19 +356,36 @@ sub info_from_list($$$$$$)
 sub info_from_template($$$$$) {
     my ($self, $type, $op, $fmt, $indexes, $args, $opts) = @_;
     $opts = {} unless defined($opts);
-    my $info = B::DeparseTree::Node->new($op, $self, $args, '', $type, $opts);
+    my $text = $self->template_engine($fmt, $indexes, $args);
+    my $info = B::DeparseTree::Node->new($op, $self, $args, undef, $type, $opts);
     $info->{'fmt'}  = $fmt;
     $info->{'indexes'} = $indexes if $indexes;
     $info->{'text'} = $self->template_engine($fmt, $indexes, $args);
+
+    # Need to handle maybe_parens since B::DeparseNode couldn't do that
+    # as it was passed a ref ARRAY rather than a string.
+    if ($opts->{maybe_parens}) {
+	my ($obj, $context, $precedence) = @{$opts->{maybe_parens}};
+	my $parens = B::DeparseTree::Node::parens_test($obj,
+						       $context, $precedence);
+	$self->{maybe_parens} = {
+	    context => $context,
+	    precedence => $precedence,
+	    force => $obj->{'parens'},
+	    parens => $parens ? 'true' : ''
+	};
+	$self->{text} = "($self->{text})" if exists $self->{text} and $parens;
+    }
+
     return $info;
 }
 
 # Create an info structure from a single string
-# FIXME: $deparse (or rather $self) should be first
+# FIXME: $self (or rather $self) should be first
 sub info_from_text($$$$$)
 {
-    my ($op, $deparse, $text, $type, $opts) = @_;
-    return info_from_list($op, $deparse, [[$text, $$op]], '', $type, $opts)
+    my ($op, $self, $text, $type, $opts) = @_;
+    return info_from_list($op, $self, [[$text, $$op]], '', $type, $opts)
 }
 
 sub info2str($$)
@@ -535,7 +565,7 @@ sub listop
 	$type = "listop $fullname()";
     } else {
 	$fmt = "$fullname %C";
-	$type = 'listop $fullname';
+	$type = "listop $fullname";
     }
     return $self->info_from_template($type, $op, $fmt,
 				     [[0, $#exprs, ', ']], \@exprs);
@@ -567,7 +597,7 @@ sub maybe_local_str
 	    }
 	    $text =~ s/(\w+::)+//;
 	}
-        if (want_scalar($op)) {
+        if (B::Deparse::want_scalar($op)) {
 	    return info_from_list($op, $self, [$our_local, $text], ' ',
 				  'maybe_local_scalar', {});
 	} else {
@@ -2383,41 +2413,41 @@ sub logop
 	$highprec, $blockname) = @_;
     my $left = $op->first;
     my $right = $op->first->sibling;
-    my ($lhs, $rhs, $texts, $text);
-    my $type;
-    my $sep;
+    my ($lhs, $rhs, $type, $opname);
     my $opts = {};
     if ($cx < 1 and is_scope($right) and $blockname
 	and $self->{'expand'} < 7) {
 	# if ($a) {$b}
 	$lhs = $self->deparse($left, 1, $op);
 	$rhs = $self->deparse($right, 0, $op);
-	$sep = '';
-	$texts = [$blockname, ' (', $lhs->{text}, ') ',
+	# FIXME: use template
+	my $texts = [$blockname, ' (', $lhs->{text}, ') ',
 		  "{\n\t", $rhs->{text}, "\n\b}\cK"];
+	$opts->{block} = [$lhs, $rhs];
+	return info_from_list($op, $self, $texts, '', 'if', $opts);
     } elsif ($cx < 1 and $blockname and not $self->{'parens'}
 	     and $self->{'expand'} < 7) { # $b if $a
-	$lhs = $self->deparse($left, 1, $op);
-	$rhs = $self->deparse($right, 1, $op);
-	$texts = [$rhs->{text}, $blockname, $lhs->{text}];
-	$sep = ' ';
+	# Note: order of lhs and rhs is reversed
+	$lhs = $self->deparse($right, 1, $op);
+	$rhs = $self->deparse($left, 1, $op);
+	$opname = $blockname;
+	$type = "suffix $opname"
     } elsif ($cx > $lowprec and $highop) {
-	# $a && $b
+	# low-precedence operator like $a && $b
 	$lhs = $self->deparse_binop_left($op, $left, $highprec);
 	$rhs = $self->deparse_binop_right($op, $right, $highprec);
-	$texts = [$lhs->{text}, $highop, $rhs->{text}];
-	$sep = ' ';
+	$opname = $highop;
 	$opts = {maybe_parens => [$self, $cx, $highprec]};
     } else {
-	# $a and $b
+	# high-precedence operator like $a and $b
 	$lhs = $self->deparse_binop_left($op, $left, $lowprec);
 	$rhs = $self->deparse_binop_right($op, $right, $lowprec);
-	$texts = [$lhs->{text}, $lowop, $rhs->{text}];
-	$sep = ' ';
+	$opname = $lowop;
 	$opts = {maybe_parens => [$self, $cx, $lowprec]};
     }
-    $opts->{block} = [$lhs, $rhs];
-    return info_from_list($op, $self, $texts, $sep, $type, $opts);
+    $type ||= $opname;
+    return $self->info_from_template($type, $op, "%c $opname %c",
+				     [0, 1], [$lhs, $rhs], $opts);
 }
 
 sub baseop

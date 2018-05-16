@@ -109,7 +109,15 @@ sub new($$$$$)
 	sep => $sep,
     }, $class;
 
-    $self->{text} = $deparse->combine2str($sep, $texts) if defined $sep;
+    if (ref($texts)) {
+	# Passed in a ref ARRAY
+	$self->{text} = $deparse->combine2str($sep, $texts) if defined $sep;
+    } elsif (defined $texts) {
+	# Passed in a string
+	$self->{text} = $texts;
+    } else {
+	# Leave {texts} uninitialized
+    }
 
     foreach my $optname (qw(other_ops parent_ops child_pos maybe_parens
                             omit_next_semicolon)) {
@@ -124,6 +132,7 @@ sub new($$$$$)
 	    force => $obj->{'parens'},
 	    parens => $parens ? 'true' : ''
 	};
+	$self->{text} = "($self->{text})" if exists $self->{text} and $parens;
     }
     return $self;
 }

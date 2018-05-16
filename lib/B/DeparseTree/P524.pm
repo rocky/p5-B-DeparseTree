@@ -476,45 +476,6 @@ sub maybe_parens_unop($$$$$)
     Carp::confess("unhandled condition in maybe_parens_unop");
 }
 
-sub maybe_parens_func($$$$$)
-{
-    my($self, $func, $params, $cx, $prec) = @_;
-    if ($prec <= $cx or substr($params, 0, 1) eq "(" or $self->{'parens'}) {
-	return ($func, '(', $params, ')');
-    } else {
-	return ($func, ' ', $params);
-    }
-}
-
-# FIXME this doesn't return a String!
-sub maybe_local_str
-{
-    my($self, $op, $cx, $text) = @_;
-    my $our_intro = ($op->name =~ /^(gv|rv2)[ash]v$/) ? OPpOUR_INTRO : 0;
-    if ($op->private & (OPpLVAL_INTRO|$our_intro)
-	and not $self->{'avoid_local'}{$$op}) {
-	my $our_local = ($op->private & OPpLVAL_INTRO) ? "local" : "our";
-	if( $our_local eq 'our' ) {
-	    if ( $text !~ /^\W(\w+::)*\w+\z/
-	     and !utf8::decode($text) || $text !~ /^\W(\w+::)*\w+\z/
-	    ) {
-		die "Unexpected our($text)\n";
-	    }
-	    $text =~ s/(\w+::)+//;
-	}
-        if (want_scalar($op)) {
-	    return info_from_list($op, $self, [$our_local, $text], ' ',
-				  'maybe_local_scalar', {});
-	} else {
-	    my @texts = $self->maybe_parens_func($our_local, $text, $cx, 16);
-	    return info_from_list($op, $self, \@texts, '', 'maybe_local_array',
-				  {});
-	}
-    } else {
-	return info_from_text($op, $self, $text, 'maybe_local', {});
-    }
-}
-
 sub maybe_my {
     my $self = shift;
     my($op, $cx, $text, $forbid_parens) = @_;
@@ -2067,25 +2028,13 @@ sub pp_lslice
 	'', 'lslice', {body=>[$list_info, $idx_info]});
 }
 
-sub want_scalar
-{
-    my $op = shift;
-    return ($op->flags & OPf_WANT) == OPf_WANT_SCALAR;
-}
-
-sub want_list
-{
-    my $op = shift;
-    return ($op->flags & OPf_WANT) == OPf_WANT_LIST;
-}
-
 sub _method
 {
     my($self, $op, $cx) = @_;
     my @other_ops = ($op->first);
     my $kid = $op->first->sibling; # skip pushmark
     my($meth, $obj, @exprs);
-    if ($kid->name eq "list" and want_list $kid) {
+    if ($kid->name eq "list" and B::Deparse::want_list $kid) {
 	# When an indirect object isn't a bareword but the args are in
 	# parens, the parens aren't part of the method syntax (the LLAFR
 	# doesn't apply), but they make a list with OPf_PARENS set that
@@ -2163,7 +2112,7 @@ sub e_method {
     my @texts = ();
     my $type;
 
-    if ($minfo->{object}->name eq 'scope' && want_list $minfo->{object}) {
+    if ($minfo->{object}->name eq 'scope' && B::Deparse::want_list $minfo->{object}) {
 	# method { $object }
 	# This must be deparsed this way to preserve list context
 	# of $object.

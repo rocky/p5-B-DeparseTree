@@ -246,4 +246,4 @@ wantarray        0     -
 warn             @     p1
 write            01    -
 x                B     -
-xor              B     p
+xor              B     -

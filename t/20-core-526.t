@@ -28,6 +28,8 @@
 
 use rlib '.';
 use helper;
+use Data::Dumper;
+use B::DeparseTree::Fragment;  # for dump
 
 BEGIN {
     if ($] < 5.026 || $] > 5.0269) {
@@ -43,19 +45,20 @@ use feature (sprintf(":%vd", $^V)); # to avoid relying on the feature
 # for a given keyword, create a sub of that name, then
 # deparse "() = $expr", and see if it matches $expected_expr
 
+use constant MAX_ERROR_COUNT => 1;
+my $error_count = 0;
+
 sub testit {
     my ($keyword, $expr, $expected_expr) = @_;
 
     $expected_expr //= $expr;
     $SEEN{$keyword} = 1;
 
-
     # lex=0:   () = foo($a,$b,$c)
     # lex=1:   my ($a,$b); () = foo($a,$b,$c)
     # lex=2:   () = foo(my $a,$b,$c)
     #for my $lex (0, 1, 2) {
-    #for my $lex (0, 1) {
-    for my $lex (0) {
+    for my $lex (0, 1) {
 	if ($lex) {
 	    next if $keyword =~ /local|our|state|my/;
 	}
@@ -84,22 +87,41 @@ sub testit {
 			    or die "$@ in $expr";
 	}
 
-	my $got_text = $deparse->coderef2text($code_ref);
+	my $got_info = $deparse->coderef2info($code_ref);
+	my $got_text = $got_info->{text};
 
-	unless ($got_text =~ /^{
-    \s*package test;
-    \s*use strict 'refs', 'subs';
-    \s*use feature [^\n]+
-    \Q$vars\E\(\) = (.*)
-}/s) {
+	# B::Deparse and B::DeparseTree output is inconsequtially different.
+	# Also that's not what we want to test here. So the below regexp
+	# is a bit more liberal than the original.
+	my $CODE_PAT = q|\n*\{
+\s*package test;\s*use strict 'refs', 'subs'\s*;
+\s*use feature [^\n]+
+.* = ([^\n]+)|;
+
+	unless ($got_text =~ /$CODE_PAT/s) {
 	    ::fail($desc);
 	    ::diag("couldn't extract line from boilerplate\n");
 	    ::diag($got_text);
-	    return;
+	    if (++$error_count >= MAX_ERROR_COUNT) {
+		done_testing;
+		exit $error_count;
+	    }
 	}
 
 	my $got_expr = $1;
+
+	# Ignore trailing semicolons. B::Deparse has them and
+	# we don't.
+	$expected_expr =~ s/;$//;
+
 	is $got_expr, $expected_expr, $desc;
+	if ($got_expr ne $expected_expr) {
+	    # B::DeparseTree::Fragment::dump($deparse);
+	    if (++$error_count >= MAX_ERROR_COUNT) {
+		done_testing;
+		exit $error_count;
+	    }
+	}
     }
 }
 

@@ -534,16 +534,6 @@ sub maybe_parens_unop($self, $name, $op, $cx, $parent)
     Carp::confess("unhandled condition in maybe_parens_unop");
 }
 
-sub maybe_parens_func($$$$$)
-{
-    my($self, $func, $params, $cx, $prec) = @_;
-    if ($prec <= $cx or substr($params, 0, 1) eq "(" or $self->{'parens'}) {
-	return ($func, '(', $params, ')');
-    } else {
-	return ($func, ' ', $params);
-    }
-}
-
 sub maybe_my {
     my $self = shift;
     my($op, $cx, $text, $forbid_parens) = @_;
@@ -2022,25 +2012,13 @@ sub pp_lslice
 	'', 'lslice', {body=>[$list_info, $idx_info]});
 }
 
-sub want_scalar
-{
-    my $op = shift;
-    return ($op->flags & OPf_WANT) == OPf_WANT_SCALAR;
-}
-
-sub want_list
-{
-    my $op = shift;
-    return ($op->flags & OPf_WANT) == OPf_WANT_LIST;
-}
-
 sub _method
 {
     my($self, $op, $cx) = @_;
     my @other_ops = ($op->first);
     my $kid = $op->first->sibling; # skip pushmark
     my($meth, $obj, @exprs);
-    if ($kid->name eq "list" and want_list $kid) {
+    if ($kid->name eq "list" and B::Deparse::want_list $kid) {
 	# When an indirect object isn't a bareword but the args are in
 	# parens, the parens aren't part of the method syntax (the LLAFR
 	# doesn't apply), but they make a list with OPf_PARENS set that
@@ -2113,7 +2091,7 @@ sub e_method {
 
 
     my $meth_object = $meth_info ? defined($meth_info) : $meth_name;
-    if ($minfo->{object}->name eq 'scope' && want_list $minfo->{object}) {
+    if ($minfo->{object}->name eq 'scope' && B::Deparse::want_list $minfo->{object}) {
 	# method { $object }
 	# This must be deparsed this way to preserve list context
 	# of $object.
