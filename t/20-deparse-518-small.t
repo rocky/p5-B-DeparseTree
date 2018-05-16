@@ -4,6 +4,7 @@
 use rlib '.'; use helper;
 use warnings; use strict;
 
+plan skip_all => 'Needs going over';
 if ($] < 5.018 || $] > 5.0189) {
     plan skip_all => 'Customized to Perl 5.18 interpreter';
 }

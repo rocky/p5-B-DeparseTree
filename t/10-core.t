@@ -35,6 +35,8 @@ BEGIN {
     if ($] < 5.018 || $] > 5.0269) {
 	plan skip_all => 'Customized to the Perl 5.20 - 5.26 interpreters';
     }
+    require Config;
+    my $is_cperl = $Config::Config{usecperl};
     plan skip_all => 'Customized to Perl (not CPerl) interpreter' if $is_cperl;
 }
 

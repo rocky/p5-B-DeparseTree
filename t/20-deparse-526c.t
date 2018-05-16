@@ -25,18 +25,17 @@
 # Note that tests for prefixing feature.pm-enabled keywords with CORE:: when
 # feature.pm is not enabled are in deparse.t, as they fit that format better.
 
+use rlib '.'; use helper;
+use warnings; use strict;
+
 
 BEGIN {
-    require Config;
-    my $is_cperl = $Config::Config{usecperl};
-    if (($Config::Config{extensions} !~ /\bB\b/) ){
-        print "1..0 # Skip -- Perl configured without B module\n";
-        exit 0;
-    }
-    use Test::More;
+    plan skip_all => 'Needs going over';
     if ($] < 5.026 || $] > 5.0269) {
 	plan skip_all => 'Customized to version 5.26 interpreter';
     }
+    require Config;
+    my $is_cperl = $Config::Config{usecperl};
     plan skip_all => 'Customized to CPerl interpreter' unless $is_cperl;
 }
 

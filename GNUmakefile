@@ -111,9 +111,7 @@ skipcheck :
 
 #: Same as "test". "check" is the usual autoconf name
 
-## FIXME: for this branch we only have test-unit working
-check: test-unit
-###check: test
+check: test
 
 #: Same as test-unit
 check-unit: test-unit
