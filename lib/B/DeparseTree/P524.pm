@@ -515,13 +515,6 @@ sub maybe_local_str
     }
 }
 
-# FIXME: This is weird. Regularize var_info
-sub maybe_local {
-    my($self, $op, $cx, $var_info) = @_;
-    $var_info->{parent} = $$op;
-    return maybe_local_str($self, $op, $cx, $var_info->{text});
-}
-
 sub maybe_my {
     my $self = shift;
     my($op, $cx, $text, $forbid_parens) = @_;

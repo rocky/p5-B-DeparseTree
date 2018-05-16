@@ -575,7 +575,7 @@ sub pp_entersub
 	$subname_info->{text} =~ s/^CORE::GLOBAL:://;
 	my $dproto = defined($proto) ? $proto : "undefined";
         if (!$declared) {
-	    $type = 'call undefined';
+	    $type = 'undeclared call';
 	    @texts = dedup_parens_func($self, $subname_info, \@body);
 	} elsif ($dproto =~ /^\s*\z/) {
 	    $type = 'call no protype';

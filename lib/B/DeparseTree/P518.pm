@@ -546,52 +546,6 @@ sub maybe_parens_unop($$$$$)
     Carp::confess("unhandled condition in maybe_parens_unop");
 }
 
-sub maybe_parens_func($$$$$)
-{
-    my($self, $func, $params, $cx, $prec) = @_;
-    if ($prec <= $cx or substr($params, 0, 1) eq "(" or $self->{'parens'}) {
-	return ($func, '(', $params, ')');
-    } else {
-	return ($func, ' ', $params);
-    }
-}
-
-sub maybe_local_str($$$$)
-{
-    my($self, $op, $cx, $text) = @_;
-    my $our_intro = ($op->name =~ /^(gv|rv2)[ash]v$/) ? OPpOUR_INTRO : 0;
-    if ($op->private & (OPpLVAL_INTRO|$our_intro)
-	and not $self->{'avoid_local'}{$$op}) {
-	my $our_local = ($op->private & OPpLVAL_INTRO) ? "local" : "our";
-	if( $our_local eq 'our' ) {
-	    if ( $text !~ /^\W(\w+::)*\w+\z/
-	     and !utf8::decode($text) || $text !~ /^\W(\w+::)*\w+\z/
-	    ) {
-		die "Unexpected our($text)\n";
-	    }
-	    $text =~ s/(\w+::)+//;
-	}
-        if (want_scalar($op)) {
-	    return info_from_list($op, $self,[$our_local, $text], ' ',
-				  'maybe_local_scalar', {});
-	} else {
-	    my @texts = $self->maybe_parens_func($our_local, $text,
-						 $cx, 16);
-	    return info_from_list($op, $self, \@texts, '',
-				  'maybe_local_array', {});
-	}
-    } else {
-	return info_from_text($op, $self, $text, 'maybe_local', {});
-    }
-}
-
-# FIXME: This is weird. Regularize var_info
-sub maybe_local {
-    my($self, $op, $cx, $var_info) = @_;
-    $var_info->{parent} = $$op;
-    return maybe_local_str($self, $op, $cx, $var_info->{text});
-}
-
 sub maybe_my {
     my $self = shift;
     my($op, $cx, $text, $forbid_parens) = @_;

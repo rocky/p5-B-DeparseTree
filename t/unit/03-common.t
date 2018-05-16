@@ -40,7 +40,7 @@ $info = info_from_list(main_root, $deparse, \@texts, '', 'test2',
 		       {maybe_parens => [$deparse, 20, 20]});
 is $info->{text}, '(def)';
 
-foreach my $cx (keys %B::DeparseTree::Node::UNARY_PRECIDENCES) {
+foreach my $cx (keys %B::DeparseTree::Node::UNARY_PRECEDENCES) {
     $info = info_from_list(main_root, $deparse, \@texts, '', 'test2',
 		       {maybe_parens => [$deparse, $cx, $cx]});
     is $info->{text}, 'def';

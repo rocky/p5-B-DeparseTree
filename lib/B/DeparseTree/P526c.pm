@@ -81,6 +81,13 @@ use B qw(class main_root main_start main_cv svref_2object opnumber perlstring
 use B::DeparseTree::Common;
 use B::DeparseTree::PP;
 
+# Copy unchanged functions from B::Deparse
+*begin_is_use = *B::Deparse::begin_is_use;
+*const_sv = *B::Deparse::const_sv;
+*padname_sv = *B::Deparse::padname_sv;
+*meth_sv = *B::Deparse::meth_sv;
+*meth_rclass_sv = *B::Deparse::meth_rclass_sv;
+
 use strict;
 use vars qw/$AUTOLOAD/;
 use warnings ();
@@ -376,109 +383,6 @@ sub deparse_format
     return $info;
 }
 
-# Return a "use" declaration for this BEGIN block, if appropriate
-sub begin_is_use
-{
-    my ($self, $cv) = @_;
-    my $root = $cv->ROOT;
-    local @$self{qw'curcv curcvlex'} = ($cv);
-    local $B::overlay = {};
-    $self->pessimise($root, $cv->START);
-    # require B::Debug;
-    # B::walkoptree($cv->ROOT, "debug");
-    my $lineseq = $root->first;
-    return if $lineseq->name ne "lineseq";
-
-    my $req_op = $lineseq->first->sibling;
-    return if $req_op->name ne "require";
-
-    my $module;
-    if ($req_op->first->private & OPpCONST_BARE) {
-	# Actually it should always be a bareword
-	$module = $self->const_sv($req_op->first)->PV;
-	$module =~ s[/][::]g;
-	$module =~ s/.pm$//;
-    }
-    else {
-	$module = $self->const($self->const_sv($req_op->first), 6);
-    }
-
-    my $version;
-    my $version_op = $req_op->sibling;
-    return if class($version_op) eq "NULL";
-    if ($version_op->name eq "lineseq") {
-	# We have a version parameter; skip nextstate & pushmark
-	my $constop = $version_op->first->next->next;
-
-	return unless $self->const_sv($constop)->PV eq $module;
-	$constop = $constop->sibling;
-	$version = $self->const_sv($constop);
-	if (class($version) eq "IV") {
-	    $version = $version->int_value;
-	} elsif (class($version) eq "NV") {
-	    $version = $version->NV;
-	} elsif (class($version) ne "PVMG") {
-	    # Includes PVIV and PVNV
-	    $version = $version->PV;
-	} else {
-	    # version specified as a v-string
-	    $version = 'v'.join '.', map ord, split //, $version->PV;
-	}
-	$constop = $constop->sibling;
-	return if $constop->name ne "method_named";
-	return if $self->meth_sv($constop)->PV ne "VERSION";
-    }
-
-    $lineseq = $version_op->sibling;
-    return if $lineseq->name ne "lineseq";
-    my $entersub = $lineseq->first->sibling;
-    if ($entersub->name eq "stub") {
-	return "use $module $version ();\n" if defined $version;
-	return "use $module ();\n";
-    }
-    return if $entersub->name !~ /^enter(xs)?sub/;
-
-    # See if there are import arguments
-    my $args = '';
-
-    my $svop = $entersub->first->sibling; # Skip over pushmark
-    return unless $self->const_sv($svop)->PV eq $module;
-
-    # Pull out the arguments
-    for ($svop=$svop->sibling; index($svop->name, "method_") != 0;
-		$svop = $svop->sibling) {
-	$args .= ", " if length($args);
-	$args .= $self->deparse($svop, 6, $root);
-    }
-
-    my $use = 'use';
-    my $method_named = $svop;
-    return if $method_named->name ne "method_named";
-    my $method_name = $self->meth_sv($method_named)->PV;
-
-    if ($method_name eq "unimport") {
-	$use = 'no';
-    }
-
-    # Certain pragmas are dealt with using hint bits,
-    # so we ignore them here
-    if ($module eq 'strict' || $module eq 'integer'
-	|| $module eq 'bytes' || $module eq 'warnings'
-	|| $module eq 'feature') {
-	return "";
-    }
-
-    if (defined $version && length $args) {
-	return "$use $module $version ($args);\n";
-    } elsif (defined $version) {
-	return "$use $module $version;\n";
-    } elsif (length $args) {
-	return "$use $module ($args);\n";
-    } else {
-	return "$use $module;\n";
-    }
-}
-
 sub ambient_pragmas {
     my $self = shift;
     my ($arybase, $hint_bits, $warning_bits, $hinthash) = (0, 0);
@@ -624,98 +528,6 @@ sub maybe_parens_unop($self, $name, $op, $cx, $parent)
 	}
     }
     Carp::confess("unhandled condition in maybe_parens_unop");
-}
-
-sub maybe_parens_func
-{
-    my($self, $func, $params, $cx, $prec) = @_;
-    if ($prec <= $cx or substr($params, 0, 1) eq "(" or $self->{'parens'}) {
-	return ($func, '(', $params, ')');
-    } else {
-	return ($func, ' ', $params);
-    }
-}
-
-sub maybe_local_str
-{
-    my($self, $op, $cx, $text) = @_;
-    my $our_intro = ($op->name =~ /^(gv|rv2)[ash]v$/) ? OPpOUR_INTRO : 0;
-    if ($op->private & (OPpLVAL_INTRO|$our_intro)
-	and not $self->{'avoid_local'}{$$op}) {
-	my $our_local = ($op->private & OPpLVAL_INTRO) ? "local" : "our";
-	if( $our_local eq 'our' ) {
-	    if ( $text !~ /^\W(\w+::)*\w+\z/
-	     and !utf8::decode($text) || $text !~ /^\W(\w+::)*\w+\z/
-	    ) {
-		die "Unexpected our($text)\n";
-	    }
-	    $text =~ s/(\w+::)+//;
-	}
-        if (want_scalar($op)) {
-	    return info_from_list([$our_local, $text], ' ', 'maybe_local_scalar', {});
-	} else {
-	    my @texts = $self->maybe_parens_func($our_local, $text, $cx, 16);
-	    return info_from_list(\@texts, '', 'maybe_local_array', {});
-	}
-    } else {
-	return info_from_text($text, 'maybe_local', {});
-    }
-}
-
-sub maybe_local {
-    my $self = shift;
-    my($op, $cx, $text) = @_;
-    my $name = $op->name;
-    my $our_intro = ($name =~ /^(?:(?:gv|rv2)[ash]v|split|refassign
-				  |lv(?:av)?ref)$/x)
-			? OPpOUR_INTRO
-			: 0;
-    my $lval_intro = $name eq 'split' ? 0 : OPpLVAL_INTRO;
-    # The @a in \(@a) isn't in ref context, but only when the
-    # parens are there.
-    my $need_parens = $self->{'in_refgen'} && $name =~ /[ah]v\z/
-		   && ($op->flags & (OPf_PARENS|OPf_REF)) == OPf_PARENS;
-    if ((my $priv = $op->private) & ($lval_intro|$our_intro)) {
-	my @our_local;
-	push @our_local, "local" if $priv & $lval_intro;
-	push @our_local, "our"   if $priv & $our_intro;
-	my $our_local = join " ", map $self->keyword($_), @our_local;
-	if( $our_local[-1] eq 'our' ) {
-	    if ( $text !~ /^\W(\w+::)*\w+\z/
-	     and !utf8::decode($text) || $text !~ /^\W(\w+::)*\w+\z/
-	    ) {
-		die "Unexpected our($text)\n";
-	    }
-	    $text =~ s/(\w+::)+//;
-
-	    if (my $type = $self->find_our_type($text)) {
-		$our_local .= ' ' . $type;
-	    }
-	}
-	return $need_parens ? "($text)" : $text
-	    if $self->{'avoid_local'}{$$op};
-	if ($need_parens) {
-	    return "$our_local($text)";
-	} elsif (want_scalar($op)) {
-	    return "$our_local $text";
-	} else {
-	    return $self->maybe_parens_func("$our_local", $text, $cx, 16);
-	}
-    } else {
-	return $need_parens ? "($text)" : $text;
-    }
-}
-
-sub maybe_local {
-    my($self, $op, $cx, $var_info) = @_;
-    $var_info->{parent} = $$op;
-    return maybe_local_str($self, $op, $cx, $var_info->{text});
-}
-
-sub padname_sv {
-    my $self = shift;
-    my $targ = shift;
-    return $self->{'curcv'}->PADLIST->ARRAYelt(0)->ARRAYelt($targ);
 }
 
 sub maybe_my {
@@ -3381,47 +3193,6 @@ sub pp_clonecv {
 sub pp_padcv {
     my($self, $op, $cx) = @_;
     return info_from_text($self->padany($op), 'padcv', {});
-}
-
-unless (caller) {
-    eval "use Data::Printer;";
-
-    eval {
-	sub fib($) {
-	    my $x = shift;
-	    return 1 if $x <= 1;
-	    return(fib($x-1) + fib($x-2))
-	}
-	sub baz {
-	    no strict;
-	    CORE::wait;
-	}
-    };
-
-    # use B::Deparse;
-    # my $deparse_old = B::Deparse->new("-l", "-sC");
-    # print $deparse_old->coderef2text(\&baz);
-    # exit 1;
-    my $deparse = __PACKAGE__->new("-l", "-c", "-sC");
-    my $info = $deparse->coderef2info(\&baz);
-    import Data::Printer colored => 0;
-    Data::Printer::p($info);
-    print "\n", '=' x 30, "\n";
-    # print $deparse->indent($deparse->deparse_subname('fib')->{text});
-    # print "\n", '=' x 30, "\n";
-    # print "\n", '-' x 30, "\n";
-    while (my($key, $value) = each %{$deparse->{optree}}) {
-	my $parent_op_name = 'undef';
-	if ($value->{parent}) {
-	    my $parent = $deparse->{optree}{$value->{parent}};
-	    $parent_op_name = $parent->{op}->name if $parent->{op};
-	}
-	printf("0x%x %s/%s of %s |\n%s",
-	       $key, $value->{op}->name, $value->{type},
-	       $parent_op_name, $deparse->indent($value->{text}));
-	printf " ## line %s\n", $value->{cop} ? $value->{cop}->line : 'undef';
-	print '-' x 30, "\n";
-    }
 }
 
 # FIXME:

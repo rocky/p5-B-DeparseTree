@@ -7,18 +7,18 @@ use Carp;
 
 use Hash::Util qw[ lock_hash ];
 
-# Set of unary precidences
-our %UNARY_PRECIDENCES = (
+# Set of unary precedences
+our %UNARY_PRECEDENCES = (
          4 => 1,  # right not
         16 => 'sub, %, @',   # "sub", "%", "@'
         21 => '~', # steal parens (see maybe_parens_unop)
 );
-lock_hash %UNARY_PRECIDENCES;
+lock_hash %UNARY_PRECEDENCES;
 
 
 our $VERSION = '1.0.0';
 our @ISA = qw(Exporter);
-our @EXPORT = qw(new($$$$ parens_test($$$)) %UNARY_PRECIDENCES);
+our @EXPORT = qw(new($$$$ parens_test($$$)) %UNARY_PRECEDENCES);
 
 =head2 Node structure
 
@@ -60,18 +60,18 @@ The keys is a hash ref hash reference
 
 =item B<context>
 
-A number passed from the parent indicating its precidence context
+A number passed from the parent indicating its precedence context
 
-=item B<precidence>
+=item B<precedence>
 
 A number as determined by the operator at this level.
 
 =item B<parens>
 
 'true' if we should to add parenthesis based on I<context> and
-I<precidence> values; '' if not. We don't nest equal precidence
-for unuary ops. The unary op precidence is given by
-UNARY_OP_PRECIDENCE
+I<precedence> values; '' if not. We don't nest equal precedence
+for unuary ops. The unary op precedence is given by
+UNARY_OP_PRECEDENCE
 
 =back
 
@@ -83,7 +83,7 @@ sub parens_test($$$)
 {
     my ($obj, $cx, $prec) = @_;
     # Unary ops which nest just fine
-    return 1 if ($prec == $cx && !exists $UNARY_PRECIDENCES{$cx});
+    return 1 if ($prec == $cx && !exists $UNARY_PRECEDENCES{$cx});
     return ($prec < $cx || $obj->{'parens'});
 }
 
@@ -116,11 +116,11 @@ sub new($$$$$)
 	$self->{$optname} = $opts->{$optname} if $opts->{$optname};
     }
     if ($opts->{maybe_parens}) {
-	my ($obj, $context, $precidence) = @{$opts->{maybe_parens}};
-	my $parens = parens_test($obj, $context, $precidence);
+	my ($obj, $context, $precedence) = @{$opts->{maybe_parens}};
+	my $parens = parens_test($obj, $context, $precedence);
 	$self->{maybe_parens} = {
 	    context => $context,
-	    precidence => $precidence,
+	    precedence => $precedence,
 	    force => $obj->{'parens'},
 	    parens => $parens ? 'true' : ''
 	};
@@ -128,7 +128,7 @@ sub new($$$$$)
     return $self;
 }
 
-# Possibly add () around $text depending on precidence $prec and
+# Possibly add () around $text depending on precedence $prec and
 # context $cx. We return a string.
 sub maybe_parens($$$$)
 {

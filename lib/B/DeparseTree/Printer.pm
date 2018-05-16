@@ -117,7 +117,7 @@ EOF
 	}
 	$text .= sprintf("need parens: %s\n",
 			 B::DeparseTree::Node::parens_test($info, $maybe_parens{context},
-							     $maybe_parens{precidence}) ?
+							     $maybe_parens{precedence}) ?
 			 'yes' : 'no');
     }
     return $text;

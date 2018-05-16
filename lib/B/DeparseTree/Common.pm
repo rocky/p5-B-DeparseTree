@@ -80,7 +80,10 @@ $VERSION = '3.0.0';
     logop
     loop_common
     map_texts
+    maybe_local
+    maybe_local_str
     maybe_parens
+    maybe_parens_func
     maybe_qualify
     maybe_targmy
     new WARN_MASK
@@ -154,8 +157,11 @@ sub new {
     $self->{'ambient_hinthash'} = undef;
 
     # Given an opcode address, get the accumulated OP tree
-    # OP for that.
+    # OP for that. FIXME: remove this
     $self->{optree} = {};
+
+    # Extra opcode information: prev_op, parent_op
+    $self->{ops} = {};
 
     $self->init();
 
@@ -328,7 +334,7 @@ sub info_from_list($$$$$$)
     if ($opts->{maybe_parens}) {
 	my ($self, $cx, $prec) = @{$opts->{maybe_parens}};
 	$info->{text} = $self->maybe_parens($info->{text}, $cx, $prec);
-	$info->{maybe_parens} = {context => $cx , precidence => $prec};
+	$info->{maybe_parens} = {context => $cx , precedence => $prec};
     }
     return $info
 }
@@ -533,6 +539,52 @@ sub listop
     }
     return $self->info_from_template($type, $op, $fmt,
 				     [[0, $#exprs, ', ']], \@exprs);
+}
+
+sub maybe_parens_func($$$$$)
+{
+    my($self, $func, $params, $cx, $prec) = @_;
+    if ($prec <= $cx or substr($params, 0, 1) eq "(" or $self->{'parens'}) {
+	return ($func, '(', $params, ')');
+    } else {
+	return ($func, ' ', $params);
+    }
+}
+
+# FIXME this doesn't return a String!
+sub maybe_local_str
+{
+    my($self, $op, $cx, $text) = @_;
+    my $our_intro = ($op->name =~ /^(gv|rv2)[ash]v$/) ? OPpOUR_INTRO : 0;
+    if ($op->private & (OPpLVAL_INTRO|$our_intro)
+	and not $self->{'avoid_local'}{$$op}) {
+	my $our_local = ($op->private & OPpLVAL_INTRO) ? "local" : "our";
+	if( $our_local eq 'our' ) {
+	    if ( $text !~ /^\W(\w+::)*\w+\z/
+	     and !utf8::decode($text) || $text !~ /^\W(\w+::)*\w+\z/
+	    ) {
+		die "Unexpected our($text)\n";
+	    }
+	    $text =~ s/(\w+::)+//;
+	}
+        if (want_scalar($op)) {
+	    return info_from_list($op, $self, [$our_local, $text], ' ',
+				  'maybe_local_scalar', {});
+	} else {
+	    my @texts = $self->maybe_parens_func($our_local, $text, $cx, 16);
+	    return info_from_list($op, $self, \@texts, '', 'maybe_local_array',
+				  {});
+	}
+    } else {
+	return info_from_text($op, $self, $text, 'maybe_local', {});
+    }
+}
+
+# FIXME: This is weird. Regularize var_info
+sub maybe_local {
+    my($self, $op, $cx, $var_info) = @_;
+    $var_info->{parent} = $$op;
+    return maybe_local_str($self, $op, $cx, $var_info->{text});
 }
 
 sub pp_accept { listop(@_, "accept") }
@@ -766,10 +818,10 @@ sub binop
 
 sub coderef2info
 {
-    my ($self, $coderef) = @_;
+    my ($self, $coderef, $start_op) = @_;
     croak "Usage: ->coderef2info(CODEREF)" unless UNIVERSAL::isa($coderef, "CODE");
     $self->init();
-    return $self->deparse_sub(svref_2object($coderef));
+    return $self->deparse_sub(svref_2object($coderef), $start_op);
 }
 
 sub coderef2text
@@ -990,7 +1042,12 @@ sub deparse_root {
 	$text =~ s/^\((.+)\)$/$1/;
 	$info->{type} = $op->name;
 	$info->{op} = $op;
+
+	# FIXME: this is going away...
 	$self->{optree}{$$op} = $info;
+	# in favor of...
+	$self->{ops}{$$op}{info} = $info;
+
 	$info->{text} = $text;
 	$info->{parent} = $$parent if $parent;
 	push @$exprs, $info;
@@ -1073,6 +1130,7 @@ sub walk_lineseq
     # associated with it.
     my $info = $self->info_from_template("statements", $op, "%;", [], \@body);
     $self->{optree}{$$op} = $info if $op;
+    $self->{ops}{$$op}{info} = $info if $op;
     return $info;
 }
 
@@ -1286,7 +1344,11 @@ sub lineseq {
 	    Carp::confess("nonref parent, op: $op->name") if !ref($parent);
 	    $info->{parent} = $$parent ;
 	}
+
+	# FIXME: remove optree
 	$self->{optree}{$$op} = $info;
+	$self->{ops}{$$op}{info} = $info;
+
 	push @$exprs, $info;
     };
     return $self->walk_lineseq($root, \@ops, $fn);
@@ -1308,7 +1370,7 @@ sub maybe_targmy
     }
 }
 
-# Possibly add () around $text depending on precidence $prec and
+# Possibly add () around $text depending on precedence $prec and
 # context $cx. We return a string.
 sub maybe_parens($$$$)
 {
@@ -1342,14 +1404,21 @@ sub todo
 
 # _pessimise_walk(): recursively walk the optree of a sub,
 # possibly undoing optimisations along the way.
+# walk tree in root-to-branch order
+# We add parent pointers in the process.
 
 sub _pessimise_walk {
     my ($self, $startop) = @_;
 
     return unless $$startop;
-    my ($op, $prevop);
+    my ($op, $prevop, $parent_op);
+
     for ($op = $startop; $$op; $prevop = $op, $op = $op->sibling) {
 	my $ppname = $op->name;
+
+	$self->{ops}{$$op} ||= {};
+	$self->{ops}{$$op}{op} = $op;
+	$self->{ops}{$$op}{parent_op} = $startop;
 
 	# pessimisations start here
 
@@ -1394,6 +1463,7 @@ sub _pessimise_walk {
 
 # _pessimise_walk_exe(): recursively walk the op_next chain of a sub,
 # possibly undoing optimisations along the way.
+# walk tree in execution order
 
 sub _pessimise_walk_exe {
     my ($self, $startop, $visited) = @_;
@@ -1404,6 +1474,11 @@ sub _pessimise_walk_exe {
     for ($op = $startop; $$op; $prevop = $op, $op = $op->next) {
 	last if $visited->{$$op};
 	$visited->{$$op} = 1;
+
+	$self->{ops}{$$op} ||= {};
+	$self->{ops}{$$op}{op} = $op;
+	$self->{ops}{$$op}{prev_op} = $prevop;
+
 	my $ppname = $op->name;
 	if ($ppname =~
 	    /^((and|d?or)(assign)?|(map|grep)while|range|cond_expr|once)$/
@@ -1707,9 +1782,9 @@ sub deparse
 }
 
 # Deparse a subroutine
-sub deparse_sub($$$)
+sub deparse_sub($$$$)
 {
-    my ($self, $cv, $parent) = @_;
+    my ($self, $cv, $parent, $start_op) = @_;
     Carp::confess("NULL in deparse_sub") if !defined($cv) || $cv->isa("B::NULL");
     Carp::confess("SPECIAL in deparse_sub") if $cv->isa("B::SPECIAL");
     local $self->{'curcop'} = $self->{'curcop'};
@@ -1734,6 +1809,8 @@ sub deparse_sub($$$)
 
     my $info = {};
 
+    $start_op ||= $root->first;
+
     local $B::overlay = {};
     if (not null $root) {
 	$self->pessimise($root, $cv->START);
@@ -1747,7 +1824,7 @@ sub deparse_sub($$$)
 	    my $scope_en = $self->find_scope_en($lineseq);
 	}
 	else {
-	    $body = $self->deparse($root->first, 0, $root);
+	    $body = $self->deparse($start_op, 0, $root);
 	}
 
 	$info = $self->info_from_template('sub', $root, "\n%|{\n%+%c\n%-}",
@@ -1769,10 +1846,10 @@ sub deparse_sub($$$)
 	}
     }
 
-    $info->{op} = $root;
+    $info->{op} = $start_op;
     $info->{cop} = undef;
     $info->{parent}  = $parent if $parent;
-    $self->{optree}{$$root} = $info;
+    $self->{optree}{$$start_op} = $info;
     return $info;
 }
 

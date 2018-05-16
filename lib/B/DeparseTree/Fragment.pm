@@ -3,8 +3,11 @@ package B::DeparseTree::Fragment;
 use strict; use warnings;
 use vars qw(@ISA @EXPORT);
 @ISA = ('Exporter');
-@EXPORT = qw(deparse_offset get_addr_info get_parent_addr_info
-             extract_node_info get_prev_addr_info);
+@EXPORT = qw(deparse_offset
+             extract_node_info
+             get_addr_info
+             get_parent_addr_info get_parent_op
+             get_prev_addr_info   get_prev_op);
 
 sub deparse_offset
 {
@@ -33,42 +36,39 @@ sub get_addr_info($$)
     return $op_info;
 }
 
-sub get_parent_addr($)
+sub get_parent_op($)
 {
     my ($op_info) = @_;
-
-    return undef unless $op_info && $op_info->{parent};
+    return undef unless $op_info;
     my $deparse = $op_info->{deparse};
-    return undef unless $deparse;
-    return $op_info->{parent};
+    return $deparse->{ops}{$op_info->{addr}}{parent};
 }
 
 sub get_parent_addr_info($)
 {
     my ($op_info) = @_;
-    my $parent_addr = get_parent_addr($op_info);
-    return undef unless $parent_addr;
     my $deparse = $op_info->{deparse};
-    return $deparse->{optree}{$parent_addr};
+    my $parent_op = get_parent_op($op_info);
+    return undef unless $parent_op;
+    return $deparse->{optree}{$$parent_op};
 }
 
-sub get_prev_addr($)
+sub get_prev_op($)
 {
     my ($op_info) = @_;
-
-    return undef unless $op_info && $op_info->{prev_op};
+    return undef unless $op_info;
     my $deparse = $op_info->{deparse};
-    return undef unless $deparse;
-    return $op_info->{prev_op};
+    my $ref = $deparse->{ops}{$op_info->{addr}};
+    return $ref->{prev_op} ? $ref : undef;
 }
 
 sub get_prev_addr_info($)
 {
     my ($op_info) = @_;
-    my $prev_addr = get_prev_addr($op_info);
     my $deparse = $op_info->{deparse};
-    return undef unless $prev_addr;
-    return $deparse->{optree}{$prev_addr};
+    my $prev_op = get_prev_op($op_info);
+    return undef unless $prev_op;
+    return $deparse->{optree}{$$prev_op};
 }
 
 sub trim_line_pair($$$$) {
@@ -201,6 +201,29 @@ unless (caller) {
     print join("\n", @$lines), "\n";
 
     my $deparse = B::DeparseTree->new();
+    # use B;
+    # $deparse->pessimise(B::main_root, B::main_start);
+    # my @addrs = sort keys %{$deparse->{ops}}, "\n";
+    # use Data::Printer;
+    # p @addrs;
+
+    # my @info_addrs = sort keys %{$deparse->{optree}}, "\n";
+    # print '-' x 40, "\n";
+    # p @info_addrs;
+
+    # $deparse->init();
+    # my $svref = B::svref_2object(\&bug);
+    # my $x =  $deparse->deparse_sub($svref, $addrs[9]);
+    # p $x;
+
+    # # my @info_addrs = sort keys %{$deparse->{optree}}, "\n";
+    # # print '-' x 40, "\n";
+    # # p @info_addrs;
+
+    # #my $info = get_addr_info($deparse, $addrs[10]);
+    # # p $info;
+    # exit 0;
+
     $deparse->coderef2info(\&bug);
     # $deparse->coderef2info(\&get_addr_info);
     my @addrs = sort keys %{$deparse->{optree}}, "\n";

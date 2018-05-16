@@ -34,6 +34,13 @@ use B qw(class opnumber
 use B::DeparseTree::Common;
 use B::DeparseTree::PP;
 
+# Copy unchanged functions from B::Deparse
+*begin_is_use = *B::Deparse::begin_is_use;
+*const_sv = *B::Deparse::const_sv;
+*padname_sv = *B::Deparse::padname_sv;
+*meth_sv = *B::Deparse::meth_sv;
+*meth_rclass_sv = *B::Deparse::meth_rclass_sv;
+
 use strict;
 use vars qw/$AUTOLOAD/;
 use warnings ();
@@ -223,25 +230,6 @@ BEGIN {
 #  0.5           statements, but still print scopes as do { ... }
 #  0             statement level
 # -1             format body
-
-# Nonprinting characters with special meaning:
-# \cS - steal parens (see maybe_parens_unop)
-# \n - newline and indent
-# \t - increase indent
-# \b - decrease indent ('outdent')
-# \f - flush left (no indent)
-# \cK - kill following semicolon, if any
-
-# Semicolon handling:
-#  - Individual statements are not deparsed with trailing semicolons.
-#    (If necessary, \cK is tacked on to the end.)
-#  - Whatever code joins statements together or emits them (lineseq,
-#    scopeop, deparse_root) is responsible for adding semicolons where
-#    necessary.
-#  - use statements are deparsed with trailing semicolons because they are
-#    immediately concatenated with the following statement.
-#  - indent() removes semicolons wherever it sees \cK.
-
 
 BEGIN { for (qw[ const stringify rv2sv list glob pushmark null]) {
     eval "sub OP_\U$_ () { " . opnumber($_) . "}"
@@ -554,47 +542,6 @@ sub maybe_parens_func($$$$$)
     } else {
 	return ($func, ' ', $params);
     }
-}
-
-sub maybe_local_str($$$$)
-{
-    my($self, $op, $cx, $text) = @_;
-    my $our_intro = ($op->name =~ /^(gv|rv2)[ash]v$/) ? OPpOUR_INTRO : 0;
-    if ($op->private & (OPpLVAL_INTRO|$our_intro)
-	and not $self->{'avoid_local'}{$$op}) {
-	my $our_local = ($op->private & OPpLVAL_INTRO) ? "local" : "our";
-	if( $our_local eq 'our' ) {
-	    if ( $text !~ /^\W(\w+::)*\w+\z/
-	     and !utf8::decode($text) || $text !~ /^\W(\w+::)*\w+\z/
-	    ) {
-		die "Unexpected our($text)\n";
-	    }
-	    $text =~ s/(\w+::)+//;
-	}
-        if (want_scalar($op)) {
-	    return info_from_list($op, $self,[$our_local, $text], ' ',
-				  'maybe_local_scalar', {});
-	} else {
-	    my @texts = $self->maybe_parens_func($our_local, $text,
-						 $cx, 16);
-	    return info_from_list($op, $self, \@texts, '',
-				  'maybe_local_array', {});
-	}
-    } else {
-	return info_from_text($op, $self, $text, 'maybe_local', {});
-    }
-}
-
-sub maybe_local {
-    my($self, $op, $cx, $var_info) = @_;
-    $var_info->{parent} = $$op;
-    return maybe_local_str($self, $op, $cx, $var_info->{text});
-}
-
-sub padname_sv {
-    my $self = shift;
-    my $targ = shift;
-    return $self->{'curcv'}->PADLIST->ARRAYelt(0)->ARRAYelt($targ);
 }
 
 sub maybe_my {

@@ -501,52 +501,6 @@ sub maybe_parens_unop($$$$$)
     Carp::confess("unhandled condition in maybe_parens_unop");
 }
 
-sub maybe_parens_func($$$$$)
-{
-    my($self, $func, $params, $cx, $prec) = @_;
-    if ($prec <= $cx or substr($params, 0, 1) eq "(" or $self->{'parens'}) {
-	return ($func, '(', $params, ')');
-    } else {
-	return ($func, ' ', $params);
-    }
-}
-
-# FIXME this doesn't return a String!
-sub maybe_local_str
-{
-    my($self, $op, $cx, $text) = @_;
-    my $our_intro = ($op->name =~ /^(gv|rv2)[ash]v$/) ? OPpOUR_INTRO : 0;
-    if ($op->private & (OPpLVAL_INTRO|$our_intro)
-	and not $self->{'avoid_local'}{$$op}) {
-	my $our_local = ($op->private & OPpLVAL_INTRO) ? "local" : "our";
-	if( $our_local eq 'our' ) {
-	    if ( $text !~ /^\W(\w+::)*\w+\z/
-	     and !utf8::decode($text) || $text !~ /^\W(\w+::)*\w+\z/
-	    ) {
-		die "Unexpected our($text)\n";
-	    }
-	    $text =~ s/(\w+::)+//;
-	}
-        if (want_scalar($op)) {
-	    return info_from_list($op, $self, [$our_local, $text], ' ',
-				  'maybe_local_scalar', {});
-	} else {
-	    my @texts = $self->maybe_parens_func($our_local, $text, $cx, 16);
-	    return info_from_list($op, $self, \@texts, '', 'maybe_local_array',
-				  {});
-	}
-    } else {
-	return info_from_text($op, $self, $text, 'maybe_local', {});
-    }
-}
-
-# FIXME: This is weird. Regularize var_info
-sub maybe_local {
-    my($self, $op, $cx, $var_info) = @_;
-    $var_info->{parent} = $$op;
-    return maybe_local_str($self, $op, $cx, $var_info->{text});
-}
-
 sub maybe_my {
     my $self = shift;
     my($op, $cx, $text, $forbid_parens) = @_;
@@ -2958,6 +2912,7 @@ sub pp_subst
     my($binop, $var, $re, @other_ops) = ("", "", "", ());
     my @body = ();
     my ($repl, $repl_info);
+
     if ($op->flags & OPf_STACKED) {
 	$binop = 1;
 	$var = $self->deparse($kid, 20, $op);
@@ -3005,18 +2960,18 @@ sub pp_subst
     $flags = $substwords{$flags} if $substwords{$flags};
     my $core_s = $self->keyword("s"); # maybe CORE::s
     my $info;
-    push @body, $repl_info;
     my $repl_text = $repl_info->{text};
-    my $opts = {body => \@body};
-    $opts->{other_ops} = \@other_ops if @other_ops;
+    my $opts->{other_ops} = \@other_ops if @other_ops;
+    my $find_replace_re = double_delim($re, $repl_text);
+    my $args = [$var, $find_replace_re];
+    my $args_spec = [0, 1];
     if ($binop) {
-	my @texts = ($var->{text}, " ", "=~", " ", "s",
-		     double_delim($re, $repl_text), $flags);
-	$opts->{maybe_parens} = [$self, $cx, 20];
-	return info_from_list($op, $self, \@texts, '', 'subst_binop', $opts);
+	my $fmt = "%c =~ $core_s%c$flags";
+	return $self->info_from_template("=~ s///", $op, $fmt, $args_spec, $args,
+					 {maybe_parens => [$self, $cx, 20]});
     } else {
-	return info_from_list($op, $self, ["$core_s", double_delim($re, $repl_text), $flags], '', 'subst',
-			      $opts);
+	my $fmt = "$core_s%c$flags";
+	return $self->info_from_template("s///", $op, $fmt, $args_spec, $args, {});
     }
     Carp::confess("unhandled condition in pp_subst");
 }
