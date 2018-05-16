@@ -176,7 +176,7 @@ reverse          @     p1 # also tested specially
 rewinddir        1     -
 rindex           23    p
 rmdir            01    $
-say              @     p$+
+# say              @     p$+
 scalar           1     +
 seek             3     p
 seekdir          2     p
