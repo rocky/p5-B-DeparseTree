@@ -70,6 +70,7 @@ use B::Deparse;
 *meth_rclass_sv = *B::Deparse::meth_rclass_sv;
 *meth_sv = *B::Deparse::meth_sv;
 *padname_sv = *B::Deparse::padname_sv;
+*re_flags = *B::Deparse::re_flags;
 *rv2x = *B::Deparse::rv2x;
 
 use strict;
@@ -2546,6 +2547,7 @@ sub re_dq_disambiguate {
 sub re_dq {
     my $self = shift;
     my ($op) = @_;
+    my ($re_dq_info, $fmt);
 
     my $type = $op->name;
     if ($type eq "const") {
@@ -2557,17 +2559,23 @@ sub re_dq {
 	my $last  = $self->re_dq($op->last);
 	return re_dq_disambiguate($first, $last);
     } elsif ($type eq "uc") {
-	return '\U' . $self->re_dq($op->first->sibling) . '\E';
+	$re_dq_info = $self->re_dq($op->first->sibling);
+	$fmt = '\U%c\E';
     } elsif ($type eq "lc") {
-	return '\L' . $self->re_dq($op->first->sibling) . '\E';
+	$re_dq_info = $self->re_dq($op->first->sibling);
+	$fmt = '\L%c\E';
     } elsif ($type eq "ucfirst") {
-	return '\u' . $self->re_dq($op->first->sibling);
+	$re_dq_info = $self->re_dq($op->first->sibling);
+	$fmt = '\u%c';
     } elsif ($type eq "lcfirst") {
-	return '\l' . $self->re_dq($op->first->sibling);
+	$re_dq_info = $self->re_dq($op->first->sibling);
+	$fmt = '\l%c';
     } elsif ($type eq "quotemeta") {
-	return '\Q' . $self->re_dq($op->first->sibling) . '\E';
+	$re_dq_info = $self->re_dq($op->first->sibling);
+	$fmt = '\Q%c\E';
     } elsif ($type eq "fc") {
-	return '\F' . $self->re_dq($op->first->sibling) . '\E';
+	$re_dq_info = $self->re_dq($op->first->sibling);
+	$fmt = '\F%c\E';
     } elsif ($type eq "join") {
 	return $self->deparse($op->last, 26); # was join($", @ary)
     } else {
@@ -2576,6 +2584,8 @@ sub re_dq {
 	or $ret =~ s/^\@([-+])\z/\@{$1}/; # @- @+ need braces
 	return $ret;
     }
+    return $self->info_from_template($type, $op->first->sibling,
+				     $fmt, [$re_dq_info], [0]);
 }
 
 sub pure_string {
@@ -2647,7 +2657,8 @@ sub regcomp
 	    my $last = $self->re_dq($kid, $extended);
 	    push @body, $last;
 	    push(@other_ops, $kid);
-	    $str = re_dq_disambiguate($first, $last->{text});
+	    $str = re_dq_disambiguate($first,
+				      $self->info2str($last));
 	    $kid = $kid->sibling;
 	}
 	return (info_from_text($op, $self, $str, 'regcomp',
@@ -2663,51 +2674,6 @@ sub regcomp
 	return ($info, 1);
     }
     return ($self->deparse($kid, $cx, $op), 0, $op);
-}
-
-sub pp_regcomp
-{
-    my ($self, $op, $cx) = @_;
-    return (($self->regcomp($op, $cx, 0))[0]);
-}
-
-sub re_flags
-{
-    my ($self, $op) = @_;
-    my $flags = '';
-    my $pmflags = $op->pmflags;
-    if (!$pmflags) {
-	my $re = $op->pmregexp;
-	if ($$re) {
-	    $pmflags = $re->compflags;
-	}
-    }
-    $flags .= "g" if $pmflags & PMf_GLOBAL;
-    $flags .= "i" if $pmflags & PMf_FOLD;
-    $flags .= "m" if $pmflags & PMf_MULTILINE;
-    $flags .= "o" if $pmflags & PMf_KEEP;
-    $flags .= "s" if $pmflags & PMf_SINGLELINE;
-    $flags .= "x" if $pmflags & PMf_EXTENDED;
-    $flags .= "x" if $pmflags & PMf_EXTENDED_MORE;
-    $flags .= "p" if $pmflags & PMf_KEEPCOPY;
-    $flags .= "n" if $pmflags & PMf_NOCAPTURE;
-    if (my $charset = $pmflags & PMf_CHARSET) {
-	# Hardcoding this is fragile, but B does not yet export the
-	# constants we need.
-	$flags .= qw(d l u a aa)[$charset >> 7]
-    }
-    # The /d flag is indicated by 0; only show it if necessary.
-    elsif ($self->{hinthash} and
-	     $self->{hinthash}{reflags_charset}
-	    || $self->{hinthash}{feature_unicode}
-	or $self->{hints} & $feature::hint_mask
-	  && ($self->{hints} & $feature::hint_mask)
-	       != $feature::hint_mask
-	  && $self->{hints} & $feature::hint_uni8bit
-    ) {
-	$flags .= 'd';
-    }
-    $flags;
 }
 
 # osmic acid -- see osmium tetroxide

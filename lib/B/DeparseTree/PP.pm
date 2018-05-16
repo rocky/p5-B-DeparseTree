@@ -679,6 +679,12 @@ sub pp_predec { pfixop(@_, "--", 23) }
 sub pp_i_preinc { pfixop(@_, "++", 23) }
 sub pp_i_predec { pfixop(@_, "--", 23) }
 
+sub pp_regcomp
+{
+    my ($self, $op, $cx) = @_;
+    return (($self->regcomp($op, $cx, 0))[0]);
+}
+
 sub pp_substr {
     my ($self,$op,$cx) = @_;
     if ($op->private & B::Deparse::OPpSUBSTR_REPL_FIRST) {

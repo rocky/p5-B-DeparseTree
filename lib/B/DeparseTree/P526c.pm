@@ -2592,6 +2592,8 @@ sub tr_chr {
     } else {
 	return chr $x;
     }
+    return $self->info_from_template($type, $op->first->sibling,
+				     $fmt, [$re_dq_info], [0]);
 }
 
 # XXX This doesn't yet handle all cases correctly either
@@ -2854,7 +2856,8 @@ sub regcomp
 	    my $last = $self->re_dq($kid, $extended);
 	    push @body, $last;
 	    push(@other_ops, $kid);
-	    $str = re_dq_disambiguate($first, $last->{text});
+	    $str = re_dq_disambiguate($first,
+				      $self->info2str($last));
 	    $kid = $kid->sibling;
 	}
 	return (info_from_text($str, 'regcomp',
@@ -2870,12 +2873,6 @@ sub regcomp
 	return ($info, 1);
     }
     return ($self->deparse($kid, $cx, $op), 0, $op);
-}
-
-sub pp_regcomp
-{
-    my ($self, $op, $cx) = @_;
-    return (($self->regcomp($op, $cx, 0))[0]);
 }
 
 sub re_flags
