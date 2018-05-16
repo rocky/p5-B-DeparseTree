@@ -28,81 +28,22 @@
 
 use rlib '.';
 use helper;
+use Data::Dumper;
+use B::DeparseTree::Fragment;  # for dump
 
 BEGIN {
-    if ($] < 5.024 || $] > 5.0249) {
-	plan skip_all => 'Customized to Perl 5.24 interpreter';
+    if ($] < 5.018 || $] > 5.0269) {
+	plan skip_all => 'Customized to the Perl 5.20 - 5.26 interpreters';
     }
+    plan skip_all => 'Customized to Perl (not CPerl) interpreter' if $is_cperl;
 }
 
 use strict;
-use English;
-
 use feature (sprintf(":%vd", $^V)); # to avoid relying on the feature
                                     # logic to add CORE::
 
 # for a given keyword, create a sub of that name, then
 # deparse "() = $expr", and see if it matches $expected_expr
-
-sub testit {
-    my ($keyword, $expr, $expected_expr) = @_;
-
-    $expected_expr //= $expr;
-    $SEEN{$keyword} = 1;
-
-
-    # lex=0:   () = foo($a,$b,$c)
-    # lex=1:   my ($a,$b); () = foo($a,$b,$c)
-    # lex=2:   () = foo(my $a,$b,$c)
-    #for my $lex (0, 1, 2) {
-    #for my $lex (0, 1) {
-    for my $lex (0) {
-	if ($lex) {
-	    next if $keyword =~ /local|our|state|my/;
-	}
-	my $vars = $lex == 1 ? 'my($a, $b, $c, $d, $e);' . "\n    " : "";
-
-	if ($lex == 2) {
-	    my $repl = 'my $a';
-	    if ($expr =~ /\bmap\(\$a|CORE::(chomp|chop|lstat|stat)\b/) {
-		# for some reason only these do:
-		#  'foo my $a, $b,' => foo my($a), $b, ...
-		#  the rest don't parenthesize the my var.
-		$repl = 'my($a)';
-	    }
-	    s/\$a/$repl/ for $expr, $expected_expr;
-	}
-
-	my $desc = "$keyword: lex=$lex $expr => $expected_expr";
-
-
-	my $code_ref;
-	{
-	    package test;
-	    use subs ();
-	    import subs $keyword;
-	    $code_ref = eval "no strict 'vars'; sub { ${vars}() = $expr }"
-			    or die "$@ in $expr";
-	}
-
-	my $got_text = $deparse->coderef2text($code_ref);
-
-	unless ($got_text =~ /^{
-    \s*package test;
-    \s*use strict 'refs', 'subs';
-    \s*use feature [^\n]+
-    \Q$vars\E\(\) = (.*)
-}/s) {
-	    ::fail($desc);
-	    ::diag("couldn't extract line from boilerplate\n");
-	    ::diag($got_text);
-	    return;
-	}
-
-	my $got_expr = $1;
-	is $got_expr, $expected_expr, $desc;
-    }
-}
 
 # test a keyword that is a binary infix operator, like 'cmp'.
 # $parens - "$a op $b" is deparsed as "($a op $b)"
@@ -120,9 +61,17 @@ sub do_infix_keyword {
     # so no need for Deparse to disambiguate with CORE::
     testit $keyword, "(\$a CORE::$keyword \$b)", $exp;
     testit $keyword, "(\$a $keyword \$b)", $exp;
+    testit $keyword, "(\$a CORE::$keyword \$b)", $exp, 1;
+    testit $keyword, "(\$a $keyword \$b)", $exp, 1;
     if (!$strong) {
+	# B::Deparse fully qualifies any sub whose name is a keyword,
+	# imported or not, since the importedness may not be reproduced by
+	# the deparsed code.  x is special.
+	my $pre = "test::" x ($keyword ne 'x');
+	## testit $keyword, "$keyword(\$a, \$b)", "$pre$keyword(\$a, \$b);";
 	testit $keyword, "$keyword(\$a, \$b)", "$keyword(\$a, \$b);";
     }
+    testit $keyword, "$keyword(\$a, \$b)", "$keyword(\$a, \$b);", 1;
 }
 
 # test a keyword that is a standard op/function, like 'index(...)'.
@@ -153,47 +102,41 @@ sub do_std_keyword {
     }
 }
 
-my @test_files = ('core-base.pm');
-if ($] >= 5.020 && $] <= 5.0209) {
-    push @test_files, 'P520-core.pm';
-}
+my $data_fh = open_data('P526-core.pm');
 
-for my $file (@test_files) {
-    my $data_fh = open_data($file);
-    while (<$data_fh>) {
-	chomp;
-	s/#.*//;
-	next unless /\S/;
+while (<$data_fh>) {
+    chomp;
+    s/#.*//;
+    next unless /\S/;
 
-	my @fields = split;
-	die "not 3 fields" unless @fields == 3;
-	my ($keyword, $args, $flags) = @fields;
+    my @fields = split;
+    die "not 3 fields" unless @fields == 3;
+    my ($keyword, $args, $flags) = @fields;
 
-	$args = '012' if $args eq '@';
+    $args = '012' if $args eq '@';
 
-	my $parens  = $flags =~ s/p//;
-	my $invert1 = $flags =~ s/1//;
-	my $dollar  = $flags =~ s/\$//;
-	my $strong  = $flags =~ s/\+//;
-	die "unrecognized flag(s): '$flags'" unless $flags =~ /^-?$/;
+    my $parens  = $flags =~ s/p//;
+    my $invert1 = $flags =~ s/1//;
+    my $dollar  = $flags =~ s/\$//;
+    my $strong  = $flags =~ s/\+//;
+    die "unrecognized flag(s): '$flags'" unless $flags =~ /^-?$/;
 
-	if ($args eq 'B') { # binary infix
-	    die "$keyword: binary (B) op can't have '\$' flag\\n" if $dollar;
-	    die "$keyword: binary (B) op can't have '1' flag\\n" if $invert1;
-	    do_infix_keyword($keyword, $parens, $strong);
-	}
-	else {
-	    my @narg = split //, $args;
-	    for my $n (0..$#narg) {
-		my $narg = $narg[$n];
-		my $p = $parens;
-		$p = !$p if ($n == 0 && $invert1);
-		do_std_keyword($keyword, $narg, $p, (!$n && $dollar), $strong);
-	    }
+    if ($args eq 'B') { # binary infix
+	die "$keyword: binary (B) op can't have '\$' flag\\n" if $dollar;
+	die "$keyword: binary (B) op can't have '1' flag\\n" if $invert1;
+	do_infix_keyword($keyword, $parens, $strong);
+    }
+    else {
+	my @narg = split //, $args;
+	for my $n (0..$#narg) {
+	    my $narg = $narg[$n];
+	    my $p = $parens;
+	    $p = !$p if ($n == 0 && $invert1);
+	    do_std_keyword($keyword, $narg, $p, (!$n && $dollar), $strong);
 	}
     }
-    close $data_fh;
 }
+
 
 # Special cases
 
@@ -201,7 +144,11 @@ testit dbmopen  => 'CORE::dbmopen(%foo, $bar, $baz);';
 testit dbmclose => 'CORE::dbmclose %foo;';
 
 testit delete   => 'CORE::delete $h{\'foo\'};', 'delete $h{\'foo\'};';
-testit delete   => 'delete $h{\'foo\'};',       'delete $h{\'foo\'};';
+# testit delete   => 'CORE::delete $h{\'foo\'};', undef, 1;
+#testit delete   => 'CORE::delete @h{\'foo\'};', undef, 1;
+#testit delete   => 'CORE::delete $h[0];', undef, 1;
+# testit delete   => 'CORE::delete @h[0];', undef, 1;
+# testit delete   => 'delete $h{\'foo\'};',       'delete $h{\'foo\'};';
 
 # do is listed as strong, but only do { block } is strong;
 # do $file is weak,  so test it separately here
@@ -213,11 +160,15 @@ testit delete   => 'delete $h{\'foo\'};',       'delete $h{\'foo\'};';
 		   "do {\n        1\n    };";
 
 testit each     => 'CORE::each %bar;';
+testit each     => 'CORE::each @foo;';
 
 testit eof      => 'CORE::eof();';
 
 testit exists   => 'CORE::exists $h{\'foo\'};', 'exists $h{\'foo\'};';
-testit exists   => 'exists $h{\'foo\'};',       'exists $h{\'foo\'};';
+# testit exists   => 'CORE::exists $h{\'foo\'};', undef, 1;
+# testit exists   => 'CORE::exists &foo;', undef, 1;
+# testit exists   => 'CORE::exists $h[0];', undef, 1;
+# testit exists   => 'exists $h{\'foo\'};',       'exists $h{\'foo\'};';
 
 testit exec     => 'CORE::exec($foo $bar);';
 
@@ -226,13 +177,20 @@ testit glob     => 'CORE::glob;',                 'CORE::glob($_);';
 testit glob     => 'glob $a;',                    'glob($a);';
 testit glob     => 'CORE::glob $a;',              'CORE::glob($a);';
 
-testit grep     => 'CORE::grep { $a } $b, $c',    'grep({ $a; } $b, $c);';
+# testit grep     => 'CORE::grep { $a } $b, $c',    'grep({$a;} $b, $c);';
 
 testit keys     => 'CORE::keys %bar;';
+testit keys     => 'CORE::keys @bar;';
 
-testit map      => 'CORE::map { $a } $b, $c',    'map({ $a; } $b, $c);';
+# testit map      => 'CORE::map { $a } $b, $c',    'map({$a;} $b, $c);';
 
 testit not      => '3 unless CORE::not $a && $b;';
+
+testit pop      => 'CORE::pop @foo;';
+
+testit push     => 'CORE::push @foo;',           'CORE::push(@foo);';
+testit push     => 'CORE::push @foo, 1;',        'CORE::push(@foo, 1);';
+testit push     => 'CORE::push @foo, 1, 2;',     'CORE::push(@foo, 1, 2);';
 
 testit readline => 'CORE::readline $a . $b;';
 
@@ -240,45 +198,57 @@ testit readpipe => 'CORE::readpipe $a + $b;';
 
 testit reverse  => 'CORE::reverse sort(@foo);';
 
+testit shift    => 'CORE::shift @foo;';
+
+testit splice   => q{CORE::splice @foo;},                 q{CORE::splice(@foo);};
+testit splice   => q{CORE::splice @foo, 0;},              q{CORE::splice(@foo, 0);};
+testit splice   => q{CORE::splice @foo, 0, 1;},           q{CORE::splice(@foo, 0, 1);};
+# testit splice   => q{CORE::splice @foo, 0, 1, 'a';},      q{CORE::splice(@foo, 0, 1, 'a');};
+# testit splice   => q{CORE::splice @foo, 0, 1, 'a', 'b';}, q{CORE::splice(@foo, 0, 1, 'a', 'b');};
+
 # note that the test does '() = split...' which is why the
 # limit is optimised to 1
 
-testit split    => 'split;',                     q{split(/ /, $_, 1);};
-testit split    => 'CORE::split;',               q{split(/ /, $_, 1);};
-testit split    => 'split $a;',                  q{split(/$a/, $_, 1);};
-testit split    => 'CORE::split $a;',            q{split(/$a/, $_, 1);};
+# testit split    => 'split;',                     q{split(/ /, $_, 1);};
+# testit split    => 'CORE::split;',               q{split(/ /, $_, 1);};
+# testit split    => 'split $a;',                  q{split(/$a/, $_, 1);};
+# testit split    => 'CORE::split $a;',            q{split(/$a/, $_, 1);};
 ## FIXME
 #testit split    => 'split $a, $b;',              q{split(/$a/u, $b, 1);};
 #testit split    => 'CORE::split $a, $b;',        q{split(/$a/u, $b, 1);};
 #testit split    => 'split $a, $b, $c;',          q{split(/$a/u, $b, $c);};
 #testit split    => 'CORE::split $a, $b, $c;',    q{split(/$a/u, $b, $c);};
 
-testit sub      => 'CORE::sub { $a, $b }',
-			"sub {\n        \$a, \$b;\n    };";
+# testit sub      => 'CORE::sub { $a, $b }',
+#			"sub {\n        \$a, \$b;\n    }\n    ;";
 
 testit system   => 'CORE::system($foo $bar);';
 
+testit unshift  => 'CORE::unshift @foo;',        'CORE::unshift(@foo);';
+testit unshift  => 'CORE::unshift @foo, 1;',     'CORE::unshift(@foo, 1);';
+testit unshift  => 'CORE::unshift @foo, 1, 2;',  'CORE::unshift(@foo, 1, 2);';
+
 testit values   => 'CORE::values %bar;';
+testit values   => 'CORE::values @foo;';
 
 
 # XXX These are deparsed wrapped in parens.
 # whether they should be, I don't know!
 
-testit dump     => '(CORE::dump);';
-
-testit dump     => 'CORE::dump FOO;';
-testit goto     => 'CORE::goto;',     '(goto);';
-testit goto     => 'CORE::goto FOO;', 'goto FOO;';
-testit last     => 'CORE::last;',     '(last);';
-testit last     => 'CORE::last FOO;', 'last FOO;';
-testit next     => 'CORE::next;',     '(next);';
-testit next     => 'CORE::next FOO;', 'next FOO;';
-testit redo     => 'CORE::redo;',     '(redo);';
-testit redo     => 'CORE::redo FOO;', 'redo FOO;';
-testit redo     => 'CORE::redo;',     '(redo);';
-testit redo     => 'CORE::redo FOO;', 'redo FOO;';
-testit return   => 'return;',         '(return);';
-testit return   => 'CORE::return;',   '(return);';
+# testit dump     => '(CORE::dump);';
+# testit dump     => '(CORE::dump FOO);';
+# testit goto     => '(CORE::goto);',     '(goto);';
+# testit goto     => '(CORE::goto FOO);', '(goto FOO);';
+# testit last     => '(CORE::last);',     '(last);';
+# testit last     => '(CORE::last FOO);', '(last FOO);';
+# testit next     => '(CORE::next);',     '(next);';
+# testit next     => '(CORE::next FOO);', '(next FOO);';
+# testit redo     => '(CORE::redo);',     '(redo);';
+# testit redo     => '(CORE::redo FOO);', '(redo FOO);';
+# testit redo     => '(CORE::redo);',     '(redo);';
+# testit redo     => '(CORE::redo FOO);', '(redo FOO);';
+testit return   => '(return);',         '(return);';
+testit return   => '(CORE::return);',   '(return);';
 
 # these are the keywords I couldn't think how to test within this framework
 
@@ -288,7 +258,6 @@ my %not_tested = map { $_ => 1} qw(
     __FILE__
     __LINE__
     __PACKAGE__
-    __SUB__
     AUTOLOAD
     BEGIN
     CHECK
