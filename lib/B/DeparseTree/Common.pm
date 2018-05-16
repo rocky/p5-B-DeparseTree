@@ -2626,6 +2626,8 @@ sub template_engine($$$$) {
     my $i = 0;
     $find_addr = -2 unless $find_addr;
 
+    my $start_fmt = $fmt; # used in error messages
+
     my $result = '';
     my $find_pos = undef;
     while ((my $k=index($fmt, '%')) >= 0) {
@@ -2637,8 +2639,15 @@ sub template_engine($$$$) {
 	    $result .= $self->expand_simple_spec($spec);
 	} elsif ($spec eq "%c") {
 	    # Insert child entry
+
+	    if ($i >= scalar@$indexes) {
+		Carp::confess("Need anther Missing entry in args_spec for fmt: $start_fmt");
+	    }
 	    my $index = $indexes->[$i++];
 
+	    if ($index >= scalar @$args) {
+		Carp::confess("$index in $start_fmt is too large; should be less than @$args");
+	    }
 	    # FIXME: Remove duplicate code
 	    # if (! eval{$args->[$index]}) {
 	    # 	use Enbugger "trepan"; Enbugger->stop;

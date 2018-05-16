@@ -375,7 +375,6 @@ sub pp_nextstate {
 
 sub pp_and { logop(@_, "and", 3, "&&", 11, "if") }
 
-
 sub pp_cond_expr
 {
     my $self = shift;
@@ -384,9 +383,11 @@ sub pp_cond_expr
     my $true = $cond->sibling;
     my $false = $true->sibling;
     my $cuddle = $self->{'cuddle'};
+    my $type = 'if';
     unless ($cx < 1 and (is_scope($true) and $true->name ne "null") and
 	    (is_scope($false) || is_ifelse_cont($false))
 	    and $self->{'expand'} < 7) {
+	# FIXME: turn into template
 	my $cond_info = $self->deparse($cond, 8, $op);
 	my $true_info = $self->deparse($true, 6, $op);
 	my $false_info = $self->deparse($false, 8, $op);
@@ -397,10 +398,12 @@ sub pp_cond_expr
 
     my $cond_info = $self->deparse($cond, 1, $op);
     my $true_info = $self->deparse($true, 0, $op);
-    my @head = ('if ', '(', $cond_info, ') ', "{\n\t", $true_info, "\n\b}");
-    my @elsifs;
+    my $fmt = "%|if (%c) {\n%+%c\n%-}";
+    my @exprs = ($cond_info, $true_info);
+    my @args_spec = (0, 1);
 
-    while (!null($false) and is_ifelse_cont($false)) {
+    my $i;
+    for ($i=0; !null($false) and is_ifelse_cont($false); $i++) {
 	my $newop = $false->first;
 	my $newcond = $newop->first;
 	my $newtrue = $newcond->sibling;
@@ -413,24 +416,20 @@ sub pp_cond_expr
 	}
 	my $newcond_info = $self->deparse($newcond, 1, $op);
 	my $newtrue_info = $self->deparse($newtrue, 0, $op);
-	push @elsifs, ('', "elsif (", $newcond_info, ")",
-		       "{\n\t",
-		       $newtrue_info,
-		       "\n\b}");
+	push @args_spec, scalar(@args_spec), scalar(@args_spec)+1;
+	push @exprs, $newcond_info, $newtrue_info;
+	$fmt .= "elseif ( %c ) {\n%+%c\n\%-}";
     }
+    $type .= " elsif($i)" if $i;
     my $false_info;
-    my $type;
     if (!null($false)) {
 	$false_info = $self->deparse($false, 0, $op);
-	$false_info->{text} = $cuddle . "else {\n\t" . $false_info->{text} . "\n\b}\cK";
-	$type = 'if else';
-    } else {
-	$false_info->{text} = "\cK";
-	$type = 'if';
+	$fmt .= "${cuddle}else {\n%+%c\n%-}";
+	push @args_spec, scalar(@args_spec);
+	push @exprs, $false_info;
+	$type .= ' else';
     }
-    my @texts = (@head, @elsifs, $false_info->{text});
-    my $text = join('', @head) . join($cuddle, @elsifs) . $false_info->{text};
-    return info_from_list($op, $self, \@texts, '', $type, {});
+    return $self->info_from_template($type, $op, $fmt, \@args_spec, \@exprs);
 }
 
 sub pp_const {
