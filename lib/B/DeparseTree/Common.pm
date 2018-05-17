@@ -1041,7 +1041,9 @@ sub dquote
     my $kid = $op->first->sibling; # skip ex-stringify, pushmark
     return $self->deparse($kid, $cx, $op) if $self->{'unquote'};
     $self->maybe_targmy($kid, $cx,
-			sub {$self->single_delim($kid, '"', $self->dq($_[1])->{text})});
+			sub {$self->single_delim($kid, "qq", '"',
+						 $self->info2str($self->dq($_[1], $op))
+				                 )});
 }
 
 # FIXME: how can we inherit this from B::Deparse?
@@ -1392,12 +1394,12 @@ sub maybe_targmy
 	my $var = $self->padname($op->targ);
 	my $val = $func->($self, $op, 7, @args);
 	my @texts = ($var, '=', $val);
-	return info_from_list($op, $self, \@texts,
-			      ' ', 'maybe_targmy',
-			      {maybe_parens => [$self, $cx, 7]});
+	return $self->info_from_template("my", $op,
+					 "%c = %c", [0, 1],
+					 [$var, $val],
+					 {maybe_parens => [$self, $cx, 7]});
     } else {
-	my $info = $func->($self, $op, $cx, @args);
-	return $info;
+	return $func->($self, $op, $cx, @args);
     }
 }
 
@@ -1787,7 +1789,9 @@ sub deparse
     my $meth = "pp_" . $op->name;
     # print "YYY $meth\n";
     my $info = $self->$meth($op, $cx);
-    Carp::confess("nonref return for $meth deparse") if !ref($info);
+    Carp::confess("nonref return for $meth deparse: $info") if !ref($info);
+    Carp::confess("not B::DeparseTree:Node returned for $meth: $info")
+	if !$info->isa("B::DeparseTree::Node");
     $info->{parent} = $$parent if $parent;
     $info->{cop} = $self->{'curcop'};
     my $got_op = $info->{op};
@@ -2559,30 +2563,29 @@ sub seq_subs {
 sub single_delim($$$$$) {
     my($self, $op, $q, $default, $str) = @_;
 
-    if (!defined($str)) {
-	# FIXME: this is a workaround.
-	$str = '"';
-    }
-    return info_from_list($op, $self, [$default, $str, $default], '',
-			  "single delimiter default $default", {})
+    return $self->info_from_template("string $default .. $default (default)", $op,
+				     "$default%c$default", [0],
+				     [$str])
 	if $default and index($str, $default) == -1;
     if ($q ne 'qr') {
 	(my $succeed, $str) = balanced_delim($str);
-	return info_from_list($op, $self, [$q, $str], '', "single delimiter $q", {}) if $succeed;
+	return info_from_list($op, $self, [$q, $str], '', "string $q .. $q", {}) if $succeed;
     }
     for my $delim ('/', '"', '#') {
-	return info_from_list($op, $self, [$q, $delim, $str,
-			   $delim], '', "single delimiter qr $delim", {})
+	$self->info_from_template("string qr$delim .. $delim",
+				  $op, "qr$delim%c$delim", [0], [$str])
 	    if index($str, $delim) == -1;
     }
     if ($default) {
+	# FIXME: use transformation function here.
 	$str =~ s/$default/\\$default/g;
-	return info_from_list($op, $self, [$default, $str, $default], '',
-	    "single delimiter qr escape $default", {});
+	$self->info_from_template("string \\-escape $default",
+				  $op, "$default%c$default", [0], [$str]);
     } else {
+	# FIXME: use transformation function here.
 	$str =~ s[/][\\/]g;
 	return info_from_list($op, $self, [$q, '/', $str, '/'], '',
-	    "single delimiter qr /", {});
+	    "string / escape", {});
     }
 }
 
