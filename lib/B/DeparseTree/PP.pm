@@ -391,9 +391,10 @@ sub pp_cond_expr
 	my $cond_info = $self->deparse($cond, 8, $op);
 	my $true_info = $self->deparse($true, 6, $op);
 	my $false_info = $self->deparse($false, 8, $op);
-	my @texts = ($cond_info, '?', $true_info, ':', $false_info);
-	return info_from_list($op, $self, \@texts, ' ', 'ternary ?',
-				  {maybe_parens => [$self, $cx, 8]});
+	return $self->info_from_template('ternary ?', $op, "%c ? %c : %c",
+					 [0, 1, 2],
+					 [$cond_info, $true_info, $false_info],
+					 {maybe_parens => [$self, $cx, 8]});
     }
 
     my $cond_info = $self->deparse($cond, 1, $op);
