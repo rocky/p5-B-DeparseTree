@@ -508,11 +508,14 @@ sub listop
 	$first = $self->deparse($kid, 6, $op);
     }
     if ($name eq "chmod" && $first->{text} =~ /^\d+$/) {
-	$first = info_from_text($first->{op}, $self, sprintf("%#o", $first->{text}),
-				'listop chmod', {});
+	$first = $self->info_from_template("chmod octal", $kid,
+					   "%F", [[0, sub {sprintf("%#o", $self->info2str(shift))}]],
+					   [$first]);
     }
+    # FIXME
     $first->{text} = "+" + $first->{text}
 	if not $parens and not $nollafr and substr($first->{text}, 0, 1) eq "(";
+
     push @exprs, $first;
     $kid = $kid->sibling;
     if (defined $proto && $proto =~ /^\*\*/ && $kid->name eq "rv2gv"
@@ -2577,10 +2580,9 @@ sub single_delim($$$$$) {
 	    if index($str, $delim) == -1;
     }
     if ($default) {
-	# FIXME: use transformation function here.
-	$str =~ s/$default/\\$default/g;
 	$self->info_from_template("string \\-escape $default",
-				  $op, "$default%c$default", [0], [$str]);
+				  $op, "$default%F$default",
+				  [[0, sub {s/$_[0]/\\$_[0]/g}]], [$str]);
     } else {
 	# FIXME: use transformation function here.
 	$str =~ s[/][\\/]g;
@@ -2644,13 +2646,13 @@ sub template_engine($$$$) {
 	} elsif ($spec eq "%c") {
 	    # Insert child entry
 
+	    # FIXME: turn this into a subroutine.
 	    if ($i >= scalar@$indexes) {
-		Carp::confess("Need anther Missing entry in args_spec for fmt: $start_fmt");
+		Carp::confess("Need another entry in args_spec for %%c in fmt: $start_fmt");
 	    }
 	    my $index = $indexes->[$i++];
-
 	    if ($index >= scalar @$args) {
-		Carp::confess("$index in $start_fmt is too large; should be less than @$args");
+		Carp::confess("$index in $start_fmt for %%c is too large; should be less than @$args");
 	    }
 	    # FIXME: Remove duplicate code
 	    # if (! eval{$args->[$index]}) {
@@ -2663,7 +2665,7 @@ sub template_engine($$$$) {
 	    }
 	    $result .= $str;
 	} elsif ($spec eq "%C") {
-	    # Insert list child entry
+	    # Insert separator betwween child entry lists
 	    my ($low, $high, $sub_spec) = @{$indexes->[$i++]};
 	    my $sep = $self->expand_simple_spec($sub_spec);
 	    my $list = '';
@@ -2678,6 +2680,21 @@ sub template_engine($$$$) {
 		}
 		$result .= $str;
 	    }
+	} elsif ($spec eq "%F") {
+	    # Run a transformation function
+	    if ($i >= scalar@$indexes) {
+		Carp::confess("Need another entry in args_spec for %%F fmt: $start_fmt");
+	    }
+	    my ($arg_index, $transform_fn) = @{$indexes->[$i++]};
+	    if ($arg_index >= scalar @$args) {
+		Carp::confess("argument index $arg_index in $start_fmt for %%F is too large; should be less than @$args");
+	    }
+	    if (ref($transform_fn ne 'CODE')) {
+		Carp::confess("transformation function $transform_fn is not CODE");
+	    }
+	    my ($arg) = $args->[$arg_index];
+	    $result .= $transform_fn->($arg);
+
 	} elsif ($spec eq "%;") {
 	    # Insert semicolons and indented newlines between statements.
 	    # Don't insert them around empty strings - some OPs
@@ -2774,6 +2791,12 @@ unless(caller) {
     my $deparse = __PACKAGE__->new();
     my $info = info_from_list('op', $deparse, \@texts, ', ', 'test', {});
 
+    use Data::Printer;
+    my $str = $deparse->template_engine("%c", [0], ["16"]);
+    p $str;
+    my $str2 = $deparse->template_engine("%F", [[0, sub {'0x' . sprintf "%x", shift}]], [$str]);
+    p $str2;
+
     # print $deparse->template_engine("100%% "), "\n";
     # print $deparse->template_engine("%c,\n%+%c\n%|%c %c!",
     # 				    [1, 0, 2, 3],
@@ -2786,12 +2809,11 @@ unless(caller) {
     # @texts = ("use warnings;", "use strict", "my(\$a)");
     # $info = $deparse->info_from_template("demo", undef, "%;", [], \@texts);
 
-    $info = $deparse->info_from_template("list", undef,
-					 "%C", [[0, $#texts, ', ']],
-					 \@texts);
+    # $info = $deparse->info_from_template("list", undef,
+    # 					 "%C", [[0, $#texts, ', ']],
+    # 					 \@texts);
 
-    use Data::Printer;
-    p $info;
+    # p $info;
 
 
     # @texts = (['a', 1], ['b', 2], 'c');

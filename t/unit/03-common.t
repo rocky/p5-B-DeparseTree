@@ -79,5 +79,8 @@ print $found_str, "\n";
 print ' ' x $pos->[0] . '-' x $pos->[1], "\n";
 # use Data::Printer; p $pos;
 
+$str = $deparse->template_engine("%c", [0], ["16"]);
+my $str2 = $deparse->template_engine("%F", [[0, sub {'0x' . sprintf "%x", shift}]], [$str]);
+is $str2, '0x10', "Transformation function %F";
 
 Test::More::done_testing();
