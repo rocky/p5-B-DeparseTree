@@ -164,6 +164,10 @@ sub new {
     # Extra opcode information: prev_op, parent_op
     $self->{ops} = {};
 
+    # For B::DeparseTree::Node's that are created and don't have real OPs associated
+    # with them, we assign a fake address;
+    $self->{'last_fake_addr'} = 0;
+
     $self->init();
 
     while (my $arg = shift @_) {
@@ -363,6 +367,19 @@ sub info_from_template($$$$$) {
     $info->{'indexes'} = $indexes if $indexes;
     $info->{'text'} = $self->template_engine($fmt, $indexes, $args);
 
+    if (! defined $op) {
+	$info->{addr} = ++$self->{'last_fake_addr'};
+	$self->{optree}{$info->{addr}} = $info;
+    }
+    if ($opts->{'relink_children'}) {
+	# FIXME we should specify which children to relink
+	for (my $i=0; $i < scalar @$args; $i++) {
+	    if ($args->[$i]->isa("B::DeparseTree::Node")) {
+		$args->[$i]{parent} = $info->{addr};
+	    }
+	}
+    }
+
     # Need to handle maybe_parens since B::DeparseNode couldn't do that
     # as it was passed a ref ARRAY rather than a string.
     if ($opts->{maybe_parens}) {
@@ -508,9 +525,9 @@ sub listop
 	$first = $self->deparse($kid, 6, $op);
     }
     if ($name eq "chmod" && $first->{text} =~ /^\d+$/) {
-	$first = $self->info_from_template("chmod octal", $kid,
+	$first = $self->info_from_template("chmod octal", undef,
 					   "%F", [[0, sub {sprintf("%#o", $self->info2str(shift))}]],
-					   [$first]);
+					   [$first], {'relink_children' => [0]});
     }
     # FIXME
     $first->{text} = "+" + $first->{text}
