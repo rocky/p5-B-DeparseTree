@@ -1208,13 +1208,16 @@ sub loop_common
     my($op, $cx, $init) = @_;
     my $enter = $op->first;
     my $kid = $enter->sibling;
+
+    my @skipped_ops = ($enter);
     local(@$self{qw'curstash warnings hints hinthash'})
 		= @$self{qw'curstash warnings hints hinthash'};
 
-    my ($body, @body, @skipped_ops);
-    my @head = ();
+    my ($body, @body);
+    my @nodes = ();
     my ($bare, $cond_info) = (0, undef);
     my $fmt = '%|';
+    my $var_fmt;
     my @args_spec = ();
     my $opts = {};
     my $type = 'loop';
@@ -1233,67 +1236,74 @@ sub loop_common
 	# foreach
 	$type .= ' foreach';
 
-	push @skipped_ops, $enter->first;
 	my $ary = $enter->first->sibling; # first was pushmark
-	my @ary_info;
-	my @ary_text;
+	push @skipped_ops, $enter->first, $ary->first->sibling;
+	my ($ary_fmt, $var_info);
 	my $var = $ary->sibling;
-	if ($ary->name eq 'null' and $enter->private & OPpITER_REVERSED) {
-	    # "reverse" was optimised away
-	    @ary_info = (listop($self, $ary->first->sibling, 1, 'reverse'));
-	    @ary_text = ($ary_info[0]->{text});
-	} elsif ($enter->flags & OPf_STACKED
-		 and not null $ary->first->sibling->sibling) {
-	    @ary_info = ($self->deparse($ary->first->sibling, 9, $op),
-			 $self->deparse($ary->first->sibling->sibling, 9, $op));
-	    @ary_text = ($ary_info[0]->{text}, "..", $ary_info[1]->{text});
-
-	} else {
-	    @ary_info = ($self->deparse($ary, 1, $op));
-	    @ary_text = $ary_info[0]->{text};
-	}
-
-	my @var_info = ();
-	my @var_text;
 	if (null $var) {
 	    if (($enter->flags & OPf_SPECIAL) && ($] < 5.009)) {
 		# thread special var, under 5005threads
-		@var_text = ($self->pp_threadsv($enter, 1));
+		$var_fmt = $self->pp_threadsv($enter, 1);
 	    } else { # regular my() variable
-		my $var_info = $self->pp_padsv($enter, 1, 1);
-		@var_info =($var_info);
-		@var_text = ($var_info->{text});
+		$var_info = $self->pp_padsv($enter, 1, 1);
+		push @nodes, $var_info;
+		$var_fmt = '%c';
+		push @args_spec, $#nodes;
 	    }
 	} elsif ($var->name eq "rv2gv") {
-	    @var_info = ($self->pp_rv2sv($var, 1));
-	    @var_text = ($var_info[0]->{text});
+	    $var_info = $self->pp_rv2sv($var, 1);
+	    push @nodes, $var_info;
 	    if ($enter->private & OPpOUR_INTRO) {
-		# our declarations don't have package names
-		$var_text[0] =~ s/^(.).*::/$1/;
-		unshift @var_text, 'our';
+		# "our" declarations don't have package names
+		my $fn = sub {$_[0] =~ s/^(.).*::/$1/};
+		$var_fmt = "our %F";
+		push @args_spec, [$#nodes, $fn];
+	    } else {
+		$var_fmt = '%c';
+		push @args_spec, $#nodes;
 	    }
 	} elsif ($var->name eq "gv") {
-	    @var_info = ($self->deparse($var, 1, $op));
-	    @var_text = ("\$" . $var_info[0]->{text});
+	    $var_info = $self->deparse($var, 1, $op);
+	    push @nodes, $var_info;
+	    $var_fmt = '$%c';
+	    push @args_spec, $#nodes;
+	}
+
+	if ($ary->name eq 'null' and $enter->private & OPpITER_REVERSED) {
+	    # "reverse" was optimised away
+	    push @nodes, listop($self, $ary->first->sibling, 1, 'reverse');
+	    $ary_fmt = "%c";
+	    push @args_spec, $#nodes;
+	} elsif ($enter->flags & OPf_STACKED
+		 and not null $ary->first->sibling->sibling) {
+	    push @args_spec, scalar(@nodes), scalar(@nodes+1);
+	    push @nodes, ($self->deparse($ary->first->sibling, 9, $op),
+			 $self->deparse($ary->first->sibling->sibling, 9, $op));
+	    $ary_fmt = '(%c .. %c)';
+
+	} else {
+	    push @nodes, $self->deparse($ary, 1, $op);
+	    $ary_fmt = "%c";
+	    push @args_spec, $#args_spec;
 	}
 
 	# skip OP_AND and OP_ITER
 	push @skipped_ops, $kid->first, $kid->first->first;
 	$body = $kid->first->first->sibling;
 
-	@head = (@ary_info, @var_info);
 	if (!is_state $body->first and $body->first->name !~ /^(?:stub|leave|scope)$/) {
-	    Carp::confess("var ne \$_") unless join('', @var_text) eq '$_';
+	    # FIXME:
+	   #  Carp::confess("var ne \$_") unless join('', @var_text) eq '$_';
+	    push @skipped_ops, $body->first;
 	    $body = $body->first;
 	    my $body_info = $self->deparse($body, 2, $op);
-	    push @head, $body_info;
-	    my @texts = ($body_info->{text}, "foreach", '(', @ary_text, ')');
-	    return info_from_list($body->{op}, $self, \@texts, ' ', 'foreach ()',
-				  {other_ops => \@skipped_ops});
+	    push @nodes, $body_info;
+	    return $self->info_from_template("foreach", $op,
+					     "%|%c foreach ($ary_fmt)",
+					     \@args_spec, \@nodes,
+					     {other_ops => \@skipped_ops});
 	}
-	$fmt = "foreach %c (%c)";
-	@args_spec = (0, 1);
-	push @head, @var_text, @ary_text;
+	$fmt = "%|foreach $var_fmt $ary_fmt";
     } elsif ($kid->name eq "null") {
 	# while/until
 
@@ -1302,7 +1312,7 @@ sub loop_common
 	$type .= " $name";
 	$cond_info = $self->deparse($kid->first, 1, $op);
 	$fmt = "$name (%c) ";
-	push @head, $cond_info;
+	push @nodes, $cond_info;
 	$body = $kid->first->sibling;
 	@args_spec = (0);
     } elsif ($kid->name eq "stub") {
@@ -1339,24 +1349,24 @@ sub loop_common
 	if (defined $cond_info and not is_scope($cont) and $self->{'expand'} < 3) {
 	    my $cont_info = $self->deparse($cont, 1, $op);
 	    my $init = defined($init) ? $init : ' ';
-	    @head = ($init, $cond_info, $cont_info);
-	    # @head_text = ('for', '(', "$init_text;", $cont_info->{text}, ')');
+	    @nodes = ($init, $cond_info, $cont_info);
+	    # @nodes_text = ('for', '(', "$init_text;", $cont_info->{text}, ')');
 	    $fmt = 'for (%c; %c; %c) ';
 	    @args_spec = (0, 1, 2);
 	    $opts->{'omit_next_semicolon'} = 1;
 	} else {
 	    my $cont_info = $self->deparse($cont, 0, $op);
-	    @head =  ($init, $cont_info);
+	    @nodes =  ($init, $cont_info);
 	    @args_spec = (0, 1);
 	    $opts->{'omit_next_semicolon'} = 1;
 	    @cont_text = ($cuddle, 'continue', "{\n\t",
 			  $cont_info->{text} , "\n\b}");
 	}
     } else {
-	return info_from_text($op, $self, [''], 'loop_no_body', {})
+	return info_from_text($op, $self, '', 'loop_no_body', {})
 	    if !defined $body;
 	if (defined $init) {
-	    @head = ($init, $cond_info);
+	    @nodes = ($init, $cond_info);
 	    $fmt = '%|for (%c; %c;) ';
 	    @args_spec = (0, 1);
 	}
@@ -1365,18 +1375,18 @@ sub loop_common
     }
 
     # (my $body_text = $body_info->{text}) =~ s/;?$/;\n/;
-    # my @texts = (@head_text, "{\n\t", $body_text, "\b}", @cont_text);
+    # my @texts = (@nodes_text, "{\n\t", $body_text, "\b}", @cont_text);
 
-    my @exprs = (@head, $body_info);
-    push @args_spec, $#exprs;
-    $fmt .= "{\n%+%c%-\n}";
+    push @nodes, $body_info;
+    push @args_spec, $#nodes;
+    $fmt .= " {\n%+%c%-\n}";
     if (@cont_text) {
-	push @exprs, @cont_text;
-	push @args_spec, $#exprs;
+	push @nodes, @cont_text;
+	push @args_spec, $#nodes;
 	$type .= ' cont';
 	$fmt .= '%c';
     }
-    return $self->info_from_template($type, $op, $fmt, \@args_spec, \@exprs, $opts)
+    return $self->info_from_template($type, $op, $fmt, \@args_spec, \@nodes, $opts)
 }
 
 # $root should be the op which represents the root of whatever

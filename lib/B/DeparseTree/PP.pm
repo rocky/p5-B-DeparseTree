@@ -419,7 +419,7 @@ sub pp_cond_expr
 	my $newtrue_info = $self->deparse($newtrue, 0, $op);
 	push @args_spec, scalar(@args_spec), scalar(@args_spec)+1;
 	push @exprs, $newcond_info, $newtrue_info;
-	$fmt .= "elseif ( %c ) {\n%+%c\n\%-}";
+	$fmt .= " elsif ( %c ) {\n%+%c\n\%-}";
     }
     $type .= " elsif($i)" if $i;
     my $false_info;

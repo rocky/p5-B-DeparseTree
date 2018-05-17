@@ -29,6 +29,7 @@ scripts/README.md
 scripts/base/cond.t
 scripts/base/if.t
 # scripts/base/pat.t
+scripts/base/translate.t
 scripts/base/while.t
 scripts/benchtests.pl
 scripts/bug-sample.pm
