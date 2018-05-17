@@ -1,4 +1,3 @@
-# B::DeparseTree::P520.pm
 # Copyright (c) 1998-2000, 2002, 2003, 2004, 2005, 2006 Stephen McCamant.
 # Copyright (c) 2015, 2018 Rocky Bernstein
 # All rights reserved.
@@ -33,10 +32,12 @@ use B qw(class opnumber
 
 use B::DeparseTree::Common;
 use B::DeparseTree::PP;
+use B::Deparse;
 
 # Copy unchanged functions from B::Deparse
 *begin_is_use = *B::Deparse::begin_is_use;
 *const_sv = *B::Deparse::const_sv;
+*gv_name = *B::Deparse::gv_name;
 *padname_sv = *B::Deparse::padname_sv;
 *meth_sv = *B::Deparse::meth_sv;
 *meth_rclass_sv = *B::Deparse::meth_rclass_sv;
@@ -48,8 +49,8 @@ use vars qw/$AUTOLOAD/;
 use warnings ();
 require feature;
 
-our($VERSION, @EXPORT, @ISA);
-our $VERSION = '2.0';
+our(@EXPORT, @ISA);
+our $VERSION = '3.0.0';
 
 @ISA = qw(Exporter B::DeparseTree::Common);
 @EXPORT = qw(compile);
@@ -277,116 +278,13 @@ sub deparse_format($$$)
 	    push @body, $self->deparse($kid, -1, $op);
 	    $body[-1] =~ s/;\z//;
 	}
-	push @texts, "\f".join(", ", @body)."\n" if @body;
+	push @texts, "\f".$self->combine2str("\n", \@body) if @body;
 	$op = $op->sibling;
     }
 
     $info->{text} = $self->combine2str(\@texts) . "\f.";
     $info->{texts} = \@texts;
     return $info;
-}
-
-# Return a "use" declaration for this BEGIN block, if appropriate
-sub begin_is_use
-{
-    my ($self, $cv) = @_;
-    my $root = $cv->ROOT;
-    local @$self{qw'curcv curcvlex'} = ($cv);
-    local $B::overlay = {};
-    $self->pessimise($root, $cv->START);
-    # require B::Debug;
-    # B::walkoptree($cv->ROOT, "debug");
-    my $lineseq = $root->first;
-    return if $lineseq->name ne "lineseq";
-
-    my $req_op = $lineseq->first->sibling;
-    return if $req_op->name ne "require";
-
-    my $module;
-    if ($req_op->first->private & OPpCONST_BARE) {
-	# Actually it should always be a bareword
-	$module = $self->const_sv($req_op->first)->PV;
-	$module =~ s[/][::]g;
-	$module =~ s/.pm$//;
-    }
-    else {
-	$module = $self->const($self->const_sv($req_op->first), 6);
-    }
-
-    my $version;
-    my $version_op = $req_op->sibling;
-    return if class($version_op) eq "NULL";
-    if ($version_op->name eq "lineseq") {
-	# We have a version parameter; skip nextstate & pushmark
-	my $constop = $version_op->first->next->next;
-
-	return unless $self->const_sv($constop)->PV eq $module;
-	$constop = $constop->sibling;
-	$version = $self->const_sv($constop);
-	if (class($version) eq "IV") {
-	    $version = $version->int_value;
-	} elsif (class($version) eq "NV") {
-	    $version = $version->NV;
-	} elsif (class($version) ne "PVMG") {
-	    # Includes PVIV and PVNV
-	    $version = $version->PV;
-	} else {
-	    # version specified as a v-string
-	    $version = 'v'.join '.', map ord, split //, $version->PV;
-	}
-	$constop = $constop->sibling;
-	return if $constop->name ne "method_named";
-	return if $self->const_sv($constop)->PV ne "VERSION";
-    }
-
-    $lineseq = $version_op->sibling;
-    return if $lineseq->name ne "lineseq";
-    my $entersub = $lineseq->first->sibling;
-    if ($entersub->name eq "stub") {
-	return "use $module $version ();\n" if defined $version;
-	return "use $module ();\n";
-    }
-    return if $entersub->name ne "entersub";
-
-    # See if there are import arguments
-    my $args = '';
-
-    my $svop = $entersub->first->sibling; # Skip over pushmark
-    return unless $self->const_sv($svop)->PV eq $module;
-
-    # Pull out the arguments
-    for ($svop=$svop->sibling; $svop->name ne "method_named";
-		$svop = $svop->sibling) {
-	$args .= ", " if length($args);
-	$args .= $self->deparse($svop, 6, $root)->{text};
-    }
-
-    my $use = 'use';
-    my $method_named = $svop;
-    return if $method_named->name ne "method_named";
-    my $method_name = $self->const_sv($method_named)->PV;
-
-    if ($method_name eq "unimport") {
-	$use = 'no';
-    }
-
-    # Certain pragmas are dealt with using hint bits,
-    # so we ignore them here
-    if ($module eq 'strict' || $module eq 'integer'
-	|| $module eq 'bytes' || $module eq 'warnings'
-	|| $module eq 'feature') {
-	return "";
-    }
-
-    if (defined $version && length $args) {
-	return "$use $module $version ($args);\n";
-    } elsif (defined $version) {
-	return "$use $module $version;\n";
-    } elsif (length $args) {
-	return "$use $module ($args);\n";
-    } else {
-	return "$use $module;\n";
-    }
 }
 
 sub ambient_pragmas {
@@ -505,32 +403,39 @@ sub ambient_pragmas {
 # Sort of like maybe_parens in that we may possibly add ().  However we take
 # an op rather than text, and return a tree node. Also, we get around
 # the 'if it looks like a function' rule.
-sub maybe_parens_unop($self, $name, $op, $cx, $parent)
+sub maybe_parens_unop($$$$$)
 {
     my $self = shift;
     my($name, $op, $cx, $parent) = @_;
     my $info =  $self->deparse($op, 1, $parent);
-    my $text = $info->{text};
+    my $fmt;
+    my @exprs = ($info);
     if ($name eq "umask" && $info->{text} =~ /^\d+$/) {
-	$text = sprintf("%#o", $text);
+	# Display umask numbers in octal.
+	# FIXME: add as a info_node option to run a transformation function
+	# such as the below
+	$info->{text} = sprintf("%#o", $info->{text});
+	$exprs[0] = $info;
     }
+    $name = $self->keyword($name);
     if ($cx > 16 or $self->{'parens'}) {
-	return info_from_list($op, $self, [$self->keyword($name), '(', $text, ')'],
-			      '', 'maybe_parens_unop_parens', {body => [$info]});
+	return $self->info_from_template("$name()", $op,
+					 "$name(%c)",[0], \@exprs);
     } else {
-	$name = $self->keyword($name);
-	if (substr($text, 0, 1) eq "\cS") {
-	    # use op's parens
-	    return info_from_list($op, $self,[$name, substr($text, 1)], '',
-				  'maybe_parens_unop_cS', {body => [$info]});
-	} elsif (substr($text, 0, 1) eq "(") {
+	# FIXME: we don't do \cS
+	# if (substr($text, 0, 1) eq "\cS") {
+	#     # use op's parens
+	#     return info_from_list($op, $self,[$name, substr($text, 1)],
+	# 			  '',  'maybe_parens_unop_cS', {body => [$info]});
+	# } else
+	if (substr($info->{text}, 0, 1) eq "(") {
 	    # avoid looks-like-a-function trap with extra parens
 	    # ('+' can lead to ambiguities)
-	    return info_from_list($op, $self, [$name, '(', $text, ')'], '',
-				  "maybe_parens_unop_fn", {});
+	    return $self->info_from_template("$name(())", $op,
+					     "$name(%c)", [0], \@exprs);
 	} else {
-  	    return info_from_list($op, $self, [$name,  $text], ' ',
-				  'maybe_parens_unop', {body => [$info]});
+	    return $self->info_from_template("$name <args>", $op,
+					     "$name %c", [0], \@exprs);
 	}
     }
     Carp::confess("unhandled condition in maybe_parens_unop");
@@ -575,61 +480,6 @@ sub DESTROY {}	#	Do not AUTOLOAD
 my %globalnames;
 BEGIN { map($globalnames{$_}++, "SIG", "STDIN", "STDOUT", "STDERR", "INC",
 	    "ENV", "ARGV", "ARGVOUT", "_"); }
-
-sub gv_name {
-    my $self = shift;
-    my $gv = shift;
-    my $raw = shift;
-    Carp::confess() unless ref($gv) eq "B::GV";
-    my $stash = $gv->STASH->NAME;
-    my $name = $raw ? $gv->NAME : $gv->SAFENAME;
-    if ($stash eq 'main' && $name =~ /^::/) {
-	$stash = '::';
-    }
-    elsif (($stash eq 'main'
-	    && ($globalnames{$name} || $name =~ /^[^A-Za-z_:]/))
-	or ($stash eq $self->{'curstash'} && !$globalnames{$name}
-	    && ($stash eq 'main' || $name !~ /::/))
-	  )
-    {
-	$stash = "";
-    } else {
-	$stash = $stash . "::";
-    }
-    if (!$raw and $name =~ /^(\^..|{)/) {
-        $name = "{$name}";       # ${^WARNING_BITS}, etc and ${
-    }
-    return $stash . $name;
-}
-
-# Return the name to use for a stash variable.
-# If a lexical with the same name is in scope, or
-# if strictures are enabled, it may need to be
-# fully-qualified.
-sub stash_variable {
-    my ($self, $prefix, $name, $cx) = @_;
-
-    return "$prefix$name" if $name =~ /::/;
-
-    unless ($prefix eq '$' || $prefix eq '@' || #'
-	    $prefix eq '%' || $prefix eq '$#') {
-	return "$prefix$name";
-    }
-
-    if ($name =~ /^[^\w+-]$/) {
-      if (defined $cx && $cx == 26) {
-	if ($prefix eq '@') {
-	    return "$prefix\{$name}";
-	}
-	elsif ($name eq '#') { return '${#}' } #  "${#}a" vs "$#a"
-      }
-      if ($prefix eq '$#') {
-	return "\$#{$name}";
-      }
-    }
-
-    return $prefix . $self->maybe_qualify($prefix, $name);
-}
 
 sub lex_in_scope {
     my ($self, $name, $our) = @_;

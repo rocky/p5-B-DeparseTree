@@ -38,6 +38,7 @@ use B::Deparse;
 # Copy unchanged functions from B::Deparse
 *begin_is_use = *B::Deparse::begin_is_use;
 *const_sv = *B::Deparse::const_sv;
+*gv_name = *B::Deparse::gv_name;
 *padname_sv = *B::Deparse::padname_sv;
 *re_flags = *B::Deparse::re_flags;
 *tr_chr = *B::Deparse::tr_chr;

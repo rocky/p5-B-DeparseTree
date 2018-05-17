@@ -45,6 +45,8 @@ use Carp;
 use B::Deparse;
 use B::DeparseTree::Node;
 
+# Copy unchanged functions from B::Deparse
+*gv_name = *B::Deparse::gv_name;
 
 our($VERSION, @EXPORT, @ISA);
 $VERSION = '3.0.0';
@@ -66,7 +68,6 @@ $VERSION = '3.0.0';
     deparse_subname
     dq_unop
     dquote
-    gv_name
     hint_pragmas
     info_from_list
     info_from_text

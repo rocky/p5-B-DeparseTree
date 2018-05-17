@@ -84,6 +84,7 @@ use B::DeparseTree::PP;
 # Copy unchanged functions from B::Deparse
 *begin_is_use = *B::Deparse::begin_is_use;
 *const_sv = *B::Deparse::const_sv;
+*gv_name = *B::Deparse::gv_name;
 *padname_sv = *B::Deparse::padname_sv;
 *meth_sv = *B::Deparse::meth_sv;
 *meth_rclass_sv = *B::Deparse::meth_rclass_sv;
@@ -571,37 +572,6 @@ sub DESTROY {}	#	Do not AUTOLOAD
 my %globalnames;
 BEGIN { map($globalnames{$_}++, "SIG", "STDIN", "STDOUT", "STDERR", "INC",
 	    "ENV", "ARGV", "ARGVOUT", "_"); }
-
-sub gv_name {
-    my $self = shift;
-    my $gv = shift;
-    my $raw = shift;
-    # Carp::confess() unless ref($gv) eq "B::GV";
-    my $cv = $gv->FLAGS & SVf_ROK ? $gv->RV : 0;
-    my $stash = ($cv || $gv)->STASH->NAME;
-    my $name = $raw
-	? $cv ? $cv->NAME_HEK || $cv->GV->NAME : $gv->NAME
-	: $cv
-	    ? B::safename($cv->NAME_HEK || $cv->GV->NAME)
-	    : $gv->SAFENAME;
-    if ($stash eq 'main' && $name =~ /^::/) {
-	$stash = '::';
-    }
-    elsif (($stash eq 'main'
-	    && ($globalnames{$name} || $name =~ /^[^A-Za-z_:]/))
-	or ($stash eq $self->{'curstash'} && !$globalnames{$name}
-	    && ($stash eq 'main' || $name !~ /::/))
-	  )
-    {
-	$stash = "";
-    } else {
-	$stash = $stash . "::";
-    }
-    if (!$raw and $name =~ /^(\^..|{)/) {
-        $name = "{$name}";       # ${^WARNING_BITS}, etc and ${
-    }
-    return $stash . $name;
-}
 
 # Return the name to use for a stash variable.
 # If a lexical with the same name is in scope, or

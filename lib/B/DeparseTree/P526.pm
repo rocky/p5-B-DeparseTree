@@ -66,6 +66,7 @@ use B::Deparse;
 *begin_is_use = *B::Deparse::begin_is_use;
 *const_sv = *B::Deparse::const_sv;
 *escape_re = *B::Deparse::escape_re;
+*gv_name = *B::Deparse::gv_name;
 *meth_pad_subs = *B::Deparse::pad_subs;
 *meth_rclass_sv = *B::Deparse::meth_rclass_sv;
 *meth_sv = *B::Deparse::meth_sv;
@@ -477,27 +478,34 @@ sub maybe_parens_unop($$$$$)
     my $self = shift;
     my($name, $op, $cx, $parent) = @_;
     my $info =  $self->deparse($op, 1, $parent);
-    my $text = $info->{text};
+    my $fmt;
+    my @exprs = ($info);
     if ($name eq "umask" && $info->{text} =~ /^\d+$/) {
-	$text = sprintf("%#o", $text);
+	# Display umask numbers in octal.
+	# FIXME: add as a info_node option to run a transformation function
+	# such as the below
+	$info->{text} = sprintf("%#o", $info->{text});
+	$exprs[0] = $info;
     }
+    $name = $self->keyword($name);
     if ($cx > 16 or $self->{'parens'}) {
-	return info_from_list($op, $self, [$self->keyword($name), '(', $text, ')'],
-			      '', 'maybe_parens_unop_parens', {body => [$info]});
+	return $self->info_from_template("$name()", $op,
+					 "$name(%c)",[0], \@exprs);
     } else {
-	$name = $self->keyword($name);
-	if (substr($text, 0, 1) eq "\cS") {
-	    # use op's parens
-	    return info_from_list($op, $self,[$name, substr($text, 1)],
-				  '',  'maybe_parens_unop_cS', {body => [$info]});
-	} elsif (substr($text, 0, 1) eq "(") {
+	# FIXME: we don't do \cS
+	# if (substr($text, 0, 1) eq "\cS") {
+	#     # use op's parens
+	#     return info_from_list($op, $self,[$name, substr($text, 1)],
+	# 			  '',  'maybe_parens_unop_cS', {body => [$info]});
+	# } else
+	if (substr($info->{text}, 0, 1) eq "(") {
 	    # avoid looks-like-a-function trap with extra parens
 	    # ('+' can lead to ambiguities)
-	    return info_from_list($op, $self, [$name, '(', $text, ')'],
-				  '', "maybe_parens_unop_fn", {});
+	    return $self->info_from_template("$name(())", $op,
+					     "$name(%c)", [0], \@exprs);
 	} else {
-	    return info_from_list($op, $self,[$name,  $text], ' ',
-				  'maybe_parens_unop', {body => [$info]});
+	    return $self->info_from_template("$name <args>", $op,
+					     "$name %c", [0], \@exprs);
 	}
     }
     Carp::confess("unhandled condition in maybe_parens_unop");
@@ -544,37 +552,6 @@ sub DESTROY {}	#	Do not AUTOLOAD
 my %globalnames;
 BEGIN { map($globalnames{$_}++, "SIG", "STDIN", "STDOUT", "STDERR", "INC",
 	    "ENV", "ARGV", "ARGVOUT", "_"); }
-
-sub gv_name {
-    my $self = shift;
-    my $gv = shift;
-    my $raw = shift;
-    # Carp::confess() unless ref($gv) eq "B::GV";
-    my $cv = $gv->FLAGS & SVf_ROK ? $gv->RV : 0;
-    my $stash = ($cv || $gv)->STASH->NAME;
-    my $name = $raw
-	? $cv ? $cv->NAME_HEK || $cv->GV->NAME : $gv->NAME
-	: $cv
-	    ? B::safename($cv->NAME_HEK || $cv->GV->NAME)
-	    : $gv->SAFENAME;
-    if ($stash eq 'main' && $name =~ /^::/) {
-	$stash = '::';
-    }
-    elsif (($stash eq 'main'
-	    && ($globalnames{$name} || $name =~ /^[^A-Za-z_:]/))
-	or ($stash eq $self->{'curstash'} && !$globalnames{$name}
-	    && ($stash eq 'main' || $name !~ /::/))
-	  )
-    {
-	$stash = "";
-    } else {
-	$stash = $stash . "::";
-    }
-    if (!$raw and $name =~ /^(\^..|{)/) {
-        $name = "{$name}";       # ${^WARNING_BITS}, etc and ${
-    }
-    return $stash . $name;
-}
 
 # Return the name to use for a stash variable.
 # If a lexical with the same name is in scope, or

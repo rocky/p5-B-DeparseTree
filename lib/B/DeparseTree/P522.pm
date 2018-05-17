@@ -62,6 +62,7 @@ use B::Deparse;
 # Copy unchanged functions from B::Deparse
 *begin_is_use = *B::Deparse::begin_is_use;
 *const_sv = *B::Deparse::const_sv;
+*gv_name = *B::Deparse::gv_name;
 *padname_sv = *B::Deparse::padname_sv;
 *meth_sv = *B::Deparse::meth_sv;
 *meth_rclass_sv = *B::Deparse::meth_rclass_sv;
@@ -93,189 +94,6 @@ BEGIN {
 	*{$_} = sub () {0} unless *{$_}{CODE};
     }
 }
-
-# See older source for inline comments recording changes prior to 2.0
-
-# In order to test modulie, we run this over Perl test suite.
-# Then we run the test on the deparsed code. Slick, eh?
-
-# Here are B::DeparseTree failure notes:
-
-# Current test.deparse failures
-# comp/hints 6 - location of BEGIN blocks wrt. block openings
-# run/switchI 1 - missing -I switches entirely
-#    perl -Ifoo -e 'print @INC'
-# op/caller 2 - warning mask propagates backwards before warnings::register
-#    'use warnings; BEGIN {${^WARNING_BITS} eq "U"x12;} use warnings::register'
-# op/getpid 2 - can't assign to shared my() declaration (threads only)
-#    'my $x : shared = 5'
-# op/override 7 - parens on overridden require change v-string interpretation
-#    'BEGIN{*CORE::GLOBAL::require=sub {}} require v5.6'
-#    c.f. 'BEGIN { *f = sub {0} }; f 2'
-# op/pat 774 - losing Unicode-ness of Latin1-only strings
-#    'use charnames ":short"; $x="\N{latin:a with acute}"'
-# op/recurse 12 - missing parens on recursive call makes it look like method
-#    'sub f { f($x) }'
-# op/subst 90 - inconsistent handling of utf8 under "use utf8"
-# op/taint 29 - "use re 'taint'" deparsed in the wrong place wrt. block open
-# op/tiehandle compile - "use strict" deparsed in the wrong place
-# uni/tr_ several
-# ext/B/t/xref 11 - line numbers when we add newlines to one-line subs
-# ext/Data/Dumper/t/dumper compile
-# ext/DB_file/several
-# ext/Encode/several
-# ext/Ernno/Errno warnings
-# ext/IO/lib/IO/t/io_sel 23
-# ext/PerlIO/t/encoding compile
-# ext/POSIX/t/posix 6
-# ext/Socket/Socket 8
-# ext/Storable/t/croak compile
-# lib/Attribute/Handlers/t/multi compile
-# lib/bignum/ several
-# lib/charnames 35
-# lib/constant 32
-# lib/English 40
-# lib/ExtUtils/t/bytes 4
-# lib/File/DosGlob compile
-# lib/Filter/Simple/t/data 1
-# lib/Math/BigInt/t/constant 1
-# lib/Net/t/config Deparse-warning
-# lib/overload compile
-# lib/Switch/ several
-# lib/Symbol 4
-# lib/Test/Simple several
-# lib/Term/Complete
-# lib/Tie/File/t/29_downcopy 5
-# lib/vars 22
-
-# Object fields:
-#
-# in_coderef2text:
-# True when deparsing via $deparse->coderef2text; false when deparsing the
-# main program.
-#
-# avoid_local:
-# (local($a), local($b)) and local($a, $b) have the same internal
-# representation but the short form looks better. We notice we can
-# use a large-scale local when checking the list, but need to prevent
-# individual locals too. This hash holds the addresses of OPs that
-# have already had their local-ness accounted for. The same thing
-# is done with my().
-#
-# curcv:
-# CV for current sub (or main program) being deparsed
-#
-# curcvlex:
-# Cached hash of lexical variables for curcv: keys are
-# names prefixed with "m" or "o" (representing my/our), and
-# each value is an array with two elements indicating the cop_seq
-# of scopes in which a var of that name is valid and a third ele-
-# ment referencing the pad name.
-#
-# curcop:
-# COP for statement being deparsed
-#
-# curstash:
-# name of the current package for deparsed code
-#
-# subs_todo:
-# array of [cop_seq, CV, is_format?, name] for subs and formats we still
-# want to deparse.  The fourth element is a pad name thingy for lexical
-# subs or a string for special blocks.  For other subs, it is undef.  For
-# lexical subs, CV may be undef, indicating a stub declaration.
-#
-# protos_todo:
-# as above, but [name, prototype] for subs that never got a GV
-#
-# subs_done, forms_done:
-# keys are addresses of GVs for subs and formats we've already
-# deparsed (or at least put into subs_todo)
-#
-# subs_declared
-# keys are names of subs for which we've printed declarations.
-# That means we can omit parentheses from the arguments. It also means we
-# need to put CORE:: on core functions of the same name.
-#
-# subs_deparsed
-# Keeps track of fully qualified names of all deparsed subs.
-#
-# in_subst_repl
-# True when deparsing the replacement part of a substitution.
-#
-# in_refgen
-# True when deparsing the argument to \.
-#
-# parens: -p
-# linenums: -l
-# opaddr: -a
-# unquote: -q
-# use_tabs: -sT
-# ex_const: -sv
-
-# A little explanation of how precedence contexts and associativity
-# work:
-#
-# deparse() calls each per-op subroutine with an argument $cx (short
-# for context, but not the same as the cx* in the perl core), which is
-# a number describing the op's parents in terms of precedence, whether
-# they're inside an expression or at statement level, etc.  (see
-# chart below). When ops with children call deparse on them, they pass
-# along their precedence. Fractional values are used to implement
-# associativity ('($x + $y) + $z' => '$x + $y + $y') and related
-# parentheses hacks. The major disadvantage of this scheme is that
-# it doesn't know about right sides and left sides, so say if you
-# assign a listop to a variable, it can't tell it's allowed to leave
-# the parens off the listop.
-
-# Precedences:
-# 26             [TODO] inside interpolation context ("")
-# 25 left        terms and list operators (leftward)
-# 24 left        ->
-# 23 nonassoc    ++ --
-# 22 right       **
-# 21 right       ! ~ \ and unary + and -
-# 20 left        =~ !~
-# 19 left        * / % x
-# 18 left        + - .
-# 17 left        << >>
-# 16 nonassoc    named unary operators
-# 15 nonassoc    < > <= >= lt gt le ge
-# 14 nonassoc    == != <=> eq ne cmp
-# 13 left        &
-# 12 left        | ^
-# 11 left        &&
-# 10 left        ||
-#  9 nonassoc    ..  ...
-#  8 right       ?:
-#  7 right       = += -= *= etc.
-#  6 left        , =>
-#  5 nonassoc    list operators (rightward)
-#  4 right       not
-#  3 left        and
-#  2 left        or xor
-#  1             statement modifiers
-#  0.5           statements, but still print scopes as do { ... }
-#  0             statement level
-# -1             format body
-
-# Nonprinting characters with special meaning:
-# \cS - steal parens (see maybe_parens_unop)
-# \n - newline and indent
-# \t - increase indent
-# \b - decrease indent ('outdent')
-# \f - flush left (no indent)
-# \cK - kill following semicolon, if any
-
-# Semicolon handling:
-#  - Individual statements are not deparsed with trailing semicolons.
-#    (If necessary, \cK is tacked on to the end.)
-#  - Whatever code joins statements together or emits them (lineseq,
-#    scopeop, deparse_root) is responsible for adding semicolons where
-#    necessary.
-#  - use statements are deparsed with trailing semicolons because they are
-#    immediately concatenated with the following statement.
-#  - indent() removes semicolons wherever it sees \cK.
-
 
 BEGIN { for (qw[ const stringify rv2sv list glob pushmark null aelem
 		 nextstate dbstate rv2av rv2hv helem custom ]) {
@@ -452,27 +270,34 @@ sub maybe_parens_unop($$$$$)
     my $self = shift;
     my($name, $op, $cx, $parent) = @_;
     my $info =  $self->deparse($op, 1, $parent);
-    my $text = $info->{text};
+    my $fmt;
+    my @exprs = ($info);
     if ($name eq "umask" && $info->{text} =~ /^\d+$/) {
-	$text = sprintf("%#o", $text);
+	# Display umask numbers in octal.
+	# FIXME: add as a info_node option to run a transformation function
+	# such as the below
+	$info->{text} = sprintf("%#o", $info->{text});
+	$exprs[0] = $info;
     }
+    $name = $self->keyword($name);
     if ($cx > 16 or $self->{'parens'}) {
-	return info_from_list($op, $self, [$self->keyword($name), '(', $text, ')'],
-			      '', 'maybe_parens_unop_parens', {body => [$info]});
+	return $self->info_from_template("$name()", $op,
+					 "$name(%c)",[0], \@exprs);
     } else {
-	$name = $self->keyword($name);
-	if (substr($text, 0, 1) eq "\cS") {
-	    # use op's parens
-	    return info_from_list($op, $self,[$name, substr($text, 1)],
-				  '',  'maybe_parens_unop_cS', {});
-	} elsif (substr($text, 0, 1) eq "(") {
+	# FIXME: we don't do \cS
+	# if (substr($text, 0, 1) eq "\cS") {
+	#     # use op's parens
+	#     return info_from_list($op, $self,[$name, substr($text, 1)],
+	# 			  '',  'maybe_parens_unop_cS', {body => [$info]});
+	# } else
+	if (substr($info->{text}, 0, 1) eq "(") {
 	    # avoid looks-like-a-function trap with extra parens
 	    # ('+' can lead to ambiguities)
-	    return info_from_list($op, $self, [$name, '(', $text, ')'],
-				  '', "maybe_parens_unop_fn", {});
+	    return $self->info_from_template("$name(())", $op,
+					     "$name(%c)", [0], \@exprs);
 	} else {
-  	    return info_from_list($op, $self, [$name,  $text], ' ',
-				  'maybe_parens_unop', {});
+	    return $self->info_from_template("$name <args>", $op,
+					     "$name %c", [0], \@exprs);
 	}
     }
     Carp::confess("unhandled condition in maybe_parens_unop");
@@ -517,37 +342,6 @@ sub DESTROY {}	#	Do not AUTOLOAD
 my %globalnames;
 BEGIN { map($globalnames{$_}++, "SIG", "STDIN", "STDOUT", "STDERR", "INC",
 	    "ENV", "ARGV", "ARGVOUT", "_"); }
-
-sub gv_name {
-    my $self = shift;
-    my $gv = shift;
-    my $raw = shift;
-    # Carp::confess() unless ref($gv) eq "B::GV";
-    my $cv = $gv->FLAGS & SVf_ROK ? $gv->RV : 0;
-    my $stash = ($cv || $gv)->STASH->NAME;
-    my $name = $raw
-	? $cv ? $cv->NAME_HEK || $cv->GV->NAME : $gv->NAME
-	: $cv
-	    ? B::safename($cv->NAME_HEK || $cv->GV->NAME)
-	    : $gv->SAFENAME;
-    if ($stash eq 'main' && $name =~ /^::/) {
-	$stash = '::';
-    }
-    elsif (($stash eq 'main'
-	    && ($globalnames{$name} || $name =~ /^[^A-Za-z_:]/))
-	or ($stash eq $self->{'curstash'} && !$globalnames{$name}
-	    && ($stash eq 'main' || $name !~ /::/))
-	  )
-    {
-	$stash = "";
-    } else {
-	$stash = $stash . "::";
-    }
-    if (!$raw and $name =~ /^(\^..|{)/) {
-        $name = "{$name}";       # ${^WARNING_BITS}, etc and ${
-    }
-    return $stash . $name;
-}
 
 # Return the name to use for a stash variable.
 # If a lexical with the same name is in scope, or
