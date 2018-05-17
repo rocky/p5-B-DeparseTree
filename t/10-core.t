@@ -52,7 +52,7 @@ use feature (sprintf(":%vd", $^V)); # to avoid relying on the feature
 # $strong - keyword is strong
 
 sub do_infix_keyword {
-    my ($keyword, $parens, $strong) = @_;
+    my ($keyword, $parens, $strong, $filename, $line) = @_;
     $SEEN_STRENGTH{$keyword} = $strong;
     my $expr = "(\$a $keyword \$b)";
     my $nkey = $infix_map{$keyword} // $keyword;
@@ -61,19 +61,19 @@ sub do_infix_keyword {
     $exp .= ";";
     # with infix notation, a keyword is always interpreted as core,
     # so no need for Deparse to disambiguate with CORE::
-    testit $keyword, "(\$a CORE::$keyword \$b)", $exp;
+    testit $keyword, "(\$a CORE::$keyword \$b)", $exp, $filename, $line;
     testit $keyword, "(\$a $keyword \$b)", $exp;
-    testit $keyword, "(\$a CORE::$keyword \$b)", $exp, 1;
-    testit $keyword, "(\$a $keyword \$b)", $exp, 1;
+    testit $keyword, "(\$a CORE::$keyword \$b)", $exp, 1, $filename, $line;
+    testit $keyword, "(\$a $keyword \$b)", $exp, 1, $filename, $line;
     if (!$strong) {
 	# B::Deparse fully qualifies any sub whose name is a keyword,
 	# imported or not, since the importedness may not be reproduced by
 	# the deparsed code.  x is special.
 	my $pre = "test::" x ($keyword ne 'x');
 	## testit $keyword, "$keyword(\$a, \$b)", "$pre$keyword(\$a, \$b);";
-	testit $keyword, "$keyword(\$a, \$b)", "$keyword(\$a, \$b);";
+	testit $keyword, "$keyword(\$a, \$b)", "$keyword(\$a, \$b);", $filename, $line;
     }
-    testit $keyword, "$keyword(\$a, \$b)", "$keyword(\$a, \$b);", 1;
+    testit $keyword, "$keyword(\$a, \$b)", "$keyword(\$a, \$b);", 1, $filename, $line;
 }
 
 # test a keyword that is a standard op/function, like 'index(...)'.
@@ -84,7 +84,7 @@ sub do_infix_keyword {
 
 
 sub do_std_keyword {
-    my ($keyword, $narg, $parens, $dollar, $strong) = @_;
+    my ($keyword, $narg, $parens, $dollar, $strong, $filename, $line) = @_;
 
     $SEEN_STRENGTH{$keyword} = $strong;
 
@@ -100,13 +100,16 @@ sub do_std_keyword {
 	    push @code, (($core && !($do_exp && $strong)) ? "CORE::" : "")
 						       	. "$keyword$args";
 	}
-	testit $keyword, @code; # code[0]: to run; code[1]: expected
+	testit $keyword, @code, $filename, $line; # code[0]: to run; code[1]: expected
     }
 }
 
-my $data_fh = open_data('P526-core.pm');
+my $filename = 'P526-core.pm';
+my $data_fh = open_data($filename);
 
+my $line = 0;
 while (<$data_fh>) {
+    $line ++;
     chomp;
     s/#.*//;
     next unless /\S/;
@@ -126,7 +129,7 @@ while (<$data_fh>) {
     if ($args eq 'B') { # binary infix
 	die "$keyword: binary (B) op can't have '\$' flag\\n" if $dollar;
 	die "$keyword: binary (B) op can't have '1' flag\\n" if $invert1;
-	do_infix_keyword($keyword, $parens, $strong);
+	do_infix_keyword($keyword, $parens, $strong, $filename, $line);
     }
     else {
 	my @narg = split //, $args;
@@ -134,7 +137,7 @@ while (<$data_fh>) {
 	    my $narg = $narg[$n];
 	    my $p = $parens;
 	    $p = !$p if ($n == 0 && $invert1);
-	    do_std_keyword($keyword, $narg, $p, (!$n && $dollar), $strong);
+	    do_std_keyword($keyword, $narg, $p, (!$n && $dollar), $strong, $filename, $line);
 	}
     }
 }

@@ -48,7 +48,7 @@ use constant MAX_ERROR_COUNT => 1;
 my $error_count = 0;
 
 sub testit {
-    my ($keyword, $expr, $expected_expr) = @_;
+    my ($keyword, $expr, $expected_expr, $filename, $lineno) = @_;
 
     $expected_expr //= $expr;
     $SEEN{$keyword} = 1;
@@ -98,7 +98,10 @@ sub testit {
 
 	unless ($got_text =~ /$CODE_PAT/s) {
 	    ::fail($desc);
-	    ::diag("couldn't extract line from boilerplate\n");
+	    my $mess = "couldn't extract line from boilerplate";
+	    $mess .= ", file: $filename" if $filename;
+	    $mess .= ", line: $lineno" if $lineno;
+	    ::diag("$mess\n");
 	    ::diag($got_text);
 	    if (++$error_count >= MAX_ERROR_COUNT) {
 		done_testing;
@@ -112,14 +115,30 @@ sub testit {
 	# we don't.
 	$expected_expr =~ s/;$//;
 
-	is $got_expr, $expected_expr, $desc;
 	if ($got_expr ne $expected_expr) {
+	    my $deparse_text = $deparse_orig->coderef2text($code_ref);
+	    if ($deparse_text =~ /$CODE_PAT/s) {
+		my $deparse_expr = $1;
+		$deparse_expr =~ s/;$//;
+		if ($got_expr eq $deparse_expr) {
+		    my $mess = "bad setup expectation";
+		    $mess .= ", file: $filename" if $filename;
+		    $mess .= ", line: $lineno" if $lineno;
+		    ::diag("$mess\n");
+		    next;
+		} else {
+		    ::diag($deparse_expr);
+		}
+	    }
+
 	    # B::DeparseTree::Fragment::dump($deparse);
+	    is $got_expr, $expected_expr, $desc;
 	    if (++$error_count >= MAX_ERROR_COUNT) {
 		done_testing;
 		exit $error_count;
 	    }
 	}
+	is $got_expr, $expected_expr, $desc;
     }
 }
 
