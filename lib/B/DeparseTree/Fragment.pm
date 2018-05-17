@@ -215,8 +215,9 @@ sub dump($) {
 
 unless (caller) {
     sub bug() {
-	no strict;
-	for ( $i=0; $i;) {};
+	return 5
+	# no strict;
+	# for ( $i=0; $i;) {};
 	# my ($a, $b, $c);
 	# CORE::exec($foo $bar);
 	# exec $foo $bar;
@@ -258,7 +259,7 @@ unless (caller) {
     $deparse->coderef2info(\&bug);
     # $deparse->coderef2info(\&get_addr_info);
     my @addrs = sort keys %{$deparse->{optree}}, "\n";
-    $deparse->dump();
+    B::DeparseTree::Fragment::dump($deparse);
 }
 
 1;

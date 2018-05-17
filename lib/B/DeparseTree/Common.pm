@@ -270,15 +270,15 @@ sub dq_unop
     my($self, $op, $cx, $name, $prec, $flags) = (@_, 0, 0);
     my $kid;
     if ($op->flags & OPf_KIDS) {
-	my $other_ops = undef;
+	my $skipped_ops = undef;
 	$kid = $op->first;
 	if (not B::Deparse::null $kid->sibling) {
 	    # If there's more than one kid, the first is an ex-pushmark.
-	    $other_ops = [$kid];
+	    $skipped_ops = [$kid];
 	    $kid = $kid->sibling;
 	}
 	my $info = $self->maybe_parens_unop($name, $kid, $cx, $op);
-	$info->{other_ops} = $other_ops if $other_ops;
+	$info->{other_ops} = $skipped_ops if $skipped_ops;
 	return $info;
     } else {
 	my @texts = ($name);
@@ -371,12 +371,20 @@ sub info_from_template($$$$$) {
 	$info->{addr} = ++$self->{'last_fake_addr'};
 	$self->{optree}{$info->{addr}} = $info;
     }
+
     if ($opts->{'relink_children'}) {
 	# FIXME we should specify which children to relink
 	for (my $i=0; $i < scalar @$args; $i++) {
 	    if ($args->[$i]->isa("B::DeparseTree::Node")) {
 		$args->[$i]{parent} = $info->{addr};
 	    }
+	}
+    }
+
+    # Link the parent of Deparse::Tree::Nodes to this node.
+    if ($opts->{'synthesized_nodes'}) {
+	foreach my $node (@{$opts->{'synthesized_nodes'}}) {
+	    $node->{parent} = $info->{addr};
 	}
     }
 
@@ -491,10 +499,11 @@ sub is_subscriptable {
 sub listop
 {
     my($self, $op, $cx, $name, $kid, $nollafr) = @_;
-    my(@exprs);
+    my(@exprs, @new_nodes, @skipped_ops);
     my $parens = ($cx >= 5) || $self->{'parens'};
 
     unless ($kid) {
+	push @skipped_ops, $op->first;
 	$kid = $op->first->sibling;
     }
 
@@ -528,8 +537,10 @@ sub listop
 	$first = $self->info_from_template("chmod octal", undef,
 					   "%F", [[0, sub {sprintf("%#o", $self->info2str(shift))}]],
 					   [$first], {'relink_children' => [0]});
+	push @new_nodes, $first;
     }
-    # FIXME
+
+    # FIXME: fold this into a template
     $first->{text} = "+" + $first->{text}
 	if not $parens and not $nollafr and substr($first->{text}, 0, 1) eq "(";
 
@@ -589,7 +600,9 @@ sub listop
 	$type = "listop $fullname";
     }
     return $self->info_from_template($type, $op, $fmt,
-				     [[0, $#exprs, ', ']], \@exprs);
+				     [[0, $#exprs, ', ']], \@exprs,
+				     {'synthesized_nodes' => \@new_nodes,
+				      'other_ops' => \@skipped_ops});
 }
 
 sub maybe_parens_func($$$$$)
@@ -760,6 +773,7 @@ sub pp_truncate
     my($self, $op, $cx) = @_;
     my(@exprs);
     my $parens = ($cx >= 5) || $self->{'parens'};
+    my $opts = {'other_ops' => [$op->first]};
     my $kid = $op->first->sibling;
     my $fh;
     if ($op->flags & OPf_SPECIAL) {
@@ -771,7 +785,6 @@ sub pp_truncate
     }
     my $len = $self->deparse($kid->sibling, 6, $op);
     my $name = $self->keyword('truncate');
-    my $opts = {body => [$fh, $len]};
     my $args = "$fh->{text}, $len->{text}";
     if ($parens) {
 	return info_from_list($op, $self, [$name, '(', $args, ')'], '',
@@ -1058,6 +1071,8 @@ sub dedup_parens_func($$$)
 sub dquote
 {
     my($self, $op, $cx) = @_;
+    # FIXME figure out how to use this
+    my $skipped_ops = [$op->first];
     my $kid = $op->first->sibling; # skip ex-stringify, pushmark
     return $self->deparse($kid, $cx, $op) if $self->{'unquote'};
     $self->maybe_targmy($kid, $cx,
@@ -1106,14 +1121,14 @@ sub deparse_root {
 	push @$exprs, $info;
     };
     my $info = $self->walk_lineseq($op, \@ops, $fn);
-    my @other_ops;
+    my @skipped_ops;
     if (exists $info->{other_ops}) {
-	@other_ops = @{$info->other_ops};
-	push @other_ops, $op->first;
+	@skipped_ops = @{$info->{other_ops}};
+	push @skipped_ops, $op->first;
     } else {
-	@other_ops = ($op->first);
+	@skipped_ops = ($op->first);
     }
-    $info->{other_ops} = \@other_ops;
+    $info->{other_ops} = \@skipped_ops;
     return $info;
 
 }
@@ -1196,7 +1211,7 @@ sub loop_common
     local(@$self{qw'curstash warnings hints hinthash'})
 		= @$self{qw'curstash warnings hints hinthash'};
 
-    my ($body, @body, @other_ops);
+    my ($body, @body, @skipped_ops);
     my @head = ();
     my ($bare, $cond_info) = (0, undef);
     my $fmt = '%|';
@@ -1218,7 +1233,7 @@ sub loop_common
 	# foreach
 	$type .= ' foreach';
 
-	push @other_ops, $enter->first;
+	push @skipped_ops, $enter->first;
 	my $ary = $enter->first->sibling; # first was pushmark
 	my @ary_info;
 	my @ary_text;
@@ -1263,7 +1278,7 @@ sub loop_common
 	}
 
 	# skip OP_AND and OP_ITER
-	push @other_ops, $kid->first, $kid->first->first;
+	push @skipped_ops, $kid->first, $kid->first->first;
 	$body = $kid->first->first->sibling;
 
 	@head = (@ary_info, @var_info);
@@ -1274,7 +1289,7 @@ sub loop_common
 	    push @head, $body_info;
 	    my @texts = ($body_info->{text}, "foreach", '(', @ary_text, ')');
 	    return info_from_list($body->{op}, $self, \@texts, ' ', 'foreach ()',
-				  {other_ops => \@other_ops});
+				  {other_ops => \@skipped_ops});
 	}
 	$fmt = "foreach %c (%c)";
 	@args_spec = (0, 1);
@@ -1407,6 +1422,7 @@ sub lineseq {
     return $self->walk_lineseq($root, \@ops, $fn);
 }
 
+# FIXME: need a way to pass in skipped_ops
 sub maybe_targmy
 {
     my($self, $op, $cx, $func, @args) = @_;
@@ -2013,14 +2029,14 @@ sub scopeop
 				      ' ', "$name 1", {};
 	    }
 	    my $cond = $top->first;
-	    my $other_ops = [$cond->sibling];
+	    my $skipped_ops = [$cond->sibling];
 	    my $body = $cond->sibling->first; # skip lineseq
 	    my $cond_info = $self->deparse($cond, 1, $top);
 	    my $body_info = $self->deparse($body, 1, $top);
 	    return  info_from_list($op, $self,
 				   [$body_info, $name, $cond_info], ' ',
 				   "$name",
-				   {other_ops => $other_ops});
+				   {other_ops => $skipped_ops});
 	}
     } else {
 	$kid = $op->first;
@@ -2329,12 +2345,12 @@ sub indirop
     my $firstkid = my $kid = $op->first->sibling;
     my $indir_info;
     my @body = ();
-    my $type = 'indirop';
-    my @other_ops = ($op->first);
+    my $type = $name;
+    my @skipped_ops = ($op->first);
     my @indir = ();
 
     if ($op->flags & OPf_STACKED) {
-	push @other_ops, $kid;
+	push @skipped_ops, $kid;
 	my $indir_op = $kid->first; # skip rv2gv
 	if (is_scope($indir_op)) {
 	    $indir_info = $self->deparse($indir_op, 0, $op);
@@ -2372,7 +2388,7 @@ sub indirop
     push @body, @exprs;
     my $opts = {
 	body => \@body,
-	other_ops => \@other_ops
+	other_ops => \@skipped_ops
     };
 
     my $name2;
@@ -2513,7 +2529,7 @@ sub mapop
     my($self, $op, $cx, $name) = @_;
     my $kid = $op->first; # this is the (map|grep)start
 
-    my @other_ops = ($kid, $kid->first);
+    my @skipped_ops = ($kid, $kid->first);
     $kid = $kid->first->sibling; # skip a pushmark
 
     my $code = $kid->first; # skip a null
@@ -2532,7 +2548,7 @@ sub mapop
     }
     my @body = ($code_info);
 
-    push @other_ops, $kid;
+    push @skipped_ops, $kid;
     $kid = $kid->sibling;
     my($expr, @exprs);
     for (; !null($kid); $kid = $kid->sibling) {
@@ -2543,7 +2559,7 @@ sub mapop
     push @exprs_texts, map $_->{text}, @exprs;
     my $opts = {
 	body => \@body,
-	other_ops => \@other_ops,
+	other_ops => \@skipped_ops,
     };
     my $params = join(', ', @exprs_texts);
     $params = join(" ", @block_texts) . ' ' . $params if @block_texts;
@@ -2597,14 +2613,15 @@ sub single_delim($$$$$) {
 	    if index($str, $delim) == -1;
     }
     if ($default) {
-	$self->info_from_template("string \\-escape $default",
-				  $op, "$default%F$default",
-				  [[0, sub {s/$_[0]/\\$_[0]/g}]], [$str]);
+	my $fn = sub {s/$_[0]/\\$_[0]/g};
+	return $self->info_from_template("string \\-escape $default",
+					 $op, "$default%F$default",
+					 [[0, $fn]], [$str]);
     } else {
-	# FIXME: use transformation function here.
-	$str =~ s[/][\\/]g;
-	return info_from_list($op, $self, [$q, '/', $str, '/'], '',
-	    "string / escape", {});
+	my $fn = sub {$_[0] =~ s[/][\\/]g};
+	return $self->info_from_template("string q // escape", $op,
+					 $op, "$default%F$default",
+					 [[0, $fn]], [$str]);
     }
 }
 
