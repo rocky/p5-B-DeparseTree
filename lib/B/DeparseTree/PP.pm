@@ -230,10 +230,10 @@ sub pp_list
 					 \@exprs);
 
     } else {
-	# FIXME: handle maybe parens
 	return $self->info_from_template("list", $op,
 					 "%C", [[0, $#exprs, ', ']],
-					 \@exprs);
+					 \@exprs,
+					 {maybe_parens => [$self, $cx, 6]});
     }
 }
 

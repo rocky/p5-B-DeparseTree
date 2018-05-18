@@ -905,7 +905,7 @@ sub binop
     my $rhs = $self->deparse_binop_right($op, $right, $prec);
     my @texts = ($lhs, "$opname$eq", $rhs);
     return info_from_list($op, $self, \@texts, ' ', "binary operator $opname$eq",
-			  {maybe_parens_join => [$self, $cx, $prec]});
+			  {maybe_parens => [$self, $cx, $prec]});
 }
 
 sub coderef2info
@@ -1244,7 +1244,7 @@ sub loop_common
     my ($body, @body);
     my @nodes = ();
     my ($bare, $cond_info) = (0, undef);
-    my $fmt = '%|';
+    my $fmt = '';
     my $var_fmt;
     my @args_spec = ();
     my $opts = {};
@@ -1327,11 +1327,11 @@ sub loop_common
 	    my $body_info = $self->deparse($body, 2, $op);
 	    push @nodes, $body_info;
 	    return $self->info_from_template("foreach", $op,
-					     "%|$var_fmt foreach ($ary_fmt)",
+					     "$var_fmt foreach ($ary_fmt)",
 					     \@args_spec, \@nodes,
 					     {other_ops => \@skipped_ops});
 	}
-	$fmt = "%|foreach $var_fmt $ary_fmt";
+	$fmt = "foreach $var_fmt $ary_fmt";
     } elsif ($kid->name eq "null") {
 	# while/until
 
@@ -1395,7 +1395,7 @@ sub loop_common
 	    if !defined $body;
 	if (defined $init) {
 	    @nodes = ($init, $cond_info);
-	    $fmt = '%|for (%c; %c;) ';
+	    $fmt = 'for (%c; %c;) ';
 	    @args_spec = (0, 1);
 	}
 	$opts->{'omit_next_semicolon'} = 1;
@@ -2088,7 +2088,7 @@ sub scopeop
 	my $text;
 	if (is_lexical_subs(@kids)) {
 	    return $self->info_from_template("scoped do", $op,
-					     '%|do {\n%+%c\n%-}',
+					     'do {\n%+%c\n%-}',
 					     [0], [$body]);
 
 	} else {
@@ -2174,11 +2174,11 @@ sub declare_hints
     my @decls = ();
     for my $pragma (hint_pragmas($use)) {
 	my $type = $self->keyword("use") . " $pragma";
-	push @decls, $self->info_from_template($type, undef, "%|$type\n", [], []);
+	push @decls, $self->info_from_template($type, undef, "$type\n", [], []);
     }
     for my $pragma (hint_pragmas($no)) {
 	my $type = $self->keyword("no") . " $pragma";
-	push @decls, $self->info_from_template($type, undef, "%|$type\n", [], []);
+	push @decls, $self->info_from_template($type, undef, "$type\n", [], []);
     }
     return @decls;
 }
@@ -2354,16 +2354,16 @@ sub declare_warnings
     my ($self, $from, $to) = @_;
     if (($to & WARN_MASK) eq (warnings::bits("all") & WARN_MASK)) {
 	my $type = $self->keyword("use") . " warnings";
-	return $self->info_from_template($type, undef, "%|$type;\n",
+	return $self->info_from_template($type, undef, "$type;\n",
 					 [], []);
     }
     elsif (($to & WARN_MASK) eq ("\0"x length($to) & WARN_MASK)) {
 	my $type = $self->keyword("no") . " warnings";
-	return $self->info_from_template($type, undef, "%|$type;\n",
+	return $self->info_from_template($type, undef, "$type;\n",
 					 [], []);
     }
     my $bit_expr = join('', map { sprintf("\\x%02x", ord $_) } split "", $to);
-    my $str = "%|BEGIN {\n%+\${^WARNING_BITS} = \"$bit_expr;\n%-";
+    my $str = "BEGIN {\n%+\${^WARNING_BITS} = \"$bit_expr;\n%-";
     return $self->info_from_template('warning bits begin', undef,
 				     "%|$str\n", [], [], {omit_next_semicolon=>1});
 }
