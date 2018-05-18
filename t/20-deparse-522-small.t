@@ -4,11 +4,11 @@
 use rlib '.'; use helper;
 use warnings; use strict;
 
-plan skip_all => 'Needs going over';
 if ($] < 5.020 || $] > 5.0229) {
     plan skip_all => 'Customized to Perl 5.20 - 5.22 interpreters';
 }
 
+plan skip_all => 'Needs going over';
 my $tests = 19; # not counting those in the __DATA__ section
 
 my %deparse;

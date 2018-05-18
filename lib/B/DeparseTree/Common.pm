@@ -2520,22 +2520,26 @@ sub pfixop
     my $self = shift;
     my($op, $cx, $operator, $prec, $flags) = (@_, 0);
     my $operand = $self->deparse($op->first, $prec, $op);
-    my $type;
-    my @texts;
+    my ($type, $fmt);
+    my @nodes;
     if ($flags & POSTFIX) {
-	@texts = ($operator, $operand);
-	$type = 'prefix operator';
+	@nodes = ($operand, $operator);
+	$type = "prefix $operator";
+	$fmt = "%c%c";
     } elsif ($operator eq '-' && $operand->{text} =~ /^[a-zA-Z](?!\w)/) {
-	# avoid confusion with filetests
-	$type = 'prefix filetest';
-	@texts = ($operand, '(', $operator, ')');
+	# Add () around operator to disambiguate with filetest operator
+	@nodes = ($operator, $operand);
+	$type = "prefix non-filetest $operator";
+	$fmt = "%c(%c)";
     } else {
-	$type = 'postfix operator';
-	@texts = ($operand, $operator);
+	@nodes = ($operator, $operand);
+	$type = "postfix $operator";
+	$fmt = "%c%c";
     }
 
-    return info_from_list $op, $self, \@texts, '', $type,
-			  {maybe_parens => [$self, $cx, $prec]} ;
+    return $self->info_from_template($type, $op, $fmt, [0, 1],
+				     \@nodes,
+				     {maybe_parens => [$self, $cx, $prec]}) ;
 }
 
 sub mapop

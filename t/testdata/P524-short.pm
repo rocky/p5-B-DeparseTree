@@ -22,7 +22,6 @@ __DATA__
 0;
 ####
 # Lexical and simple arithmetic
-# SKIP ?1
 my $test;
 ++$test and $test /= 2;
 >>>>
