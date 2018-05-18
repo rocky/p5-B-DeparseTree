@@ -1925,10 +1925,12 @@ sub deparse_sub($$$$)
 	}
     }
 
-    $info->{op} = $start_op;
+    if ($start_op) {
+	$info->{op} = $start_op;
+	$self->{'optree'}{$$start_op} = $info;
+    }
     $info->{cop} = undef;
-    $info->{parent}  = $parent if $parent;
-    $self->{optree}{$$start_op} = $info;
+    $info->{'parent'}  = $parent if $parent;
     return $info;
 }
 
