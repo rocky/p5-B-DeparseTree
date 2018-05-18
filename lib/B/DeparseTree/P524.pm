@@ -1409,7 +1409,7 @@ sub rv2x
     if ($kid->name eq "gv") {
 	$kid_info = $self->deparse($kid, 0, $op);
 	my $str = $self->stash_variable($type, $kid_info->{text}, $cx);
-	return info_from_text($op, $self, $str, 'rv2x_gv', {body => [$kid_info]});
+	return info_from_text($op, $self, $str, 'rv2x', {other_ops => [$kid_info]});
     } elsif (is_scalar $kid) {
 	$kid_info = $self->deparse($kid, 0, $op);
 	my $str = $kid_info->{text};
@@ -2849,7 +2849,7 @@ sub pp_null
 	    ->sibling, # glob
 	    $cx
 	    );
-	push @{$info->{other_ops}}, @other_ops;
+	# push @{$info->{other_ops}}, @other_ops;
 	return $info;
     } elsif (!null($kid->sibling) and
     	     $kid->sibling->name eq "readline" and

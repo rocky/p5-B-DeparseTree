@@ -1284,7 +1284,7 @@ sub loop_common
 	} else {
 	    push @nodes, $self->deparse($ary, 1, $op);
 	    $ary_fmt = "%c";
-	    push @args_spec, $#args_spec;
+	    push @args_spec, $#nodes;
 	}
 
 	# skip OP_AND and OP_ITER
@@ -1299,7 +1299,7 @@ sub loop_common
 	    my $body_info = $self->deparse($body, 2, $op);
 	    push @nodes, $body_info;
 	    return $self->info_from_template("foreach", $op,
-					     "%|%c foreach ($ary_fmt)",
+					     "%|$var_fmt foreach ($ary_fmt)",
 					     \@args_spec, \@nodes,
 					     {other_ops => \@skipped_ops});
 	}
