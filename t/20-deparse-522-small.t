@@ -19,8 +19,9 @@ my $eval_but_skip = $tests+1;
 my @test_files = ('P522-short.pm');
 for my $file (@test_files) {
 
-    my $data_fh = open_data($file);
+    my ($data_fh, $line) = open_data($file);
     while (<$data_fh>) {
+	$line ++;
 	chomp;
 	$tests ++;
 	# This code is pinched from the t/lib/common.pl for TODO.

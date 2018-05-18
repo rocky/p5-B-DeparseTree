@@ -104,10 +104,9 @@ sub do_std_keyword {
     }
 }
 
+my $line;
 my $filename = 'P526-core.pm';
-my $data_fh = open_data($filename);
-
-my $line = 0;
+my ($data_fh, $line) = open_data($filename);
 while (<$data_fh>) {
     $line ++;
     chomp;

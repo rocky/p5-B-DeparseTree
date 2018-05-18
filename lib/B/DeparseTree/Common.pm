@@ -1890,7 +1890,9 @@ sub deparse_sub($$$$)
 
     my $info = {};
 
-    $start_op ||= $root->first;
+    if (!eval {$start_op ||= $root->first;}){
+	use Enbugger 'trepan'; Enbugger->stop;
+    }
 
     local $B::overlay = {};
     if (not null $root) {

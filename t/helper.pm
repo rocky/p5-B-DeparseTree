@@ -36,14 +36,15 @@ sub open_data($)
     my $test_data = File::Spec->catfile(data_dir, $short_name);
     open(my $data_fh, "<", $test_data) || die "Can't open $test_data: $!";
 
+    my $lineno;
     # Skip to __DATA__
-    while (<$data_fh> !~ /__DATA__/) {
+    for ($lineno = 1; <$data_fh> !~ /__DATA__/; $lineno++) {
 	;
     }
-    return $data_fh;
+    return ($data_fh, $lineno);
 }
 
-use constant MAX_ERROR_COUNT => 1;
+use constant MAX_CORE_ERROR_COUNT => 1;
 
 my $error_count = 0;
 
@@ -103,7 +104,7 @@ sub testit {
 	    $mess .= ", line: $lineno" if $lineno;
 	    ::diag("$mess\n");
 	    ::diag($got_text);
-	    if (++$error_count >= MAX_ERROR_COUNT) {
+	    if (++$error_count >= MAX_CORE_ERROR_COUNT) {
 		done_testing;
 		exit $error_count;
 	    }
@@ -133,7 +134,7 @@ sub testit {
 
 	    # B::DeparseTree::Fragment::dump($deparse);
 	    is $got_expr, $expected_expr, $desc;
-	    if (++$error_count >= MAX_ERROR_COUNT) {
+	    if (++$error_count >= MAX_CORE_ERROR_COUNT) {
 		done_testing;
 		exit $error_count;
 	    }
