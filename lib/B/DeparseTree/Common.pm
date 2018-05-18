@@ -640,7 +640,11 @@ sub maybe_local_str
 				  {});
 	}
     } else {
-	return info_from_text($op, $self, $text, 'maybe_local', {});
+	if ($text->isa("B::DeparseTree::Node")) {
+	    return $text;
+	} else {
+	    return info_from_text($op, $self, $text, 'maybe_local', {});
+	}
     }
 }
 

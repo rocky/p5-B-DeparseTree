@@ -329,7 +329,9 @@ sub maybe_my {
 
 sub AUTOLOAD {
     if ($AUTOLOAD =~ s/^.*::pp_//) {
-	warn "unexpected OP_".uc $AUTOLOAD;
+	warn "unexpected OP_".
+	  ($_[1]->type == OP_CUSTOM ? "CUSTOM ($AUTOLOAD)" : uc $AUTOLOAD);
+	return "XXX";
     } else {
 	Carp::confess "Undefined subroutine $AUTOLOAD called";
     }
