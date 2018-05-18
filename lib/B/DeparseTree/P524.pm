@@ -2849,7 +2849,7 @@ sub pp_null
 	    ->sibling, # glob
 	    $cx
 	    );
-	# push @{$info->{other_ops}}, @other_ops;
+	push @{$info->{other_ops}}, @other_ops;
 	return $info;
     } elsif (!null($kid->sibling) and
     	     $kid->sibling->name eq "readline" and
