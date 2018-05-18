@@ -651,7 +651,8 @@ sub pp_lock { unop(@_, "lock") }
 sub pp_continue { unop(@_, "continue"); }
 sub pp_break { unop(@_, "break"); }
 
-# Different in 5.25 from earlier versions
+# Different from earlier versions. The beakuut though
+# may be before 5.26
 sub pp_repeat { maybe_targmy(@_, \&repeat) }
 
 # Different in 5.26 from earlier versions

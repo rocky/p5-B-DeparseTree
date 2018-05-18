@@ -30,13 +30,13 @@ use warnings; use strict;
 
 
 BEGIN {
-    plan skip_all => 'Needs going over';
     if ($] < 5.026 || $] > 5.0269) {
 	plan skip_all => 'Customized to version 5.26 interpreter';
     }
     require Config;
     my $is_cperl = $Config::Config{usecperl};
     plan skip_all => 'Customized to CPerl interpreter' unless $is_cperl;
+    plan skip_all => 'Needs going over';
 }
 
 use rlib '../lib';

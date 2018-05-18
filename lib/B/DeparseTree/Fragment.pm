@@ -9,7 +9,10 @@ use vars qw(@ISA @EXPORT);
              extract_node_info
              get_addr_info
              get_parent_addr_info get_parent_op
-             get_prev_addr_info   get_prev_op);
+             get_prev_addr_info   get_prev_op
+             trim_line_pair
+             underline_parent
+    );
 
 sub deparse_offset
 {
@@ -77,16 +80,85 @@ sub get_prev_addr_info($)
     return $deparse->{optree}{$$prev_op};
 }
 
+sub underline_parent($$$) {
+    my ($child_text, $parent_text, $char) = @_;
+    my $start_pos = index($parent_text, $child_text);
+    return  (' ' x $start_pos) . ($char  x length($child_text));
+
+}
+# Return either 2 or 3 strings in an array reference.
+# There are various cases to consider.
+# 1. Child and parent texts are no more than a single line:
+#    return and the underline, two entries. For example:
+#  my ($a, $b) = (5, 6);
+#                -----
+# 2. The parent spans more than a line but the child is
+#    on that line. Return an array of the first line of the parent
+#    with elision and the child underline, two entries. Example
+#    if the child is $a in:
+# if ($a) {
+#    $b
+# }
+# return:
+# if ($a) {...
+#     --
+#                -----
+# 3. The parent spans more than a line and the child is
+#    not that line. Return an array of the first line of the parent
+#    with elision, then the line containing the child and the child underline,
+#    three entries. Example:
+#    if the child is $b in:
+# if ($a) {
+#    $b;
+#    $c;
+# }
+# return:
+# if ($a) {...
+#   $b;
+#   --
+
+# 4. The parent spans more than a line and the child is
+#    not that line and also spans more than a single line.
+#    Do the same as 3. but add eplises to the underline.
+#    Example:
+#    if the child is "\$b;\n  \$c" in:
+# if ($a) {
+#    $b;
+#    $c;
+# }
+# return:
+# if ($a) {...
+#   $b;
+#   ---...
+# 5. Like 4, but the child is on the first line. A cross between
+# 3 and 4. No elipses for the first line is needed, just one on the
+# underline
+#
 sub trim_line_pair($$$$) {
     my ($parent_text, $child_text, $parent_underline, $start_pos) = @_;
     # If the parent text is longer than a line, use just the line.
     # The underline indicator adds an elipsis to show it is elided.
-    my @parent_lines = split(/\n/, substr($parent_text, $start_pos));
-    my $stripped_parent = $parent_lines[0];
-    if (length($parent_underline) > length($stripped_parent)) {
-	$parent_underline = substr($parent_underline, 0, length($stripped_parent)) . '...';
+    my @parent_lines = split(/\n/, $parent_text);
+    my $i = 0;
+    if (scalar(@parent_lines) > 1) {
+	for ($i=0; $start_pos > length($parent_lines[$i]); $i++) {
+	    my $l = length($parent_lines[$i]);
+	    $start_pos -= ($l+1);
+	    $parent_underline = substr($parent_underline, $l+1);
+	}
     }
-    return [$stripped_parent, $parent_underline];
+    my @result = ();
+    if ($i > 0) {
+    	push @result, $parent_lines[0] . '...';
+    }
+    my $stripped_parent = $parent_lines[$i];
+    my @child_lines = split(/\n/, $child_text);
+    if (scalar(@child_lines) > 1) {
+    	$parent_underline = substr($parent_underline, 0, length($child_lines[0])+1) . '...';
+    }
+
+    push @result, $stripped_parent, $parent_underline;
+    return \@result;
 }
 
 sub extract_node_info($)
@@ -111,6 +183,14 @@ sub extract_node_info($)
 	$parent_info = $texts[0];
     }
     if (exists $parent_info->{fmt}) {
+	# If the child text is the same as the parent's, go up the parent
+	# chain until we find something different.
+	while ($parent_info->{text} eq $child_text
+	       && $parent_info->{parent}
+	       && $deparsed->{optree}{$parent_info->{parent}}
+	    ) {
+	    $parent_info = $deparsed->{optree}{$parent_info->{parent}};
+	}
 	my $fmt = $parent_info->{fmt};
 	my $indexes = $parent_info->{indexes};
 	my $args = $parent_info->{texts};
@@ -119,7 +199,7 @@ sub extract_node_info($)
 	if (defined($found_pos)) {
 	    my $parent_underline = ' ' x $found_pos->[0];
 	    $parent_underline .= '-' x $found_pos->[1];
-	    return trim_line_pair($str, $child_text, $parent_underline, 0);
+	    return trim_line_pair($str, $child_text, $parent_underline, $found_pos->[0]);
 	}
 	$result = $str;
     } else {
@@ -145,8 +225,6 @@ sub extract_node_info($)
 			$result .= $text->[0];
 		    }
 		} elsif ($text->{addr} == $child_addr) {
-		    # WARNING: this branch is going away when we have
-		    # everything templatized (when not a simple string).
 		    my $parent_underline = ' ' x length($result);
 		    $result .= $text->{text};
 		    $parent_underline .= '-' x length($text->{text});
@@ -172,17 +250,7 @@ sub extract_node_info($)
     if ($start_index >= 0) {
 	if (index($parent_text, $child_text, $start_index+1) < 0) {
 	    # It is in there *uniquely*!
-	    # Remove any \n's before the text.
-	    my $last_pos = 0;
-	    my $start_search = index($parent_text, $child_text);
-	    while ($start_search >= 0) {
-		$last_pos = $start_search;
-		$start_search = index($parent_text, $child_text, $last_pos+1);
-	    }
-	    my $start_pos = ($start_index - $last_pos);
-	    my $parent_underline = ' ' x $start_pos ;
-
-	    $parent_underline .= '~' x length($child_text);
+	    my $parent_underline = underline_parent($child_text, $parent_text, '~');
 	    return trim_line_pair($parent_text, $child_text, $parent_underline, $start_index);
 	}
     }
@@ -232,7 +300,7 @@ unless (caller) {
 			       $start_pos);
     print join("\n", @$lines), "\n";
 
-    my $deparse = B::DeparseTree->new();
+    # my $deparse = B::DeparseTree->new();
     # use B;
     # $deparse->pessimise(B::main_root, B::main_start);
     # my @addrs = sort keys %{$deparse->{ops}}, "\n";
@@ -256,10 +324,37 @@ unless (caller) {
     # # p $info;
     # exit 0;
 
-    $deparse->coderef2info(\&bug);
-    # $deparse->coderef2info(\&get_addr_info);
-    my @addrs = sort keys %{$deparse->{optree}}, "\n";
-    B::DeparseTree::Fragment::dump($deparse);
+    # $deparse->coderef2info(\&bug);
+    # # $deparse->coderef2info(\&get_addr_info);
+    # my @addrs = sort keys %{$deparse->{optree}}, "\n";
+    # B::DeparseTree::Fragment::dump($deparse);
+
+    my ($parent_text, $pu);
+    $parent_text = "now is the time";
+    $child_text = 'is';
+    $start_pos = index($parent_text, $child_text);
+    $pu = underline_parent($child_text, $parent_text, '-');
+    print join("\n", @{trim_line_pair($parent_text, $child_text,
+				    $pu, $start_pos)}), "\n";
+    $parent_text = "if (\$a) {\n\$b\n}";
+    $child_text = '$b';
+    $start_pos = index($parent_text, $child_text);
+    $pu = underline_parent($child_text, $parent_text, '-');
+    print join("\n", @{trim_line_pair($parent_text, $child_text,
+				    $pu, $start_pos)}), "\n";
+
+    $parent_text = "if (\$a) {\n  \$b;\n  \$c}";
+    $child_text = '$b';
+    $start_pos = index($parent_text, $child_text);
+    $pu = underline_parent($child_text, $parent_text, '-');
+    print join("\n", @{trim_line_pair($parent_text, $child_text,
+     				    $pu, $start_pos)}), "\n";
+    $parent_text = "if (\$a) {\n  \$b;\n  \$c}";
+    $child_text = "\$b;\n  \$c";
+    $start_pos = index($parent_text, $child_text);
+    $pu = underline_parent($child_text, $parent_text, '-');
+    print join("\n", @{trim_line_pair($parent_text, $child_text,
+     				    $pu, $start_pos)}), "\n";
 }
 
 1;
