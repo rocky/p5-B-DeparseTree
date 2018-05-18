@@ -1370,8 +1370,9 @@ sub pp_gv
 {
     my($self, $op, $cx) = @_;
     my $gv = $self->gv_or_padgv($op);
-    return info_from_text($op, $self, $self->gv_name($gv),
-			  'global variable', {});
+    my $name = $self->gv_name($gv);
+    return info_from_text($op, $self, $name,
+			  "global variable $name", {});
 }
 
 sub pp_aelemfast_lex
@@ -1396,45 +1397,6 @@ sub pp_aelemfast
     $i -= 256 if $i > 127;
     return info_from_list($op, $self, [$name, "[", ($op->private + $self->{'arybase'}), "]"],
 		      '', 'pp_aelemfast', {});
-}
-
-sub rv2x
-{
-    my($self, $op, $cx, $type) = @_;
-
-    if (class($op) eq 'NULL' || !$op->can("first")) {
-	carp("Unexpected op in pp_rv2x");
-	return info_from_text($op, $self, 'XXX', 'bad_rv2x', {});
-    }
-    my ($info, $kid_info);
-    my $kid = $op->first;
-    if ($kid->name eq "gv") {
-	$kid_info = $self->deparse($kid, 0, $op);
-	my $str = $self->stash_variable($type, $kid_info->{text}, $cx);
-	return info_from_text($op, $self, $str, 'rv2x', {other_ops => [$kid_info]});
-    } elsif (is_scalar $kid) {
-	$kid_info = $self->deparse($kid, 0, $op);
-	my $str = $kid_info->{text};
-	if ($str =~ /^\$([^\w\d])\z/) {
-	    # "$$+" isn't a legal way to write the scalar dereference
-	    # of $+, since the lexer can't tell you aren't trying to
-	    # do something like "$$ + 1" to get one more than your
-	    # PID. Either "${$+}" or "$${+}" are workable
-	    # disambiguations, but if the programmer did the former,
-	    # they'd be in the "else" clause below rather than here.
-	    # It's not clear if this should somehow be unified with
-	    # the code in dq and re_dq that also adds lexer
-	    # disambiguation braces.
-	    $str = '$' . "{$1}"; #'
-	}
-	return info_from_list($op, $self, [$type, $str], '', 'rv2x_scalar',
-			      {body => [$kid_info]});
-    } else {
-	my $kid_info = $self->deparse($kid, 0, $op);
-	return info_from_list($op, $self, [$type, "{", "}"], '', 'rv2x',
-			      {body => [$kid_info]});
-    }
-    Carp::confess("unhandled condition in rv2x");
 }
 
 sub pp_rv2sv { maybe_local(@_, rv2x(@_, "\$")) }

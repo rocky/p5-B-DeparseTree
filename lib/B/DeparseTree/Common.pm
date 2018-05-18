@@ -92,13 +92,12 @@ $VERSION = '3.0.0';
     null
     pragmata
     print_protos
-    re_unback
+    rv2x
     scopeop
     seq_subs
     single_delim
     stash_variable_name
     style_opts
-    unback
     unop
     );
 
@@ -534,8 +533,9 @@ sub listop
 	$first = $self->deparse($kid, 6, $op);
     }
     if ($name eq "chmod" && $first->{text} =~ /^\d+$/) {
+	my $transform_fn = sub {sprintf("%#o", $self->info2str(shift))};
 	$first = $self->info_from_template("chmod octal", undef,
-					   "%F", [[0, sub {sprintf("%#o", $self->info2str(shift))}]],
+					   "%F", [[0, $transform_fn]],
 					   [$first], {'relink_children' => [0]});
 	push @new_nodes, $first;
     }
@@ -842,21 +842,45 @@ sub main2info
     return $self->deparse_root(B::main_root);
 }
 
-# Don't do this for regexen
-sub unback {
-    my($str) = @_;
-    $str =~ s/\\/\\\\/g;
-    return $str;
-}
+# No longer used since 5.26?
+sub rv2x
+{
+    my($self, $op, $cx, $type) = @_;
 
-# Remove backslashes which precede literal control characters,
-# to avoid creating ambiguity when we escape the latter.
-sub re_unback {
-    my($str) = @_;
-
-    # the insane complexity here is due to the behaviour of "\c\"
-    $str =~ s/(^|[^\\]|\\c\\)(?<!\\c)\\(\\\\)*(?=[[:^print:]])/$1$2/g;
-    return $str;
+    if (class($op) eq 'NULL' || !$op->can("first")) {
+	carp("Unexpected op in pp_rv2x");
+	return info_from_text($op, $self, 'XXX', 'bad_rv2x', {});
+    }
+    my ($info, $kid_info);
+    my $kid = $op->first;
+    $kid_info = $self->deparse($kid, 0, $op);
+    if ($kid->name eq "gv") {
+	my $str = $self->stash_variable($type, $kid_info->{text}, $cx);
+	return info_from_text($op, $self, $str, 'rv2x', {other_ops => [$kid_info]});
+    } elsif (is_scalar $kid) {
+	my $str = $self->info2str($kid_info);
+	my $fmt = '%c';
+	my @args_spec = (0);
+	if ($str =~ /^\$([^\w\d])\z/) {
+	    # "$$+" isn't a legal way to write the scalar dereference
+	    # of $+, since the lexer can't tell you aren't trying to
+	    # do something like "$$ + 1" to get one more than your
+	    # PID. Either "${$+}" or "$${+}" are workable
+	    # disambiguations, but if the programmer did the former,
+	    # they'd be in the "else" clause below rather than here.
+	    # It's not clear if this should somehow be unified with
+	    # the code in dq and re_dq that also adds lexer
+	    # disambiguation braces.
+	    my $transform = sub { $_[0] =~ /^\$([^\w\d])\z/; '$' . "{$1}"};
+	    $fmt = '%F';
+	    @args_spec = (0, $transform);
+	}
+	return $self->info_from_template("scalar $str", $op, $fmt, \@args_spec, {})
+    } else {
+	my $str = "$type" . '{}';
+	return info_from_text($op, $self, $str, $str, {other_ops => [$kid_info]});
+    }
+    Carp::confess("unhandled condition in rv2x");
 }
 
 sub binop
@@ -1016,7 +1040,7 @@ sub const {
 	if ($ref->FLAGS & SVs_SMG) {
 	    for (my $mg = $ref->MAGIC; $mg; $mg = $mg->MOREMAGIC) {
 		if ($mg->TYPE eq 'r') {
-		    my $re = B::Deparse::re_uninterp(B::Deparse::escape_str(re_unback($mg->precomp)));
+		    my $re = B::Deparse::re_uninterp(B::Deparse::escape_str(B::Deparse::re_unback($mg->precomp)));
 		    return $self->single_delim($sv, "qr", "", $re);
 		}
 	    }
@@ -1036,7 +1060,7 @@ sub const {
 	    return $self->single_delim($sv, "qq", '"',
 				       B::Deparse::uninterp B::Deparse::escape_str B::Deparse::unback $str);
 	} else {
-	    return $self->single_delim($sv, "q", "'", unback $str);
+	    return $self->single_delim($sv, "q", "'", B::Deparse::unback $str);
 	}
     } else {
 	return info_from_text($sv, $self, "undef", 'constant undef', {});
@@ -1259,9 +1283,9 @@ sub loop_common
 	    push @nodes, $var_info;
 	    if ($enter->private & OPpOUR_INTRO) {
 		# "our" declarations don't have package names
-		my $fn = sub {$_[0] =~ s/^(.).*::/$1/};
+		my $transform_fn = sub {$_[0] =~ s/^(.).*::/$1/};
 		$var_fmt = "our %F";
-		push @args_spec, [$#nodes, $fn];
+		push @args_spec, [$#nodes, $transform_fn];
 	    } else {
 		$var_fmt = '%c';
 		push @args_spec, $#nodes;
@@ -2631,15 +2655,15 @@ sub single_delim($$$$$) {
 	    if index($str, $delim) == -1;
     }
     if ($default) {
-	my $fn = sub {s/$_[0]/\\$_[0]/g};
+	my $transform_fn = sub {s/$_[0]/\\$_[0]/g};
 	return $self->info_from_template("string \\-escape $default",
 					 $op, "$default%F$default",
-					 [[0, $fn]], [$str]);
+					 [[0, $transform_fn]], [$str]);
     } else {
-	my $fn = sub {$_[0] =~ s[/][\\/]g};
+	my $transform_fn = sub {$_[0] =~ s[/][\\/]g};
 	return $self->info_from_template("string q // escape", $op,
 					 $op, "$default%F$default",
-					 [[0, $fn]], [$str]);
+					 [[0, $transform_fn]], [$str]);
     }
 }
 
