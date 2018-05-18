@@ -2496,14 +2496,14 @@ sub logop
     my $opts = {};
     if ($cx < 1 and is_scope($right) and $blockname
 	and $self->{'expand'} < 7) {
-	# if ($a) {$b}
-	$lhs = $self->deparse($left, 1, $op);
-	$rhs = $self->deparse($right, 0, $op);
-	# FIXME: use template
-	my $texts = [$blockname, ' (', $lhs->{text}, ') ',
-		  "{\n\t", $rhs->{text}, "\n\b}\cK"];
-	$opts->{block} = [$lhs, $rhs];
-	return info_from_list($op, $self, $texts, '', 'if', $opts);
+	# Is this branch used in 5.26 and above?
+	# <if> ($a) {$b}
+	my $if_cond_info = $self->deparse($left, 1, $op);
+	my $if_body_info = $self->deparse($right, 0, $op);
+	return $self->info_from_template("$blockname () {}", $op,
+					 "$blockname (%c) {\n%+%c%-\n}",
+					 [0, 1],
+					 [$if_cond_info, $if_body_info], $opts);
     } elsif ($cx < 1 and $blockname and not $self->{'parens'}
 	     and $self->{'expand'} < 7) { # $b if $a
 	# Note: order of lhs and rhs is reversed

@@ -2024,7 +2024,7 @@ sub check_proto {
 	    $arg = shift @args;
 	    last unless $arg;
 	    if ($chr eq "\$" || $chr eq "_") {
-		if (want_scalar $arg) {
+		if (B::Deparse::want_scalar $arg) {
 		    push @reals, $self->deparse($arg, 6, $op);
 		} else {
 		    return ('&', []);

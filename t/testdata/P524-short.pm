@@ -284,7 +284,7 @@ tr/X//s;
 tr/X//r;
 ####
 # [perl #91008]
-# SKIP ?$] >= 5.023 && "autoderef deleted in this Perl version"
+# SKIP ?$] < 5.19 || $] >= 5.023 && "autoderef deleted in this Perl version"
 # CONTEXT no warnings 'experimental::autoderef';
 each $@;
 keys $~;
