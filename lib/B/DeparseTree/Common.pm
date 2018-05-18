@@ -1890,10 +1890,6 @@ sub deparse_sub($$$$)
 
     my $info = {};
 
-    if (!eval {$start_op ||= $root->first;}){
-	use Enbugger 'trepan'; Enbugger->stop;
-    }
-
     local $B::overlay = {};
     if (not null $root) {
 	$self->pessimise($root, $cv->START);
