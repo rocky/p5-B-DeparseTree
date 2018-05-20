@@ -28,7 +28,6 @@ my $test;
 my $test;
 $test /= 2 if ++$test;
 ####
-# SKIP ?1
 # list x
 -((1, 2) x 2);
 ####
