@@ -28,7 +28,7 @@ Test::More::note ( "parens_test() testing" );
 
 my $obj = {parens => 1};
 my $got = B::DeparseTree::Node::parens_test($obj, 9, 9);
-Test::More::cmp_ok $got, '==', 1, 'parens_test() equal precidence parens => 1';
+Test::More::cmp_ok $got, '==', 1, 'parens_test() equal precedence parens => 1';
 
 $obj = {'parens' => 0};
 foreach my $tup ([8,1], [9,1]) {
@@ -39,10 +39,10 @@ foreach my $tup ([8,1], [9,1]) {
 my $false_value = B::DeparseTree::Node::parens_test($obj, 9, 10);
 Test::More::ok !$false_value, 'parens_test() parens=>0, 10 < 9';
 
-foreach my $cx (keys %B::DeparseTree::Node::UNARY_PRECIDENCES) {
+foreach my $cx (keys %B::DeparseTree::Node::UNARY_PRECEDENCES) {
     $got = B::DeparseTree::Node::parens_test($obj, $cx, $cx);
     my $false_value = B::DeparseTree::Node::parens_test($obj, $cx, $cx);
-    Test::More::ok !$false_value, 'parens_test() UNARY_PRECIDENCES';
+    Test::More::ok !$false_value, 'parens_test() UNARY_PRECEDENCES';
 }
 
 

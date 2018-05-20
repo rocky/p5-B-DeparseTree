@@ -14,6 +14,9 @@ install:
   - perl ./Build.PL
   - "GIT2CL='./git2cl' make ChangeLog distmeta distcheck"
 
+script:
+  - perl ./Build.PL && ./Build && make -f ./GNUmakefile check
+
 perl:
   - "5.18"
   - "5.20"

@@ -29,6 +29,7 @@ scripts/README.md
 scripts/base/cond.t
 scripts/base/if.t
 # scripts/base/pat.t
+scripts/base/translate.t
 scripts/base/while.t
 scripts/benchtests.pl
 scripts/bug-sample.pm
@@ -37,14 +38,9 @@ scripts/fib.pl
 scripts/frag.pl
 # scripts/opbasic/qq.t
 scripts/runtests.pl
+t/10-core.t
 t/20-core-516.t
-t/20-core-518.t
-t/20-core-522.t
-t/20-core-524.t
-t/20-core-526.t
-t/20-deparse-518-small.t
-t/20-deparse-522-small.t
-t/20-deparse-526-small.t
+t/20-deparse-small.t
 t/20-deparse-526c.t
 t/helper.pm
 t/testdata/P516-core.pm
@@ -62,7 +58,8 @@ t/testdata/README.md
 t/testdata/README.pod
 t/testdata/bug-sample.pm
 t/testdata/core-base.pm
-t/unit/00-load.t
 t/unit/01-test-pod.t
 t/unit/02-node.t
 t/unit/03-common.t
+t/unit/03-fragment.t
+t/unit/04-load.t

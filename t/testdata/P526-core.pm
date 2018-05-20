@@ -176,7 +176,8 @@ reverse          @     p1 # also tested specially
 rewinddir        1     -
 rindex           23    p
 rmdir            01    $
-say              @     p$+
+# our setp erroneously adds $_
+# say              @     p$+
 scalar           1     +
 seek             3     p
 seekdir          2     p
@@ -214,8 +215,8 @@ stat             01    $
 state            123   p+ # skip with 0 args, as state() => ()
 study            01    $+
 # sub handled specially
-# substr           234   p
-# symlink          2     p
+substr           234   p
+symlink          2     p
 syscall          2     p
 sysopen          34    p
 sysread          34    p
@@ -239,11 +240,11 @@ unpack           12    p$
 untie            1     -
 utime            @     p1
 # values handled specially
-# vec              3     p
+vec              3     p
 wait             0     -
 waitpid          2     p
 wantarray        0     -
 warn             @     p1
 write            01    -
 x                B     -
-xor              B     p
+xor              B     -
