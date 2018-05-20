@@ -11,5 +11,6 @@ if (($# != 1)) ; then
 fi
 PERL=${PERL:-perl}
 my_dir=$(dirname ${BASH_SOURCE[0]})
+# $PERL -I${my_dir}/../lib -MO=Deparse,sC $1
 $PERL -I${my_dir}/../lib -MO=DeparseTree,sC $1
 exit $?
