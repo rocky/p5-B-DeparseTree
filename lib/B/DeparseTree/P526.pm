@@ -706,82 +706,8 @@ sub repeat {
 				     other_ops => \@other_ops});
 }
 
-sub givwhen
-{
-    my($self, $op, $cx, $givwhen) = @_;
-
-    my $enterop = $op->first;
-    my ($head, $block);
-    if ($enterop->flags & OPf_SPECIAL) {
-	$head = $self->keyword("default");
-	$block = $self->deparse($enterop->first, 0, $enterop, $op);
-    }
-    else {
-	my $cond = $enterop->first;
-	my $cond_str = $self->deparse($cond, 1, $enterop, $op);
-	$head = "$givwhen ($cond_str)";
-	$block = $self->deparse($cond->sibling, 0, $enterop, $op);
-    }
-
-    return info_from_list($op, $self, [$head, "{",
-			   "\n\t", $block->{text}, "\n\b",
-			   "}\cK"], '', 'givwhen',
-			  {body => [$block]});
-}
-
 sub pp_leavegiven { givwhen(@_, $_[0]->keyword("given")); }
 sub pp_leavewhen  { givwhen(@_, $_[0]->keyword("when")); }
-
-sub pp_delete
-{
-    my($self, $op, $cx) = @_;
-    my $arg;
-    my ($info, $body, $type);
-    if ($op->private & OPpSLICE) {
-	if ($op->flags & OPf_SPECIAL) {
-	    # Deleting from an array, not a hash
-	    $info = $self->pp_aslice($op->first, 16);
-	    $type = 'delete_slice';
-	}
-    } else {
-	if ($op->flags & OPf_SPECIAL) {
-	    # Deleting from an array, not a hash
-	    $info = $self->pp_aelem($op->first, 16);
-	    $type = 'delete_array'
-	} else {
-	    $info = $self->pp_helem($op->first, 16);
-	    $type = 'delete_hash';
-	}
-    }
-    my @texts = $self->maybe_parens_func("delete",
-					 $info->{text}, $cx, 16);
-    return info_from_list($op, $self, \@texts, '', $type, {body => [$info]});
-}
-
-sub pp_require
-{
-    my($self, $op, $cx) = @_;
-    my $opname = $op->flags & OPf_SPECIAL ? 'CORE::require' : 'require';
-    if (class($op) eq "UNOP" and $op->first->name eq "const"
-	and $op->first->private & OPpCONST_BARE) {
-	my $name = $self->const_sv($op->first)->PV;
-	$name =~ s[/][::]g;
-	$name =~ s/\.pm//g;
-	return info_from_list($op, $self, [$opname, $name], ' ',
-			      'require',
-			      {maybe_parens => [$self, $cx, 16]});
-    } else {
-	return $self->unop(
-	    $op, $cx,
-	    $op->first->name eq 'const'
-	    && $op->first->private & OPpCONST_NOVER
-	    ? "no"
-	    : $opname,
-	    1, # llafr does not apply
-	    );
-    }
-    Carp::confess("unhandled condition in pp_require");
-}
 
 # Note 5.20 and up
 sub pp_null
@@ -875,32 +801,6 @@ sub padval
     my $self = shift;
     my $targ = shift;
     return $self->{'curcv'}->PADLIST->ARRAYelt(1)->ARRAYelt($targ);
-}
-
-sub anon_hash_or_list
-{
-    my $self = shift;
-    my($op, $cx) = @_;
-
-    my $name = $op->name;
-    my($pre, $post) = @{{"anonlist" => ["[","]"],
-			 "anonhash" => ["{","}"]}->{$name}};
-    my($expr, @exprs);
-    my $other_ops = [$op->first];
-    $op = $op->first->sibling; # skip pushmark
-    for (; !null($op); $op = $op->sibling) {
-	$expr = $self->deparse($op, 6, $op);
-	push @exprs, [$expr, $op];
-    }
-    if ($pre eq "{" and $cx < 1) {
-	# Disambiguate that it's not a block
-	$pre = "+{";
-    }
-    my $texts = [$pre, $self->combine(", ", \@exprs), $post];
-    return info_from_list($op, $self, $texts, '', $name,
-			  {body => \@exprs,
-			   other_ops => $other_ops
-			  });
 }
 
 sub pp_anonlist {

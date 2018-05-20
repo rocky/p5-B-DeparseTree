@@ -91,13 +91,12 @@ use B::DeparseTree::PP;
 *tr_chr = *B::Deparse::tr_chr;
 
 use strict;
-use vars qw/$AUTOLOAD/;
+use vars qw/$AUTOLOAD @ISA @EXPORT/;
 use warnings ();
 require feature;
-use types
+use types;
 
-our($VERSION, @EXPORT, @ISA);
-our $VERSION = '2.0c';
+our $VERSION = '3.1.0c';
 
 @ISA = qw(Exporter B::DeparseTree::Common);
 @EXPORT = qw(compile);
@@ -506,27 +505,34 @@ sub maybe_parens_unop($self, $name, $op, $cx, $parent)
     my $self = shift;
     my($name, $op, $cx, $parent) = @_;
     my $info =  $self->deparse($op, 1, $parent);
-    my $text = $info->{text};
+    my $fmt;
+    my @exprs = ($info);
     if ($name eq "umask" && $info->{text} =~ /^\d+$/) {
-	$text = sprintf("%#o", $text);
+	# Display umask numbers in octal.
+	# FIXME: add as a info_node option to run a transformation function
+	# such as the below
+	$info->{text} = sprintf("%#o", $info->{text});
+	$exprs[0] = $info;
     }
+    $name = $self->keyword($name);
     if ($cx > 16 or $self->{'parens'}) {
-	return info_from_list([$self->keyword($name), '(', $text, ')'], '',
-			      'maybe_parens_unop_parens', {body => [$info]});
+	return $self->info_from_template("$name()", $op,
+					 "$name(%c)",[0], \@exprs);
     } else {
-	$name = $self->keyword($name);
-	if (substr($text, 0, 1) eq "\cS") {
-	    # use op's parens
-	    return info_from_list([$name, substr($text, 1)], '',
-				  'maybe_parens_unop_cS', {body => [$info]});
-	} elsif (substr($text, 0, 1) eq "(") {
+	# FIXME: we don't do \cS
+	# if (substr($text, 0, 1) eq "\cS") {
+	#     # use op's parens
+	#     return info_from_list($op, $self,[$name, substr($text, 1)],
+	# 			  '',  'maybe_parens_unop_cS', {body => [$info]});
+	# } else
+	if (substr($info->{text}, 0, 1) eq "(") {
 	    # avoid looks-like-a-function trap with extra parens
 	    # ('+' can lead to ambiguities)
-	    return info_from_list([$name, '(', $text, ')'], '',
-				  "maybe_parens_unop_fn", {});
+	    return $self->info_from_template("$name(())", $op,
+					     "$name(%c)", [0], \@exprs);
 	} else {
-	    return info_from_list([$name,  $text], ' ',
-				  'maybe_parens_unop', {body => [$info]});
+	    return $self->info_from_template("$name <args>", $op,
+					     "$name %c", [0], \@exprs);
 	}
     }
     Carp::confess("unhandled condition in maybe_parens_unop");
@@ -540,16 +546,38 @@ sub maybe_my {
 	    ? $self->keyword("state")
 	    : "my";
 	if ($forbid_parens || B::Deparse::want_scalar($op)) {
-	    return info_from_list([$my_str,  $text], ' ', 'maybe_my_no_parens', {});
+	    return info_from_list($op, $self, [$my_str,  $text], ' ',
+				  'maybe_my_no_parens', {});
 	} else {
-	    return info_from_list([$my_str,  $text], ' ',
+	    return info_from_list($op, $self, [$my_str,  $text], ' ',
 				  'maybe_my_parens',
 				  {maybe_parens => [$self, $cx, 16]});
 	}
     } else {
-	return info_from_text($text, 'maybe_my_avoid_local', {});
+	return info_from_text($op, $self, $text, 'maybe_my_avoid_local', {});
     }
 }
+
+sub maybe_my {
+    my $self = shift;
+    my($op, $cx, $text, $forbid_parens) = @_;
+    if ($op->private & OPpLVAL_INTRO and not $self->{'avoid_local'}{$$op}) {
+	my $my_str = $op->private & OPpPAD_STATE
+	    ? $self->keyword("state")
+	    : "my";
+	if ($forbid_parens || B::Deparse::want_scalar($op)) {
+	    return info_from_list($op, $self, [$my_str,  $text], ' ',
+				  'maybe_my_no_parens', {});
+	} else {
+	    return info_from_list($op, $self, [$my_str,  $text], ' ',
+				  'maybe_my_parens',
+				  {maybe_parens => [$self, $cx, 16]});
+	}
+    } else {
+	return info_from_text($op, $self, $text, 'maybe_my_avoid_local', {});
+    }
+}
+
 
 # The following OPs don't have functions:
 
@@ -692,11 +720,6 @@ sub cop_subs {
     }
     $seq = $out_seq if defined($out_seq) && $out_seq < $seq;
     return $self->seq_subs($seq);
-}
-
-sub pp_unstack {
-    # see also leaveloop
-    return info_from_text('', 'unstack', {});
 }
 
 my %feature_keywords = (
@@ -874,82 +897,8 @@ sub pp_lock { unop(@_, "lock") }
 sub pp_continue { unop(@_, "continue"); }
 sub pp_break { unop(@_, "break"); }
 
-sub givwhen
-{
-    my($self, $op, $cx, $givwhen) = @_;
-
-    my $enterop = $op->first;
-    my ($head, $block);
-    if ($enterop->flags & OPf_SPECIAL) {
-	$head = $self->keyword("default");
-	$block = $self->deparse($enterop->first, 0, $enterop, $op);
-    }
-    else {
-	my $cond = $enterop->first;
-	my $cond_str = $self->deparse($cond, 1, $enterop, $op);
-	$head = "$givwhen ($cond_str)";
-	$block = $self->deparse($cond->sibling, 0, $enterop, $op);
-    }
-
-    return info_from_list([$head, "{",
-			   "\n\t", $block->{text}, "\n\b",
-			   "}\cK"], '', 'givwhen',
-			  {body => [$block]});
-}
-
 sub pp_leavegiven { givwhen(@_, $_[0]->keyword("given")); }
 sub pp_leavewhen  { givwhen(@_, $_[0]->keyword("when")); }
-
-sub pp_delete
-{
-    my($self, $op, $cx) = @_;
-    my $arg;
-    my ($info, $body, @texts, $type);
-    if ($op->private & OPpSLICE) {
-	if ($op->flags & OPf_SPECIAL) {
-	    # Deleting from an array, not a hash
-	    $info = $self->pp_aslice($op->first, 16);
-	    $type = 'delete_slice';
-	}
-    } else {
-	if ($op->flags & OPf_SPECIAL) {
-	    # Deleting from an array, not a hash
-	    $info = $self->pp_aelem($op->first, 16);
-	    $type = 'delete_array'
-	} else {
-	    $info = $self->pp_helem($op->first, 16);
-	    $type = 'delete_hash';
-	}
-    }
-    my @texts = $self->maybe_parens_func("delete",
-					 $info->{text}, $cx, 16);
-    return info_from_list(\@texts, '', $type, {body => [$info]});
-}
-
-sub pp_require
-{
-    my($self, $op, $cx) = @_;
-    my $opname = $op->flags & OPf_SPECIAL ? 'CORE::require' : 'require';
-    if (class($op) eq "UNOP" and $op->first->name eq "const"
-	and $op->first->private & OPpCONST_BARE) {
-	my $name = $self->const_sv($op->first)->PV;
-	$name =~ s[/][::]g;
-	$name =~ s/\.pm//g;
-	return info_from_list([$opname, $name], ' ',
-			      'require',
-			      {maybe_parens => [$self, $cx, 16]});
-    } else {
-	return $self->unop(
-	    $op, $cx,
-	    $op->first->name eq 'const'
-	    && $op->first->private & OPpCONST_NOVER
-	    ? "no"
-	    : $opname,
-	    1, # llafr does not apply
-	    );
-    }
-    Carp::confess("unhandled condition in pp_require");
-}
 
 sub pp_scalar
 {
@@ -968,32 +917,6 @@ sub padval
     my $self = shift;
     my $targ = shift;
     return $self->{'curcv'}->PADLIST->ARRAYelt(1)->ARRAYelt($targ);
-}
-
-sub anon_hash_or_list
-{
-    my $self = shift;
-    my($op, $cx) = @_;
-
-    my $name = $op->name;
-    my($pre, $post) = @{{"anonlist" => ["[","]"],
-			 "anonhash" => ["{","}"]}->{$name}};
-    my($expr, @exprs);
-    my $other_ops => [$op->first];
-    $op = $op->first->sibling; # skip pushmark
-    for (; !null($op); $op = $op->sibling) {
-	$expr = $self->deparse($op, 6, $op);
-	push @exprs, $expr;
-    }
-    if ($pre eq "{" and $cx < 1) {
-	# Disambiguate that it's not a block
-	$pre = "+{";
-    }
-    my $texts = [$pre, join(", ", map($_->{text}, @exprs), $post)];
-    return info_from_list($texts, '', $name,
-			  {body => \@exprs,
-			   other_ops => $other_ops
-			  });
 }
 
 sub pp_anonlist {

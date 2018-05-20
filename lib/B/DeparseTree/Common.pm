@@ -32,7 +32,6 @@ use B qw(class
          SVf_NOK
          SVf_POK
          SVf_ROK
-         SVs_PADTMP
          SVs_RMG
          SVs_SMG
          main_cv main_root main_start
@@ -50,7 +49,7 @@ use B::DeparseTree::Node;
 *stash_subs = *B::Deparse::stash_subs;
 
 our($VERSION, @EXPORT, @ISA);
-$VERSION = '3.0.0';
+$VERSION = '3.1.1';
 @ISA = qw(Exporter B::Deparse);
 @EXPORT = qw(
     %globalnames
@@ -58,6 +57,7 @@ $VERSION = '3.0.0';
     %rev_feature
     POSTFIX baseop mapop pfixop indirop
     _features_from_bundle ambiant_pragmas maybe_qualify
+    anon_hash_or_list
     balanced_delim
     binop
     const
@@ -69,6 +69,7 @@ $VERSION = '3.0.0';
     deparse_subname
     dq_unop
     dquote
+    givwhen
     hint_pragmas
     info_from_list
     info_from_text
@@ -466,6 +467,58 @@ my %strict_bits = do {
     map +($_ => strict::bits($_)), qw/refs subs vars/
 };
 
+sub anon_hash_or_list($$$)
+{
+    my ($self, $op, $cx) = @_;
+    my $name = $op->name;
+    my($pre, $post) = @{{"anonlist" => ["[","]"],
+			 "anonhash" => ["{","}"]}->{$name}};
+    my($expr, @exprs);
+    my $other_ops = [$op->first];
+    $op = $op->first->sibling; # skip pushmark
+    for (; !null($op); $op = $op->sibling) {
+	$expr = $self->deparse($op, 6, $op);
+	push @exprs, [$expr, $op];
+    }
+    if ($pre eq "{" and $cx < 1) {
+	# Disambiguate that it's not a block
+	$pre = "+{";
+    }
+    my $texts = [$pre, $self->combine(", ", \@exprs), $post];
+    return info_from_list($op, $self, $texts, '', $name,
+			  {body => \@exprs,
+			   other_ops => $other_ops
+			  });
+}
+
+sub givwhen
+{
+    my($self, $op, $cx, $give_when) = @_;
+
+    my @arg_spec = ();
+    my @nodes = ();
+    my $enterop = $op->first;
+    my $fmt;
+    my ($head, $block);
+    if ($enterop->flags & OPf_SPECIAL) {
+	$head = $self->keyword("default");
+	$fmt = "$give_when ($head)\n\%+%c\n%-}\n";
+	$block = $self->deparse($enterop->first, 0, $enterop, $op);
+    }
+    else {
+	my $cond = $enterop->first;
+	my $cond_node = $self->deparse($cond, 1, $enterop, $op);
+	push @nodes, $cond_node;
+	$fmt = "$give_when (%c)\n\%+%c\n%-}\n";
+	$block = $self->deparse($cond->sibling, 0, $enterop, $op);
+    }
+    push @nodes, $block;
+
+    return $self->info_from_template("{} $give_when",
+				     "%c\n\%+%c\n%-}\n", [0, 1],
+				     \@nodes);
+}
+
 # FIXME: get from B::Deparse
 sub is_scalar {
     my $op = shift;
@@ -641,7 +694,7 @@ sub maybe_local_str
 				  {});
 	}
     } else {
-	if ($text->isa("B::DeparseTree::Node")) {
+	if (ref $text && $text->isa("B::DeparseTree::Node")) {
 	    return $text;
 	} else {
 	    return info_from_text($op, $self, $text, 'maybe_local', {});

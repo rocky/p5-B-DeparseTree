@@ -1,4 +1,4 @@
-# Adapted from Perl lib/B/Deparse-core.t
+# Adapted from Perl 5.26's lib/B/Deparse-core.t
 1;
 __DATA__
 #
@@ -56,7 +56,7 @@ defined          01    $+
 die              @     p1
 # do handled specially
 # dump handled specially
-each             1     - # also tested specially
+# each handled specially
 endgrent         0     -
 endhostent       0     -
 endnetent        0     -
@@ -114,8 +114,8 @@ hex              01    $
 index            23    p
 int              01    $
 ioctl            3     p
-join             123   p
-keys             1     - # also tested specially
+join             13    p
+# keys handled specially
 kill             123   p
 # last handled specially
 lc               01    $
@@ -148,12 +148,12 @@ ord              01    $
 our              123   p+ # skip with 0 args, as our() => ()
 pack             123   p
 pipe             2     p
-pop              01    1
+pop              0     1 # also tested specially
 pos              01    $+
 print            @     p$+
 printf           @     p$+
 prototype        1     +
-push             123   p
+# push handled specially
 quotemeta        01    $
 rand             01    -
 read             34    p
@@ -176,7 +176,8 @@ reverse          @     p1 # also tested specially
 rewinddir        1     -
 rindex           23    p
 rmdir            01    $
-say              @     p$+
+# our setp erroneously adds $_
+# say              @     p$+
 scalar           1     +
 seek             3     p
 seekdir          2     p
@@ -194,7 +195,7 @@ setprotoent      1     -
 setpwent         0     -
 setservent       1     -
 setsockopt       4     p
-shift            01    1
+shift            0     1 # also tested specially
 shmctl           3     p
 shmget           3     p
 shmread          4     p
@@ -206,7 +207,7 @@ socket           4     p
 socketpair       5     p
 sort             @     p1+
 # split handled specially
-splice           12345 p
+# splice handled specially
 sprintf          123   p
 sqrt             01    $
 srand            01    -
@@ -235,10 +236,10 @@ umask            01    -
 undef            01    +
 unlink           @     p$
 unpack           12    p$
-unshift          1     p
+# unshift handled specially
 untie            1     -
 utime            @     p1
-values           1     - # also tested specially
+# values handled specially
 vec              3     p
 wait             0     -
 waitpid          2     p
@@ -246,4 +247,4 @@ wantarray        0     -
 warn             @     p1
 write            01    -
 x                B     -
-xor              B     p
+xor              B     -

@@ -56,6 +56,7 @@ $VERSION = '1.0.0';
     pp_const
     pp_dbstate
     pp_defined
+    pp_delete
     pp_dor
     pp_egrent pp_ehostent pp_enetent
     pp_entersub
@@ -90,6 +91,7 @@ $VERSION = '1.0.0';
     pp_rand
     pp_ref
     pp_repeat
+    pp_require
     pp_say
     pp_schomp
     pp_schop
@@ -125,6 +127,34 @@ BEGIN {
 sub pp_chomp { maybe_targmy(@_, \&unop, "chomp") }
 sub pp_chop { maybe_targmy(@_, \&unop, "chop") }
 sub pp_defined { unop(@_, "defined") }
+
+sub pp_delete($$$)
+{
+    my($self, $op, $cx) = @_;
+    my $arg;
+    my ($info, $body, $type);
+    if ($op->private & B::OPpSLICE) {
+	if ($op->flags & B::OPf_SPECIAL) {
+	    # Deleting from an array, not a hash
+	    $info = $self->pp_aslice($op->first, 16);
+	    $type = 'delete slice';
+	}
+    } else {
+	if ($op->flags & B::OPf_SPECIAL) {
+	    # Deleting from an array, not a hash
+	    $info = $self->pp_aelem($op->first, 16);
+	    $type = 'delete array'
+	} else {
+	    $info = $self->pp_helem($op->first, 16);
+	    $type = 'delete hash';
+	}
+    }
+    my @texts = $self->maybe_parens_func("delete",
+					 $info->{text}, $cx, 16);
+    return info_from_list($op, $self, \@texts, '', $type, {body => [$info]});
+}
+
+
 sub pp_egrent { baseop(@_, "endgrent") }
 sub pp_ehostent { baseop(@_, "endhostent") }
 sub pp_enetent { baseop(@_, "endnetent") }
@@ -240,6 +270,33 @@ sub pp_list
 
 sub pp_mapstart { baseop(@_, "map") }
 sub pp_ref { unop(@_, "ref") }
+
+sub pp_require
+{
+    my($self, $op, $cx) = @_;
+    my $opname = $op->flags & OPf_SPECIAL ? 'CORE::require' : 'require';
+    if (class($op) eq "UNOP" and $op->first->name eq "const"
+	and $op->first->private & B::OPpCONST_BARE) {
+	my $name = $self->const_sv($op->first)->PV;
+	$name =~ s[/][::]g;
+	$name =~ s/\.pm//g;
+	return info_from_list($op, $self, [$opname, $name], ' ',
+			      'require',
+			      {maybe_parens => [$self, $cx, 16]});
+    } else {
+	return $self->unop(
+	    $op, $cx,
+	    $op->first->name eq 'const'
+	    && $op->first->private & B::OPpCONST_NOVER
+	    ? "no"
+	    : $opname,
+	    1, # llafr does not apply
+	    );
+    }
+    Carp::confess("unhandled condition in pp_require");
+}
+
+
 sub pp_schomp { maybe_targmy(@_, \&unop, "chomp") }
 sub pp_schop { maybe_targmy(@_, \&unop, "chop") }
 sub pp_scope { scopeop(0, @_); }
