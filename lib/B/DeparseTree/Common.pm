@@ -1883,7 +1883,7 @@ sub deparse
 # Deparse a subroutine
 sub deparse_sub($$$$)
 {
-    my ($self, $cv, $parent, $start_op) = @_;
+    my ($self, $cv, $start_op) = @_;
     Carp::confess("NULL in deparse_sub") if !defined($cv) || $cv->isa("B::NULL");
     Carp::confess("SPECIAL in deparse_sub") if $cv->isa("B::SPECIAL");
     local $self->{'curcop'} = $self->{'curcop'};
@@ -1924,7 +1924,8 @@ sub deparse_sub($$$$)
 	    $body = $self->deparse($start_op, 0, $root);
 	}
 
-	$info = $self->info_from_template('sub', $root, "\n%|{\n%+%c\n%-}",
+	my $type = "sub " . $cv->GV->NAME;
+	$info = $self->info_from_template($type, $root, "\n%|{\n%+%c\n%-}",
 					  [0], [$body]);
 
 	$self->{optree}{$$lineseq} = $info;
@@ -1935,11 +1936,13 @@ sub deparse_sub($$$$)
 	    # uh-oh. inlinable sub... format it differently
 	    my @texts = ("{", $self->const($sv, 0)->{text}, "}");
 	    unshift @texts, $proto if $proto;
-	    $info = info_from_list $sv, $self, \@texts, '', 'sub_const', {};
+	    $info = $self->info_from_template('inline sub', $sv,
+					      "\n%|{\n%+%c\n%-}",
+					      [0], [$self->const($sv, 0)]);
 	} else { # XSUB? (or just a declaration)
 	    my @texts = ();
 	    @texts = push @texts, $proto if $proto;
-	    $info = info_from_list $root, $self, \@texts, ' ', 'sub_decl', {};
+	    $info = info_from_list $root, $self, \@texts, '', 'sub_decl', {};
 	}
     }
 
@@ -1948,7 +1951,7 @@ sub deparse_sub($$$$)
 	$self->{'optree'}{$$start_op} = $info;
     }
     $info->{cop} = undef;
-    $info->{'parent'}  = $parent if $parent;
+    $info->{'parent'}  = $cv;
     return $info;
 }
 
@@ -1969,6 +1972,9 @@ sub next_todo
 	    text => join(" ", @$texts),
 	};
     } else {
+	my @args_spec = ();
+	my @nodes = ();
+	my ($fmt, $type);
 	$self->{'subs_declared'}{$name} = 1;
 	if ($name eq "BEGIN") {
 	    my $use_dec = $self->begin_is_use($cv);
@@ -1986,32 +1992,32 @@ sub next_todo
 	    my $file = $gv->FILE;
 	    $l = "\n# line $line \"$file\"\n";
 	}
-	my $p = '';
-	my @texts = ();
 	if (class($cv->STASH) ne "SPECIAL") {
 	    my $stash = $cv->STASH->NAME;
 	    if ($stash ne $self->{'curstash'}) {
-		push @texts, 'package', $stash, ';\n';
+		$fmt = "package $stash;\n";
+		$type = "package $stash";
 		$name = "$self->{'curstash'}::$name" unless $name =~ /::/;
 		$self->{'curstash'} = $stash;
 	    }
 	    $name =~ s/^\Q$stash\E::(?!\z|.*::)//;
-	    push @texts, $name;
+	    $fmt .= "sub $name";
+	    $type .= "sub $name";
 	}
 	my $info = $self->deparse_sub($cv, $parent);
-	push @texts, $info;
-	return info_from_list($cv, $self, \@texts, ' ', 'sub_todo', {})
+	$fmt .= '%c';
+	return $self->info_from_template($type, $cv, $fmt, [0], [$info]);
     }
 }
 
 # Deparse a subroutine by name
-sub deparse_subname($$$)
+sub deparse_subname($$)
 {
-    my ($self, $funcname, $parent) = @_;
+    my ($self, $funcname) = @_;
     my $cv = svref_2object(\&$funcname);
-    my $info = $self->deparse_sub($cv, $parent);
-    return info_from_list($cv, $self, ['sub', $funcname, $info->{text}], ' ',
-			  'deparse_subname', {body=>[$info]})
+    my $info = $self->deparse_sub($cv);
+    return $self->info_from_text("sub $funcname", $cv, "sub $funcname %c",
+				 [0], [$info]);
 }
 
 sub is_lexical_subs {
@@ -2086,8 +2092,7 @@ sub scopeop
 					     '%c',[0], [$body]);
 	}
     } else {
-	my $ls = $self->lineseq($op, $cx, @kids);
-	return info_from_list($op, $self, [$ls], '', 'scoped statements', {});
+	return $self->lineseq($op, $cx, @kids);
     }
 }
 
@@ -2491,7 +2496,7 @@ sub logop
 	my $if_cond_info = $self->deparse($left, 1, $op);
 	my $if_body_info = $self->deparse($right, 0, $op);
 	return $self->info_from_template("$blockname () {}", $op,
-					 "$blockname (%c) {\n%+%c%-\n}",
+					 "$blockname (%c) {\n%+%c\n%-}",
 					 [0, 1],
 					 [$if_cond_info, $if_body_info], $opts);
     } elsif ($cx < 1 and $blockname and not $self->{'parens'}

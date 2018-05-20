@@ -346,9 +346,11 @@ sub pp_tms { baseop(@_, "times") }
 sub pp_undef { unop(@_, "undef") }
 sub pp_wantarray { baseop(@_, "wantarray") }
 
+my $count = 0;
 # Notice how subs and formats are inserted between statements here;
 # also $[ assignments and pragmas.
-sub pp_nextstate {
+sub pp_nextstate
+{
     my $self = shift;
     my($op, $cx) = @_;
     $self->{'curcop'} = $op;
@@ -356,6 +358,7 @@ sub pp_nextstate {
     my $opts = {};
     my @args_spec = ();
     my $fmt = '%;';
+
     push @texts, $self->cop_subs($op);
     if (@texts) {
 	# Special marker to swallow up the semicolon
@@ -459,7 +462,7 @@ sub pp_nextstate {
     }
 
     if ($op->label) {
-	$fmt .= "%|%c\n";
+	$fmt .= "%c\n";
 	push @args_spec, scalar(@args_spec);
 	push @texts, $op->label . ": " ;
     }
@@ -815,3 +818,5 @@ sub pp_exists
     my @texts = $self->maybe_parens_func($name, $info->{text}, $cx, 16);
     return info_from_list($op, $self, \@texts, '', $type, {});
 }
+
+1;
