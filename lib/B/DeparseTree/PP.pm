@@ -53,6 +53,7 @@ $VERSION = '1.0.0';
     pp_anonlist
     pp_chomp
     pp_chop
+    pp_clonecv
     pp_complement
     pp_cond_expr
     pp_const
@@ -72,6 +73,7 @@ $VERSION = '1.0.0';
     pp_i_negate
     pp_i_predec
     pp_i_preinc
+    pp_introcv
     pp_leave
     pp_leaveloop
     pp_lineseq
@@ -83,6 +85,7 @@ $VERSION = '1.0.0';
     pp_null
     pp_once
     pp_or
+    pp_padcv
     pp_pos
     pp_postdec
     pp_postinc
@@ -130,6 +133,15 @@ BEGIN {
 
 sub pp_chomp { maybe_targmy(@_, \&unop, "chomp") }
 sub pp_chop { maybe_targmy(@_, \&unop, "chop") }
+
+sub pp_clonecv {
+    my $self = shift;
+    my($op, $cx) = @_;
+    my $sv = $self->padname_sv($op->targ);
+    my $name = substr $sv->PVX, 1; # skip &/$/@/%, like $self->padany
+    return info_from_list($op, $self, ['my', 'sub', $name], ' ', 'clonev', {});
+}
+
 sub pp_defined { unop(@_, "defined") }
 
 sub pp_delete($$$)
@@ -174,6 +186,15 @@ sub pp_gprotoent { baseop(@_, "getprotoent") }
 sub pp_gpwent { baseop(@_, "getpwent") }
 sub pp_grepstart { baseop(@_, "grep") }
 sub pp_gservent { baseop(@_, "getservent") }
+
+sub pp_introcv
+{
+    my($self, $op, $cx) = @_;
+    # For now, deparsing doesn't worry about the distinction between introcv
+    # and clonecv, so pretend this op doesn't exist:
+    return info_from_text($op, $self, '', 'introcv', {});
+}
+
 sub pp_leave { scopeop(1, @_); }
 sub pp_leaveloop { shift->loop_common(@_, undef); }
 sub pp_lineseq { scopeop(0, @_); }
@@ -273,6 +294,12 @@ sub pp_list
 
 
 sub pp_mapstart { baseop(@_, "map") }
+
+sub pp_padcv {
+    my($self, $op, $cx) = @_;
+    return info_from_text($op, $self, $self->padany($op), 'padcv', {});
+}
+
 sub pp_ref { unop(@_, "ref") }
 
 sub pp_refgen

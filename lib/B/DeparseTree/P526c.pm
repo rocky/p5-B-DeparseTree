@@ -749,32 +749,6 @@ sub repeat {
 sub pp_leavegiven { givwhen(@_, $_[0]->keyword("given")); }
 sub pp_leavewhen  { givwhen(@_, $_[0]->keyword("when")); }
 
-sub pp_delete
-{
-    my($self, $op, $cx) = @_;
-    my $arg;
-    my ($info, $body, $type);
-    if ($op->private & OPpSLICE) {
-	if ($op->flags & OPf_SPECIAL) {
-	    # Deleting from an array, not a hash
-	    $info = $self->pp_aslice($op->first, 16);
-	    $type = 'delete_slice';
-	}
-    } else {
-	if ($op->flags & OPf_SPECIAL) {
-	    # Deleting from an array, not a hash
-	    $info = $self->pp_aelem($op->first, 16);
-	    $type = 'delete_array'
-	} else {
-	    $info = $self->pp_helem($op->first, 16);
-	    $type = 'delete_hash';
-	}
-    }
-    my @texts = $self->maybe_parens_func("delete",
-					 $info->{text}, $cx, 16);
-    return info_from_list($op, $self, \@texts, '', $type, {body => [$info]});
-}
-
 sub pp_require
 {
     my($self, $op, $cx) = @_;
@@ -874,44 +848,6 @@ sub pp_null
     }
     Carp::confess("unhandled condition in null");
 }
-
-sub anon_hash_or_list
-{
-    my $self = shift;
-    my($op, $cx) = @_;
-
-    my $name = $op->name;
-    my($pre, $post) = @{{"anonlist" => ["[","]"],
-			 "anonhash" => ["{","}"]}->{$name}};
-    my($expr, @exprs);
-    my $other_ops = [$op->first];
-    $op = $op->first->sibling; # skip pushmark
-    for (; !null($op); $op = $op->sibling) {
-	$expr = $self->deparse($op, 6, $op);
-	push @exprs, [$expr, $op];
-    }
-    if ($pre eq "{" and $cx < 1) {
-	# Disambiguate that it's not a block
-	$pre = "+{";
-    }
-    my $texts = [$pre, $self->combine(", ", \@exprs), $post];
-    return info_from_list($op, $self, $texts, '', $name,
-			  {body => \@exprs,
-			   other_ops => $other_ops
-			  });
-}
-
-sub pp_anonlist {
-    my $self = shift;
-    my ($op, $cx) = @_;
-    if ($op->flags & OPf_SPECIAL) {
-	return $self->anon_hash_or_list($op, $cx);
-    }
-    warn "Unexpected op pp_" . $op->name() . " without OPf_SPECIAL";
-    return info_from_text($op, $self, 'XXX', 'bad_anonlist', {});
-}
-
-*pp_anonhash = \&pp_anonlist;
 
 sub e_anoncode
 {
@@ -2681,27 +2617,6 @@ sub pp_subst
 	return $self->info_from_template("s///", $op, $fmt, $args_spec, $args, {});
     }
     Carp::confess("unhandled condition in pp_subst");
-}
-
-sub pp_introcv
-{
-    my($self, $op, $cx) = @_;
-    # For now, deparsing doesn't worry about the distinction between introcv
-    # and clonecv, so pretend this op doesn't exist:
-    return info_from_text('', 'introcv', {});
-}
-
-sub pp_clonecv {
-    my $self = shift;
-    my($op, $cx) = @_;
-    my $sv = $self->padname_sv($op->targ);
-    my $name = substr $sv->PVX, 1; # skip &/$/@/%, like $self->padany
-    return info_from_list(['my', 'sub', $name], ' ', 'clonev', {});
-}
-
-sub pp_padcv {
-    my($self, $op, $cx) = @_;
-    return info_from_text($self->padany($op), 'padcv', {});
 }
 
 # FIXME:

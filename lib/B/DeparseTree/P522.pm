@@ -2522,14 +2522,6 @@ sub pp_subst
     Carp::confess("unhandled condition in pp_subst");
 }
 
-sub pp_introcv
-{
-    my($self, $op, $cx) = @_;
-    # For now, deparsing doesn't worry about the distinction between introcv
-    # and clonecv, so pretend this op doesn't exist:
-    return info_from_text($op, $self, '', 'introcv', {});
-}
-
 # Note 5.20 and up
 sub pp_null
 {
@@ -2603,19 +2595,6 @@ sub pp_null
 	return $self->deparse($kid, $cx, $op);
     }
     Carp::confess("unhandled condition in null");
-}
-
-sub pp_clonecv {
-    my $self = shift;
-    my($op, $cx) = @_;
-    my $sv = $self->padname_sv($op->targ);
-    my $name = substr $sv->PVX, 1; # skip &/$/@/%, like $self->padany
-    return info_from_list($op, $self, ['my', 'sub', $name], ' ', 'clonev', {});
-}
-
-sub pp_padcv {
-    my($self, $op, $cx) = @_;
-    return info_from_text($op, $self, $self->padany($op), 'padcv', {});
 }
 
 unless (caller) {

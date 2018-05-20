@@ -35,7 +35,9 @@ $module .= 'c' if $is_cperl;
 require "B/DeparseTree/${module}.pm";
 *compile = \&B::DeparseTree::Common::compile;
 
-@ISA = ("Exporter", "B::DeparseTree::$module");
+if (!$is_cperl) {
+    @ISA = ("Exporter", "B::DeparseTree::$module");
+}
 our @EXPORT = qw(is_cperl);
 
 1;
