@@ -491,6 +491,14 @@ sub anon_hash_or_list($$$)
 			  });
 }
 
+sub e_anoncode($$)
+{
+    my ($self, $info) = @_;
+    my $sub_info = $self->deparse_sub($info->{code});
+    return $self->info_from_list('sub anonymous', $sub_info->{op},
+				 'sub %c', [0], [$sub_info]);
+}
+
 sub givwhen
 {
     my($self, $op, $cx, $give_when) = @_;

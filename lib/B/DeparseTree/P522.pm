@@ -634,62 +634,6 @@ sub padval
     return $self->{'curcv'}->PADLIST->ARRAYelt(1)->ARRAYelt($targ);
 }
 
-sub pp_anonlist {
-    my $self = shift;
-    my ($op, $cx) = @_;
-    if ($op->flags & OPf_SPECIAL) {
-	return $self->anon_hash_or_list($op, $cx);
-    }
-    warn "Unexpected op pp_" . $op->name() . " without OPf_SPECIAL";
-    return info_from_text($op, $self, 'XXX', 'bad_anonlist', {});
-}
-
-*pp_anonhash = \&pp_anonlist;
-
-sub e_anoncode($$)
-{
-    my ($self, $info) = @_;
-    my $sub_info = $self->deparse_sub($info->{code});
-    return info_from_list($sub_info->{op}, $self,
-			  ['sub', $sub_info->{text}], ' ', 'e_anoncode',
-			  {body=> [$sub_info]});
-}
-
-sub pp_refgen
-{
-    my($self, $op, $cx) = @_;
-    my $kid = $op->first;
-    if ($kid->name eq "null") {
-	my $other_ops = [$kid];
-	my $anoncode = $kid = $kid->first;
-	if ($anoncode->name eq "anonconst") {
-	    $anoncode = $anoncode->first->first->sibling;
-	}
-	if ($anoncode->name eq "anoncode"
-	 or !null($anoncode = $kid->sibling) and
-		 $anoncode->name eq "anoncode") {
-            return $self->e_anoncode({ code => $self->padval($anoncode->targ) });
-	} elsif ($kid->name eq "pushmark") {
-            my $sib_name = $kid->sibling->name;
-            if ($sib_name eq 'entersub') {
-                my $kid_info = $self->deparse($kid->sibling, 1, $op);
-                # Always show parens for \(&func()), but only with -p otherwise
-		my @texts = ('\\', $kid_info->{text});
-		if ($self->{'parens'} or $kid->sibling->private & OPpENTERSUB_AMPER) {
-		    @texts = ('(', "\\", $kid_info->{text}, ')');
-		}
-		return info_from_list($op, $self, \@texts, '', 'refgen_entersub',
-				      {body => [$kid_info],
-				       other_ops => $other_ops});
-            }
-        }
-    }
-    local $self->{'in_refgen'} = 1;
-    $self->pfixop($op, $cx, "\\", 20);
-}
-
-sub pp_srefgen { pp_refgen(@_) }
-
 sub pp_readline {
     my $self = shift;
     my($op, $cx) = @_;

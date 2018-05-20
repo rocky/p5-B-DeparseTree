@@ -49,6 +49,8 @@ $VERSION = '1.0.0';
 @EXPORT = qw(
 
     pp_and
+    pp_anonhash
+    pp_anonlist
     pp_chomp
     pp_chop
     pp_complement
@@ -90,6 +92,7 @@ $VERSION = '1.0.0';
     pp_prtf
     pp_rand
     pp_ref
+    pp_refgen
     pp_repeat
     pp_require
     pp_say
@@ -101,6 +104,7 @@ $VERSION = '1.0.0';
     pp_sort
     pp_spwent
     pp_srand
+    pp_srefgen
     pp_stub
     pp_study
     pp_substr
@@ -271,6 +275,39 @@ sub pp_list
 sub pp_mapstart { baseop(@_, "map") }
 sub pp_ref { unop(@_, "ref") }
 
+sub pp_refgen
+{
+    my($self, $op, $cx) = @_;
+    my $kid = $op->first;
+    if ($kid->name eq "null") {
+	my $other_ops = [$kid];
+	my $anoncode = $kid = $kid->first;
+	if ($anoncode->name eq "anonconst") {
+	    $anoncode = $anoncode->first->first->sibling;
+	}
+	if ($anoncode->name eq "anoncode"
+	 or !null($anoncode = $kid->sibling) and
+		 $anoncode->name eq "anoncode") {
+            return $self->e_anoncode({ code => $self->padval($anoncode->targ) });
+	} elsif ($kid->name eq "pushmark") {
+            my $sib_name = $kid->sibling->name;
+            if ($sib_name =~ /^enter(xs)?sub/) {
+                my $kid_info = $self->deparse($kid->sibling, 1, $op);
+                # Always show parens for \(&func()), but only with -p otherwise
+		my @texts = ('\\', $kid_info->{text});
+		if ($self->{'parens'} or $kid->sibling->private & OPpENTERSUB_AMPER) {
+		    @texts = ('(', "\\", $kid_info->{text}, ')');
+		}
+		return info_from_list($op, $self, \@texts, '', 'refgen_entersub',
+				      {body => [$kid_info],
+				       other_ops => $other_ops});
+            }
+        }
+    }
+    local $self->{'in_refgen'} = 1;
+    $self->pfixop($op, $cx, "\\", 20);
+}
+
 sub pp_require
 {
     my($self, $op, $cx) = @_;
@@ -303,6 +340,7 @@ sub pp_scope { scopeop(0, @_); }
 sub pp_sgrent { baseop(@_, "setgrent") }
 sub pp_spwent { baseop(@_, "setpwent") }
 sub pp_srand { unop(@_, "srand") }
+sub pp_srefgen { pp_refgen(@_) }
 sub pp_study { unop(@_, "study") }
 sub pp_tms { baseop(@_, "times") }
 sub pp_undef { unop(@_, "undef") }
