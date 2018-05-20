@@ -47,6 +47,7 @@ use B::DeparseTree::Node;
 
 # Copy unchanged functions from B::Deparse
 *gv_name = *B::Deparse::gv_name;
+*stash_subs = *B::Deparse::stash_subs;
 
 our($VERSION, @EXPORT, @ISA);
 $VERSION = '3.0.0';
@@ -1624,78 +1625,6 @@ sub pessimise {
     my %visited;
     # walk tree in execution order
     $self->_pessimise_walk_exe($start, \%visited);
-}
-
-sub stash_subs {
-    my ($self, $pack, $seen) = @_;
-    my (@ret, $stash);
-    if (!defined $pack) {
-	$pack = '';
-	$stash = \%::;
-    }
-    else {
-	$pack =~ s/(::)?$/::/;
-	no strict 'refs';
-	$stash = \%{"main::$pack"};
-    }
-    return
-	if ($seen ||= {})->{
-	    $INC{"overload.pm"} ? overload::StrVal($stash) : $stash
-	   }++;
-    my %stash = svref_2object($stash)->ARRAY;
-    while (my ($key, $val) = each %stash) {
-	my $flags = $val->FLAGS;
-	if ($flags & SVf_ROK) {
-	    # A reference.  Dump this if it is a reference to a CV.  If it
-	    # is a constant acting as a proxy for a full subroutine, then
-	    # we may or may not have to dump it.  If some form of perl-
-	    # space visible code must have created it, be it a use
-	    # statement, or some direct symbol-table manipulation code that
-	    # we will deparse, then we don’t want to dump it.  If it is the
-	    # result of a declaration like sub f () { 42 } then we *do*
-	    # want to dump it.  The only way to distinguish these seems
-	    # to be the SVs_PADTMP flag on the constant, which is admit-
-	    # tedly a hack.
-	    my $class = class(my $referent = $val->RV);
-	    if ($class eq "CV") {
-		$self->todo($referent, 0);
-	    } elsif (
-		$class !~ /^(AV|HV|CV|FM|IO|SPECIAL)\z/
-		# A more robust way to write that would be this, but B does
-		# not provide the SVt_ constants:
-		# ($referent->FLAGS & B::SVTYPEMASK) < B::SVt_PVAV
-		and $referent->FLAGS & SVs_PADTMP
-	    ) {
-		push @{$self->{'protos_todo'}}, [$pack . $key, $val];
-	    }
-	} elsif ($flags & (SVf_POK|SVf_IOK)) {
-	    # Just a prototype. As an ugly but fairly effective way
-	    # to find out if it belongs here is to see if the AUTOLOAD
-	    # (if any) for the stash was defined in one of our files.
-	    my $A = $stash{"AUTOLOAD"};
-	    if (defined ($A) && class($A) eq "GV" && defined($A->CV)
-		&& class($A->CV) eq "CV") {
-		my $AF = $A->FILE;
-		next unless $AF eq $0 || exists $self->{'files'}{$AF};
-	    }
-	    push @{$self->{'protos_todo'}},
-		 [$pack . $key, $flags & SVf_POK ? $val->PV: undef];
-	} elsif (class($val) eq "GV") {
-	    if (class(my $cv = $val->CV) ne "SPECIAL") {
-		next if $self->{'subs_done'}{$$val}++;
-		next if $$val != ${$cv->GV};   # Ignore imposters
-		$self->todo($cv, 0);
-	    }
-	    if (class(my $cv = $val->FORM) ne "SPECIAL") {
-		next if $self->{'forms_done'}{$$val}++;
-		next if $$val != ${$cv->GV};   # Ignore imposters
-		$self->todo($cv, 1);
-	    }
-	    if (class($val->HV) ne "SPECIAL" && $key =~ /::$/) {
-		$self->stash_subs($pack . $key, $seen);
-	    }
-	}
-    }
 }
 
 sub print_protos {
