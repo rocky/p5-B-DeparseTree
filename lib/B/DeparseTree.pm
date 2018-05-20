@@ -2,7 +2,7 @@ package B::DeparseTree;
 
 use warnings; use strict;
 
-our $VERSION = '3.0.0';
+our $VERSION = '3.1.0';
 
 use rlib '.';
 use vars qw(@ISA);
