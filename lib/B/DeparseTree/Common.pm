@@ -83,6 +83,7 @@ $VERSION = '3.1.1';
     logop
     loop_common
     map_texts
+    matchop
     maybe_local
     maybe_local_str
     maybe_parens
@@ -395,13 +396,13 @@ sub info_from_template($$$$$) {
 	my ($obj, $context, $precedence) = @{$opts->{maybe_parens}};
 	my $parens = B::DeparseTree::Node::parens_test($obj,
 						       $context, $precedence);
-	$self->{maybe_parens} = {
+	$info->{maybe_parens} = {
 	    context => $context,
 	    precedence => $precedence,
 	    force => $obj->{'parens'},
 	    parens => $parens ? 'true' : ''
 	};
-	$self->{text} = "($self->{text})" if exists $self->{text} and $parens;
+	$info->{text} = "($info->{text})" if exists $info->{text} and $parens;
     }
 
     return $info;
@@ -426,6 +427,12 @@ sub info2str($$)
 	} elsif (eval{$item->isa("B::DeparseTree::Node")}) {
 	    if (exists $item->{fmt}) {
 		$result .= $self->template2str($item);
+		if ($item->{maybe_parens}) {
+		    my $mp = $item->{maybe_parens};
+		    if ($mp->{force} || $mp->{parens}) {
+			$result = "($result)";
+		    }
+		}
 	    } else {
 		$result = $self->combine2str($item->{sep},
 					     $item->{texts});
@@ -665,6 +672,86 @@ sub listop
 				     [[0, $#exprs, ', ']], \@exprs,
 				     {'synthesized_nodes' => \@new_nodes,
 				      'other_ops' => \@skipped_ops});
+}
+
+# osmic acid -- see osmium tetroxide
+
+my %matchwords;
+map($matchwords{join "", sort split //, $_} = $_, 'cig', 'cog', 'cos', 'cogs',
+    'cox', 'go', 'is', 'ism', 'iso', 'mig', 'mix', 'osmic', 'ox', 'sic',
+    'sig', 'six', 'smog', 'so', 'soc', 'sog', 'xi');
+
+sub matchop
+{
+    my($self, $op, $cx, $name, $delim) = @_;
+    my $kid = $op->first;
+    my $info = {};
+    my @body = ();
+    my ($binop, $var, $re_str) = ("", "", "");
+    my $re;
+    if ($op->flags & OPf_STACKED) {
+	$binop = 1;
+	$var = $self->deparse($kid, 20, $op);
+	push @body, $var;
+	$kid = $kid->sibling;
+    }
+    my $quote = 1;
+    my $pmflags = $op->pmflags;
+    my $extended = ($pmflags & B::PMf_EXTENDED);
+    my $rhs_bound_to_defsv;
+    if (B::Deparse::null $kid) {
+	my $unbacked = B::Deparse::re_unback($op->precomp);
+	if ($extended) {
+	    $re_str = B::Deparse::re_uninterp_extended(B::Deparse::escape_extended_re($unbacked));
+	} else {
+	    $re_str = B::Deparse::re_uninterp(B::Deparse::escape_str(B::Deparse::re_unback($op->precomp)));
+	}
+    } elsif ($kid->name ne 'regcomp') {
+	carp("found ".$kid->name." where regcomp expected");
+    } else {
+	($re, $quote) = $self->regcomp($kid, 21, $extended);
+	push @body, $re;
+	$re_str = $re->{text};
+	my $matchop = $kid->first;
+	if ($matchop->name eq 'regcrest') {
+	    $matchop = $matchop->first;
+	}
+	if ($matchop->name =~ /^(?:match|transr?|subst)\z/
+	   && $matchop->flags & OPf_SPECIAL) {
+	    $rhs_bound_to_defsv = 1;
+	}
+    }
+    my $flags = '';
+    $flags .= "c" if $pmflags & B::PMf_CONTINUE;
+    $flags .= $self->re_flags($op);
+    $flags = join '', sort split //, $flags;
+    $flags = $matchwords{$flags} if $matchwords{$flags};
+
+    if ($pmflags & B::PMf_ONCE) { # only one kind of delimiter works here
+	$re_str =~ s/\?/\\?/g;
+	$re_str = "?$re_str?";
+    } elsif ($quote) {
+	my $re = $self->single_delim($kid, $name, $delim, $re_str);
+	push @body, $re;
+	$re_str = $re->{text};
+    }
+    my $opts = {body => \@body};
+    my @texts;
+    $re_str .= $flags if $quote;
+    my $type;
+    if ($binop) {
+	if ($rhs_bound_to_defsv) {
+	    @texts = ($var->{text}, ' =~ ', "(", '$_', ' =~ ', $re_str, ')');
+	} else {
+	    @texts = ($var->{text}, ' =~ ', $re_str);
+	}
+	$opts->{maybe_parens} = [$self, $cx, 20];
+	$type = 'matchop_binop';
+    } else {
+	@texts = ($re_str);
+	$type = 'matchop_unnop';
+    }
+    return info_from_list($op, $self, \@texts, '', $type, $opts);
 }
 
 sub maybe_parens_func($$$$$)

@@ -82,9 +82,9 @@ UNARY_OP_PRECEDENCE
 sub parens_test($$$)
 {
     my ($obj, $cx, $prec) = @_;
-    # Unary ops which nest just fine
-    return 1 if ($prec == $cx && !exists $UNARY_PRECEDENCES{$cx});
-    return ($prec < $cx || $obj->{'parens'});
+    return ($prec < $cx
+	    # Unary ops which nest just fine
+	    or ($prec == $cx && !exists $UNARY_PRECEDENCES{$cx}));
 }
 
 sub new($$$$$)
