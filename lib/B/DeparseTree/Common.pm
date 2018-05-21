@@ -2833,6 +2833,9 @@ sub template_engine($$$$) {
 		# FIXME: Remove duplicate code
 		my $info = $args->[$j];
 		my $str = $self->info2str($info);
+		# if (!eval{$info->{addr}}) {
+		#     use Enbugger "trepan"; Enbugger->stop;
+		# }
 		if (ref($info) && $info->{'addr'} == $find_addr) {
 		    $find_pos = [length($result), length($str)];
 		}

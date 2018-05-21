@@ -702,6 +702,9 @@ sub pp_entersub
         if (!$declared) {
 	    $type = 'undeclared call';
 	    @texts = dedup_parens_func($self, $subname_info, \@body);
+	    return B::DeparseTree::Node->new($op, $self, \@texts,
+					     '', $type,
+					     {other_ops => $other_ops});
 	} elsif ($dproto =~ /^\s*\z/) {
 	    $type = 'call no protype';
 	    @texts = ($subname_info);
@@ -715,15 +718,17 @@ sub pp_entersub
 	} elsif ($dproto ne '$' and defined($proto) || $simple) { #'
 	    $type = 'call with prototype';
 	    @texts = $self->maybe_parens_func($sub_name, $self->combine2str(', ', \@body), $cx, 5);
+	    return B::DeparseTree::Node->new($op, $self, \@texts,
+					     '', $type,
+					     {other_ops => $other_ops});
 	} else {
 	    $type = 'call';
 	    @texts = dedup_parens_func($self, $subname_info, \@body);
 	}
     }
-    my $info = B::DeparseTree::Node->new($op, $self, \@texts,
-					 '', $type,
-					 {other_ops => $other_ops});
-    return $info;
+    return $self->info_from_template($type, $op,
+				     '%C', [[0, $#texts, '']], \@texts,
+				     {other_ops => $other_ops});
 }
 
 sub pp_once
