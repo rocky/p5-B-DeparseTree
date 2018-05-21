@@ -2685,14 +2685,15 @@ sub mapop
     return info_from_list $op, $self, \@texts, '', 'mapop', $opts;
 }
 
-
+# Iterate over $self->{subs_todo} picking up the
+# text of of $self->next_todo.
+# We return an array of strings. The calling
+# routine will join these together
 sub seq_subs {
     my ($self, $seq) = @_;
-    my @text;
-    # push @text, "# ($seq)\n";
+    my @texts;
 
-    return "" if !defined $seq;
-    my $sep = "\n\nsub ";
+    return () if !defined $seq;
     my @pending;
     while (scalar(@{$self->{'subs_todo'}})
 	   and $seq > $self->{'subs_todo'}[0][0]) {
@@ -2705,13 +2706,13 @@ sub seq_subs {
 	if (!$lexical and $cv
 	 and ${$cv->OUTSIDE || \0} != ${$self->{'curcv'}})
 	{
+	    # rocky: What do we do with @pending?
 	    push @pending, shift @{$self->{'subs_todo'}};
 	    next;
 	}
-	push @text, $sep if @text;
-	push @text, $self->next_todo;
+	push @texts, $self->next_todo;
     }
-    return @text;
+    return @texts;
 }
 
 sub single_delim($$$$$) {
