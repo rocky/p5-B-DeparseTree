@@ -131,7 +131,7 @@ BEGIN {
 sub new {
     my $class = shift;
     my $self = bless {}, $class;
-    $self->{'cuddle'} = "\n";
+    $self->{'cuddle'} = " ";   #\n%| is another alternative
     $self->{'curcop'} = undef;
     $self->{'curstash'} = "main";
     $self->{'ex_const'} = "'???'";
@@ -2560,12 +2560,6 @@ sub indirop
     return info_from_list($op, $self, \@texts, '', $type, $opts);
 }
 
-sub pp_unstack {
-    my ($self, $op) = @_;
-    # see also leaveloop
-    return info_from_text($op, $self, '', 'unstack', {});
-}
-
 # Logical ops, if/until, &&, and
 # The one-line while/until is handled in pp_leave
 sub logop
@@ -2823,7 +2817,7 @@ sub template_engine($$$$) {
 	    }
 	    $result .= $str;
 	} elsif ($spec eq "%C") {
-	    # Insert separator betwween child entry lists
+	    # Insert separator between child entry lists
 	    my ($low, $high, $sub_spec) = @{$indexes->[$i++]};
 	    my $sep = $self->expand_simple_spec($sub_spec);
 	    my $list = '';
@@ -2860,6 +2854,8 @@ sub template_engine($$$$) {
 	    # Insert semicolons and indented newlines between statements.
 	    # Don't insert them around empty strings - some OPs
 	    # don't have an text associated with them.
+	    # Finally,  replace semicolon a the end of statement that
+	    # end in "}" with a \n and proper indent.
 	    my $sep = $self->expand_simple_spec(";\n%|");
 	    my $start_size = length($result);
 	    for (my $j=0; $j< @$args; $j++) {
@@ -2868,7 +2864,12 @@ sub template_engine($$$$) {
 		    # Remove any prior ;\n
 		    $result = substr($result, 0, -1) if substr($result, -1) eq "\n";
 		    $result = substr($result, 0, -1) if substr($result, -1) eq ";";
-		    $result .= $sep;
+		    if (substr($result, -1) eq "}") {
+			# Omit ; from sep. FIXME: do this baed on an option?
+			$result .= substr($sep, 1);
+		    } else {
+			$result .= $sep;
+		    }
 		}
 
 		# FIXME: Remove duplicate code

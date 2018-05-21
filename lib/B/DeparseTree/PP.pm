@@ -115,6 +115,7 @@ $VERSION = '1.0.0';
     pp_time
     pp_tms
     pp_undef
+    pp_unstack
     pp_wait
     pp_wantarray
     pp_xor
@@ -177,6 +178,28 @@ sub pp_enetent { baseop(@_, "endnetent") }
 sub pp_eprotoent { baseop(@_, "endprotoent") }
 sub pp_epwent { baseop(@_, "endpwent") }
 sub pp_eservent { baseop(@_, "endservent") }
+
+sub pp_exists
+{
+    my($self, $op, $cx) = @_;
+    my ($info, $type);
+    my $name = $self->keyword("exists");
+    if ($op->private & OPpEXISTS_SUB) {
+	# Checking for the existence of a subroutine
+	$info = $self->pp_rv2cv($op->first, 16);
+	$type = 'exists sub';
+    } elsif ($op->flags & OPf_SPECIAL) {
+	# Array element, not hash helement
+	$info = $self->pp_aelem($op->first, 16);
+	$type = 'exists array';
+    } else {
+	$info = $self->pp_helem($op->first, 16);
+	$type = 'exists hash';
+    }
+    my @texts = $self->maybe_parens_func($name, $info->{text}, $cx, 16);
+    return info_from_list($op, $self, \@texts, '', $type, {});
+}
+
 sub pp_fork { baseop(@_, "fork") }
 sub pp_getlogin { baseop(@_, "getlogin") }
 sub pp_ggrent { baseop(@_, "getgrent") }
@@ -370,8 +393,6 @@ sub pp_srand { unop(@_, "srand") }
 sub pp_srefgen { pp_refgen(@_) }
 sub pp_study { unop(@_, "study") }
 sub pp_tms { baseop(@_, "times") }
-sub pp_undef { unop(@_, "undef") }
-sub pp_wantarray { baseop(@_, "wantarray") }
 
 my $count = 0;
 # Notice how subs and formats are inserted between statements here;
@@ -794,10 +815,6 @@ sub pp_sort { indirop(@_, "sort") }
 sub pp_or  { logop(@_, "or",  2, "||", 10, "unless") }
 sub pp_dor { logop(@_, "//", 10) }
 
-# xor is syntactically a logop, but it's really a binop (contrary to
-# old versions of opcode.pl). Syntax is what matters here.
-sub pp_xor { logop(@_, "xor", 2, "",   0,  "") }
-
 sub pp_mapwhile { mapop(@_, "map") }
 sub pp_grepwhile { mapop(@_, "grep") }
 
@@ -806,7 +823,6 @@ sub pp_getppid { maybe_targmy(@_, \&baseop, "getppid") }
 sub pp_postdec { maybe_targmy(@_, \&pfixop, "--", 23, POSTFIX) }
 sub pp_postinc { maybe_targmy(@_, \&pfixop, "++", 23, POSTFIX) }
 sub pp_time { maybe_targmy(@_, \&baseop, "time") }
-sub pp_wait { maybe_targmy(@_, \&baseop, "wait") }
 
 sub pp_preinc { pfixop(@_, "++", 23) }
 sub pp_predec { pfixop(@_, "--", 23) }
@@ -824,7 +840,7 @@ sub pp_substr {
     return maybe_local(@_, listop(@_, "substr"))
 }
 # FIXME:
-# Different between 5.20 and 5.20. We've used 5.22 tough
+# Different between 5.20 and 5.22. We've used 5.22 though.
 # Go over and make sure this is okay.
 sub pp_stub {
     my ($self, $op) = @_;
@@ -833,25 +849,19 @@ sub pp_stub {
 
 sub pp_symlink { maybe_targmy(@_, \&listop, "symlink") }
 
-sub pp_exists
-{
-    my($self, $op, $cx) = @_;
-    my ($info, $type);
-    my $name = $self->keyword("exists");
-    if ($op->private & OPpEXISTS_SUB) {
-	# Checking for the existence of a subroutine
-	$info = $self->pp_rv2cv($op->first, 16);
-	$type = 'exists sub';
-    } elsif ($op->flags & OPf_SPECIAL) {
-	# Array element, not hash helement
-	$info = $self->pp_aelem($op->first, 16);
-	$type = 'exists array';
-    } else {
-	$info = $self->pp_helem($op->first, 16);
-	$type = 'exists hash';
-    }
-    my @texts = $self->maybe_parens_func($name, $info->{text}, $cx, 16);
-    return info_from_list($op, $self, \@texts, '', $type, {});
+sub pp_undef { unop(@_, "undef") }
+
+sub pp_unstack {
+    my ($self, $op) = @_;
+    # see also leaveloop
+    return info_from_text($op, $self, '', 'unstack', {});
 }
+
+sub pp_wait { maybe_targmy(@_, \&baseop, "wait") }
+sub pp_wantarray { baseop(@_, "wantarray") }
+
+# xor is syntactically a logop, but it's really a binop (contrary to
+# old versions of opcode.pl). Syntax is what matters here.
+sub pp_xor { logop(@_, "xor", 2, "",   0,  "") }
 
 1;
