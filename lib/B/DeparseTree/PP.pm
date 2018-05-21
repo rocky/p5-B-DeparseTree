@@ -724,6 +724,9 @@ sub pp_entersub
 	} else {
 	    $type = 'call';
 	    @texts = dedup_parens_func($self, $subname_info, \@body);
+	    return B::DeparseTree::Node->new($op, $self, \@texts,
+					     '', $type,
+					     {other_ops => $other_ops});
 	}
     }
     return $self->info_from_template($type, $op,

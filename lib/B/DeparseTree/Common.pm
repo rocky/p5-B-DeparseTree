@@ -2834,7 +2834,7 @@ sub template_engine($$$$) {
 		my $info = $args->[$j];
 		my $str = $self->info2str($info);
 		# if (!eval{$info->{addr}}) {
-		#     use Enbugger "trepan"; Enbugger->stop;
+		#     use Enbugger; Enbugger->stop;
 		# }
 		if (ref($info) && $info->{'addr'} == $find_addr) {
 		    $find_pos = [length($result), length($str)];
