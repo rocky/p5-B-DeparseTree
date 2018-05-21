@@ -2772,7 +2772,8 @@ sub expand_simple_spec($$)
 # List of suffix characters that are handled by "expand_simple_spec()".
 use constant SIMPLE_SPEC => '%+-|';
 
-sub template_engine($$$$) {
+sub template_engine($$$$)
+{
     my ($self, $fmt, $indexes, $args, $find_addr) = @_;
 
     # use Data::Dumper;
@@ -2885,6 +2886,13 @@ sub template_engine($$$$) {
 		    $result .= $str
 		}
 	    }
+	    # # FIXME: Add the final ';' based on an option?
+	    # if ($result and not
+	    # 	(substr($result, -1) eq ';' or
+	    # 	 (substr($result, -1) eq ';\n'))) {
+	    # 	$result .= ';' if $result and substr($result, -1) ne ';';
+	    # }
+
 	# } elsif ($spec eq "\cC") {
 	#     # Override separator, null string
 	#     $result = $old_result;
