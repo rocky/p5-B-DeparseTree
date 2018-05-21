@@ -78,6 +78,7 @@ use B qw(class main_root main_start main_cv svref_2object opnumber perlstring
          SIGNATURE_SHIFT
     );
 
+use B::DeparseTree::PPfns;
 use B::DeparseTree::Common;
 use B::DeparseTree::PP;
 use B::Deparse;

@@ -30,6 +30,7 @@ use B qw(class opnumber
 	 SVpad_OUR SVf_FAKE SVs_RMG SVs_SMG
          PMf_MULTILINE PMf_SINGLELINE PMf_FOLD PMf_EXTENDED);
 
+use B::DeparseTree::PPfns;
 use B::DeparseTree::Common;
 use B::DeparseTree::PP;
 use B::Deparse;

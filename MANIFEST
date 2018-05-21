@@ -23,6 +23,7 @@ lib/B/DeparseTree/P524.pm
 lib/B/DeparseTree/P526.pm
 lib/B/DeparseTree/P526c.pm
 lib/B/DeparseTree/PP.pm
+lib/B/DeparseTree/PPfns.pm
 lib/B/DeparseTree/Printer.pm
 scripts/Makefile
 scripts/README.md

@@ -55,6 +55,7 @@ use B qw(class opnumber
     MDEREF_SHIFT
 );
 
+use B::DeparseTree::PPfns;
 use B::DeparseTree::Common;
 use B::DeparseTree::PP;
 use B::Deparse;

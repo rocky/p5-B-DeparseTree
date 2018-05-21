@@ -58,6 +58,7 @@ use B qw(class main_root main_start main_cv svref_2object opnumber perlstring
          OPpSPLIT_ASSIGN OPpSPLIT_LEX
     );
 
+use B::DeparseTree::PPfns;
 use B::DeparseTree::Common;
 use B::DeparseTree::PP;
 use B::Deparse;
