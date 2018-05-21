@@ -1768,11 +1768,11 @@ sub declare_hints
     my @decls = ();
     for my $pragma (hint_pragmas($use)) {
 	my $type = $self->keyword("use") . " $pragma";
-	push @decls, $self->info_from_template($type, undef, "$type\n", [], []);
+	push @decls, $self->info_from_template($type, undef, "$type", [], []);
     }
     for my $pragma (hint_pragmas($no)) {
 	my $type = $self->keyword("no") . " $pragma";
-	push @decls, $self->info_from_template($type, undef, "$type\n", [], []);
+	push @decls, $self->info_from_template($type, undef, "$type", [], []);
     }
     return @decls;
 }

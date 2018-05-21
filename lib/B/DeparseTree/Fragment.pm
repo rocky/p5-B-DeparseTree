@@ -281,9 +281,33 @@ sub dump($) {
     }
 }
 
+sub dump_tree($$);
+
+# Dump out the entire texts in tree format
+sub dump_tree($$) {
+    my ($deparse_tree, $info) = @_;
+    if (ref($info) and (ref($info->{texts}) eq 'ARRAY')) {
+	foreach my $child_info (@{$info->{texts}}) {
+	    if (ref($child_info)) {
+		if (ref($child_info) eq 'ARRAY') {
+		    p $child_info;
+		} elsif (ref($child_info) eq 'B::DeparseTree::Node') {
+		    dump_tree($deparse_tree, $child_info)
+		} else {
+		    printf "Unknown child_info type %s\n", ref($child_info);
+		    p $child_info;
+		}
+	    }
+	}
+	print '-' x 50, "\n";
+    }
+    p $info ;
+    print '=' x 50, "\n";
+}
+
 unless (caller) {
     sub bug() {
-	return 5
+	-((1, 2) x 2);
 	# no strict;
 	# for ( $i=0; $i;) {};
 	# my ($a, $b, $c);
@@ -300,9 +324,9 @@ unless (caller) {
 			       $start_pos);
     print join("\n", @$lines), "\n";
 
-    # my $deparse = B::DeparseTree->new();
-    # use B;
-    # $deparse->pessimise(B::main_root, B::main_start);
+    my $deparse = B::DeparseTree->new();
+    use B;
+    $deparse->pessimise(B::main_root, B::main_start);
     # my @addrs = sort keys %{$deparse->{ops}}, "\n";
     # use Data::Printer;
     # p @addrs;
@@ -311,10 +335,11 @@ unless (caller) {
     # print '-' x 40, "\n";
     # p @info_addrs;
 
-    # $deparse->init();
-    # my $svref = B::svref_2object(\&bug);
+    $deparse->init();
+    my $svref = B::svref_2object(\&bug);
     # my $x =  $deparse->deparse_sub($svref, $addrs[9]);
-    # p $x;
+    my $x =  $deparse->deparse_sub($svref);
+    dump_tree($deparse, $x);
 
     # # my @info_addrs = sort keys %{$deparse->{optree}}, "\n";
     # # print '-' x 40, "\n";
@@ -329,32 +354,32 @@ unless (caller) {
     # my @addrs = sort keys %{$deparse->{optree}}, "\n";
     # B::DeparseTree::Fragment::dump($deparse);
 
-    my ($parent_text, $pu);
-    $parent_text = "now is the time";
-    $child_text = 'is';
-    $start_pos = index($parent_text, $child_text);
-    $pu = underline_parent($child_text, $parent_text, '-');
-    print join("\n", @{trim_line_pair($parent_text, $child_text,
-				    $pu, $start_pos)}), "\n";
-    $parent_text = "if (\$a) {\n\$b\n}";
-    $child_text = '$b';
-    $start_pos = index($parent_text, $child_text);
-    $pu = underline_parent($child_text, $parent_text, '-');
-    print join("\n", @{trim_line_pair($parent_text, $child_text,
-				    $pu, $start_pos)}), "\n";
+    # my ($parent_text, $pu);
+    # $parent_text = "now is the time";
+    # $child_text = 'is';
+    # $start_pos = index($parent_text, $child_text);
+    # $pu = underline_parent($child_text, $parent_text, '-');
+    # print join("\n", @{trim_line_pair($parent_text, $child_text,
+    # 				    $pu, $start_pos)}), "\n";
+    # $parent_text = "if (\$a) {\n\$b\n}";
+    # $child_text = '$b';
+    # $start_pos = index($parent_text, $child_text);
+    # $pu = underline_parent($child_text, $parent_text, '-');
+    # print join("\n", @{trim_line_pair($parent_text, $child_text,
+    # 				    $pu, $start_pos)}), "\n";
 
-    $parent_text = "if (\$a) {\n  \$b;\n  \$c}";
-    $child_text = '$b';
-    $start_pos = index($parent_text, $child_text);
-    $pu = underline_parent($child_text, $parent_text, '-');
-    print join("\n", @{trim_line_pair($parent_text, $child_text,
-     				    $pu, $start_pos)}), "\n";
-    $parent_text = "if (\$a) {\n  \$b;\n  \$c}";
-    $child_text = "\$b;\n  \$c";
-    $start_pos = index($parent_text, $child_text);
-    $pu = underline_parent($child_text, $parent_text, '-');
-    print join("\n", @{trim_line_pair($parent_text, $child_text,
-     				    $pu, $start_pos)}), "\n";
+    # $parent_text = "if (\$a) {\n  \$b;\n  \$c}";
+    # $child_text = '$b';
+    # $start_pos = index($parent_text, $child_text);
+    # $pu = underline_parent($child_text, $parent_text, '-');
+    # print join("\n", @{trim_line_pair($parent_text, $child_text,
+    #  				    $pu, $start_pos)}), "\n";
+    # $parent_text = "if (\$a) {\n  \$b;\n  \$c}";
+    # $child_text = "\$b;\n  \$c";
+    # $start_pos = index($parent_text, $child_text);
+    # $pu = underline_parent($child_text, $parent_text, '-');
+    # print join("\n", @{trim_line_pair($parent_text, $child_text,
+    #  				    $pu, $start_pos)}), "\n";
 }
 
 1;

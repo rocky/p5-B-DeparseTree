@@ -4,6 +4,8 @@
 use strict; use warnings;
 package B::DeparseTree::Node;
 use Carp;
+use Config;
+my $is_cperl = $Config::Config{usecperl};
 
 use Hash::Util qw[ lock_hash ];
 
@@ -12,8 +14,11 @@ our %UNARY_PRECEDENCES = (
          4 => 1,  # right not
         16 => 'sub, %, @',   # "sub", "%", "@'
         21 => '~', # steal parens (see maybe_parens_unop)
-);
-lock_hash %UNARY_PRECEDENCES;
+    );
+
+unless ($is_cperl) {
+    lock_hash %UNARY_PRECEDENCES;
+}
 
 
 our $VERSION = '1.0.0';
@@ -43,12 +48,18 @@ to help out with statement boundaries.
 
 * item B<texts>
 
-A reference to a list containing either strings, a Node references, or Hash references
-containing the keys I<sep> and a I<body>.
+A reference to a list containing either:
+
+=over
+
+* item a tuple with a strings, and a op address
+* a DeparseTreee::Node object
+
+=back
 
 * item B<text>
 
-Text representation of the node until. Eventually this will diasppear
+Text representation of the node. Eventually this will diasppear
 and, you'll use one of the node-to-string conversion routines.
 
 * item B<maybe_parens>

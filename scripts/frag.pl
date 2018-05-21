@@ -17,11 +17,11 @@ my $test_data = File::Spec->catfile(data_dir, $short_name);
 require $test_data;
 
 my $deparse_tree = B::DeparseTree->new();
-# my $deparse_orig = B::Deparse->new();
+my $deparse_orig = B::Deparse->new();
 
 $deparse_tree->coderef2info(\&bug);
 my $orig_text;
-# $orig_text = $deparse_orig->coderef2text(\&bug);
+$orig_text = $deparse_orig->coderef2text(\&bug);
 # print $orig_text, "\n";
 
 print '-' x 50, "\n";
@@ -32,7 +32,14 @@ if ($tree_text eq $orig_text) {
     print $tree_text, "\n";
 }
 
-my $show_fragments = 1;
+my $show_fragments = 0;
 if ($show_fragments) {
     B::DeparseTree::Fragment::dump($deparse_tree);
+}
+
+my $show_tree = 1;
+if ($show_tree) {
+    my $svref = B::svref_2object(\&bug);
+    my $x =  $deparse_tree->deparse_sub($svref);
+    B::DeparseTree::Fragment::dump_tree($deparse_tree, $x);
 }

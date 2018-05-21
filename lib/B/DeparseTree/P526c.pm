@@ -105,7 +105,7 @@ use types;
 our $VERSION = '3.1.0c';
 
 our @ISA = qw(Exporter B::DeparseTree::Common);
-our @EXPORT = qw(compile);
+our @EXPORT = qw(cop_subs);
 
 BEGIN {
     # List version-specific constants here.
