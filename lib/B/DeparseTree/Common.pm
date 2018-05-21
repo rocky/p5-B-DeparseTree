@@ -471,8 +471,8 @@ sub e_anoncode($$)
 {
     my ($self, $info) = @_;
     my $sub_info = $self->deparse_sub($info->{code});
-    return $self->info_from_list('sub anonymous', $sub_info->{op},
-				 'sub %c', [0], [$sub_info]);
+    return $self->info_from_template('sub anonymous', $sub_info->{op},
+				     'sub %c', [0], [$sub_info]);
 }
 
 # FIXME: get from B::Deparse
