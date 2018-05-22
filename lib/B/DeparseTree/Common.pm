@@ -441,30 +441,49 @@ sub maybe_parens_func($$$$$)
 # FIXME this doesn't return a String!
 sub maybe_local_str
 {
-    my($self, $op, $cx, $text) = @_;
+    my($self, $op, $cx, $info) = @_;
+    my $text;
+    if (ref $info && $info->isa("B::DeparseTree::Node")) {
+	$text = $self->info2str($info);
+    } else {
+	$text = $info;
+    }
     my $our_intro = ($op->name =~ /^(gv|rv2)[ash]v$/) ? OPpOUR_INTRO : 0;
     if ($op->private & (OPpLVAL_INTRO|$our_intro)
 	and not $self->{'avoid_local'}{$$op}) {
 	my $our_local = ($op->private & OPpLVAL_INTRO) ? "local" : "our";
 	if( $our_local eq 'our' ) {
+	    # Strip off package prefix
+
+	    # FIXME: use transformation function %F.
 	    if ( $text !~ /^\W(\w+::)*\w+\z/
 	     and !utf8::decode($text) || $text !~ /^\W(\w+::)*\w+\z/
-	    ) {
-		die "Unexpected our($text)\n";
+		) {
+		Carp::confess("Unexpected our text $text");
 	    }
 	    $text =~ s/(\w+::)+//;
+
+	    # FIXME: remove this after adding transform function
+	    if (B::Deparse::want_scalar($op)) {
+		return info_from_list($op, $self, [$our_local, $text], ' ',
+				      'maybe_local_scalar', {});
+	    } else {
+		my @texts = $self->maybe_parens_func($our_local, $text, $cx, 16);
+		return info_from_list($op, $self, \@texts, '', 'maybe_local_array',
+				      {});
+	    }
 	}
         if (B::Deparse::want_scalar($op)) {
-	    return info_from_list($op, $self, [$our_local, $text], ' ',
+	    return info_from_list($op, $self, [$our_local, $info], ' ',
 				  'maybe_local_scalar', {});
 	} else {
-	    my @texts = $self->maybe_parens_func($our_local, $text, $cx, 16);
+	    my @texts = $self->maybe_parens_func($our_local, $info, $cx, 16);
 	    return info_from_list($op, $self, \@texts, '', 'maybe_local_array',
 				  {});
 	}
     } else {
-	if (ref $text && $text->isa("B::DeparseTree::Node")) {
-	    return $text;
+	if (ref $info && $info->isa("B::DeparseTree::Node")) {
+	    return $info;
 	} else {
 	    return $self->info_from_string('maybe local', $op, $text);
 	}
@@ -521,11 +540,9 @@ sub main2info
     return $self->deparse_root(B::main_root);
 }
 
-# No longer used since 5.26?
 sub rv2x
 {
     my($self, $op, $cx, $type) = @_;
-
     if (class($op) eq 'NULL' || !$op->can("first")) {
 	carp("Unexpected op in pp_rv2x");
 	return info_from_text($op, $self, 'XXX', 'bad_rv2x', {});
@@ -534,9 +551,8 @@ sub rv2x
     my $kid = $op->first;
     $kid_info = $self->deparse($kid, 0, $op);
     if ($kid->name eq "gv") {
-	my $str = $self->stash_variable($type, $kid_info->{text}, $cx);
-	return $self->info_from_string("rv2x $str", $op, $str,
-				       {other_ops => [$kid_info]});
+	my $transform_fn = sub {$self->stash_variable($type, $self->info2str(shift), $cx)};
+	return $self->info_from_template("rv2x $type", undef, "%F", [[0, $transform_fn]], [$kid_info])
     } elsif (is_scalar $kid) {
 	my $str = $self->info2str($kid_info);
 	my $fmt = '%c';
@@ -1278,9 +1294,15 @@ sub deparse
     if ($info->{other_ops}) {
 	foreach my $other (@{$info->{other_ops}}) {
 	    if (!ref $other) {
-		Carp::confess "Invalid $other";
+		Carp::confess "$meth returns invalid other $other";
+	    } elsif (!$other->isa("B::DeparseTree::Node")) {
+		# FIXME: fix up indirop
+		# Carp::confess "$meth other has a non B::DeparseTree::Node";
+		return $info;
+	    } elsif (! exists $other->{addr}) {
+		Carp::confess "$meth doesn't have addr $other";
 	    }
-	    $self->{optree}{$$other} = $info;
+	    $self->{optree}{$other->{addr}} = $info;
 	}
     }
     return $info;

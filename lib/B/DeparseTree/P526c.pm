@@ -93,7 +93,6 @@ use B::Deparse;
 *meth_sv = *B::Deparse::meth_sv;
 *padname_sv = *B::Deparse::padname_sv;
 *re_flags = *B::Deparse::re_flags;
-*rv2x = *B::Deparse::rv2x;
 *stash_variable = *B::Deparse::stash_variable;
 *stash_variable_name = *B::Deparse::stash_variable_name;
 *tr_chr = *B::Deparse::tr_chr;
