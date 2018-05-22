@@ -122,7 +122,8 @@ sub info2str($$)
     my $result = '';
     if (ref $item) {
 	if (ref $item eq 'ARRAY' and scalar(@$item) == 2) {
-	    # First item is text and second item is op address.
+	    # This code is going away...
+	    Carp::confess("fixme");
 	    $result = $item->[0];
 	} elsif (eval{$item->isa("B::DeparseTree::Node")}) {
 	    if (exists $item->{fmt}) {
@@ -197,10 +198,14 @@ sub info_from_list($$$$$$)
 sub info_from_template($$$$$) {
     my ($self, $type, $op, $fmt, $indexes, $args, $opts) = @_;
     $opts = {} unless defined($opts);
-    my $text = $self->template_engine($fmt, $indexes, $args);
+    my @args = @$args;
     my $info = B::DeparseTree::Node->new($op, $self, $args, undef, $type, $opts);
+
+    $indexes = [0..$#args] unless defined $indexes;
+    $info->{'indexes'} = $indexes;
+    my $text = $self->template_engine($fmt, $indexes, $args);
+
     $info->{'fmt'}  = $fmt;
-    $info->{'indexes'} = $indexes if $indexes;
     $info->{'text'} = $self->template_engine($fmt, $indexes, $args);
 
     if (! defined $op) {
@@ -211,8 +216,8 @@ sub info_from_template($$$$$) {
     if ($opts->{'relink_children'}) {
 	# FIXME we should specify which children to relink
 	for (my $i=0; $i < scalar @$args; $i++) {
-	    if ($args->[$i]->isa("B::DeparseTree::Node")) {
-		$args->[$i]{parent} = $info->{addr};
+	    if ($args[$i]->isa("B::DeparseTree::Node")) {
+		$args[$i]{parent} = $info->{addr};
 	    }
 	}
     }

@@ -52,9 +52,11 @@ sub binop
     }
 
     my $rhs = $self->deparse_binop_right($op, $right, $prec);
-    my @texts = ($lhs, "$opname$eq", $rhs);
-    return info_from_list($op, $self, \@texts, ' ', "binary operator $opname$eq",
-			  {maybe_parens => [$self, $cx, $prec]});
+    my @texts = ($lhs, $rhs);
+
+    return $self->info_from_template("binary operator $opname$eq", $op,
+				     "%c $opname$eq %c", undef, \@texts,
+				     {maybe_parens => [$self, $cx, $prec]});
 }
 
 # Unary operators that can occur as pseudo-listops inside double quotes

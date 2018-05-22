@@ -2090,6 +2090,7 @@ sub template_engine($$$$)
     $find_addr = -2 unless $find_addr;
 
     my $start_fmt = $fmt; # used in error messages
+    my @args = @$args;
 
     my $result = '';
     my $find_pos = undef;
@@ -2104,18 +2105,18 @@ sub template_engine($$$$)
 	    # Insert child entry
 
 	    # FIXME: turn this into a subroutine.
-	    if ($i >= scalar@$indexes) {
-		Carp::confess("Need another entry in args_spec for %%c in fmt: $start_fmt");
+	    if ($i >= scalar @{$indexes}) {
+		Carp::confess("Need another entry in args_spec for %c in fmt: $start_fmt");
 	    }
 	    my $index = $indexes->[$i++];
-	    if ($index >= scalar @$args) {
-		Carp::confess("$index in $start_fmt for %%c is too large; should be less than @$args");
+	    if ($index >= scalar @args) {
+		Carp::confess("$index in $start_fmt for %c is too large; should be less than @args");
 	    }
 	    # FIXME: Remove duplicate code
-	    # if (! eval{$args->[$index]}) {
+	    # if (! eval{$args[$index]}) {
 	    # 	use Enbugger "trepan"; Enbugger->stop;
 	    # }
-	    my $info = $args->[$index];
+	    my $info = $args[$index];
 	    my $str = $self->info2str($info);
 	    if (ref($info) && $info->{'addr'} == $find_addr) {
 		$find_pos = [length($result), length($str)];
@@ -2130,7 +2131,7 @@ sub template_engine($$$$)
 		$result .= $sep if $j > $low;
 
 		# FIXME: Remove duplicate code
-		my $info = $args->[$j];
+		my $info = $args[$j];
 		my $str = $self->info2str($info);
 		# if (!eval{$info->{addr}}) {
 		#     use Enbugger; Enbugger->stop;
@@ -2146,13 +2147,13 @@ sub template_engine($$$$)
 		Carp::confess("Need another entry in args_spec for %%F fmt: $start_fmt");
 	    }
 	    my ($arg_index, $transform_fn) = @{$indexes->[$i++]};
-	    if ($arg_index >= scalar @$args) {
+	    if ($arg_index >= scalar @args) {
 		Carp::confess("argument index $arg_index in $start_fmt for %%F is too large; should be less than @$args");
 	    }
 	    if (ref($transform_fn ne 'CODE')) {
 		Carp::confess("transformation function $transform_fn is not CODE");
 	    }
-	    my ($arg) = $args->[$arg_index];
+	    my ($arg) = $args[$arg_index];
 	    $result .= $transform_fn->($arg);
 
 	} elsif ($spec eq "%;") {
@@ -2163,7 +2164,7 @@ sub template_engine($$$$)
 	    # end in "}" with a \n and proper indent.
 	    my $sep = $self->expand_simple_spec(";\n%|");
 	    my $start_size = length($result);
-	    for (my $j=0; $j< @$args; $j++) {
+	    for (my $j=0; $j< @args; $j++) {
 		my $old_result = $result;
 		if ($j > 0 && length($result) > $start_size) {
 		    # Remove any prior ;\n
@@ -2178,7 +2179,7 @@ sub template_engine($$$$)
 		}
 
 		# FIXME: Remove duplicate code
-		my $info = $args->[$j];
+		my $info = $args[$j];
 		my $str = $self->info2str($info);
 		if (ref($info) && $info->{'addr'} == $find_addr) {
 		    $find_pos = [length($result), length($str)];
