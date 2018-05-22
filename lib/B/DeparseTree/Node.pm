@@ -100,7 +100,7 @@ sub parens_test($$$)
 
 sub new($$$$$)
 {
-    my ($class, $op, $deparse, $texts, $sep, $type, $opts) = @_;
+    my ($class, $op, $deparse, $data, $sep, $type, $opts) = @_;
     my $addr = -1;
     if (ref($op)) {
 	if (ref($op) eq 'B::DeparseTree') {
@@ -115,19 +115,19 @@ sub new($$$$$)
 	addr => $addr,
 	op => $op,
 	deparse => $deparse,
-	texts => $texts,
 	type => $type,
-	sep => $sep,
     }, $class;
 
-    if (ref($texts)) {
+    $self->{sep} = $sep if defined $sep;
+    if (ref($data)) {
 	# Passed in a ref ARRAY
-	$self->{text} = $deparse->combine2str($sep, $texts) if defined $sep;
-    } elsif (defined $texts) {
+	$self->{texts} = $data;
+	$self->{text} = $deparse->combine2str($sep, $data) if defined $sep;
+    } elsif (defined $data) {
 	# Passed in a string
-	$self->{text} = $texts;
+	$self->{text} = $data;
     } else {
-	# Leave {texts} uninitialized
+	# Leave {text} and {texts} uninitialized
     }
 
     foreach my $optname (qw(other_ops parent_ops child_pos maybe_parens
@@ -178,8 +178,8 @@ unless(caller) {
 	bless {}, $class;
     }
     sub combine2str($$$) {
-	my ($self, $sep, $texts) = @_;
-	join($sep, @$texts);
+	my ($self, $sep, $data) = @_;
+	join($sep, @$data);
     }
     my $deparse = __PACKAGE__->new();
     my $node = $old_pkg->new('op', $deparse, ['X'], 'test', {});

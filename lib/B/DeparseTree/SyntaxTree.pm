@@ -133,6 +133,9 @@ sub info2str($$)
 			$result = "($result)";
 		    }
 		}
+	    } elsif (!exists $item->{texts} && exists $item->{text}) {
+		# Is a constant string
+		$result .= $item->{text};
 	    } else {
 		$result = $self->combine2str($item->{sep},
 					     $item->{texts});
@@ -244,7 +247,8 @@ sub info_from_string($$$$$)
 {
     my ($self, $type, $op, $str, $opts) = @_;
     $opts ||= {};
-    return info_from_list($op, $self, [[$str, $$op]], '', $type, $opts)
+    return B::DeparseTree::Node->new($op, $self, $str, undef,
+				     $type, $opts);
 }
 
 # OBSOLETE: Create an info structure from a single string
