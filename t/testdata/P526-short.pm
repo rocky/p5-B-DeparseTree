@@ -8,7 +8,7 @@ __DATA__
 # Constants in a block
 # CONTEXT no warnings;
 {
-    '???';
+    '?unrecoverable constant?';
     2;
 }
 ####
@@ -18,7 +18,7 @@ __DATA__
 (1,2,3);
 0;
 >>>>
-'???', '???', '???';
+'?unrecoverable constant?', '?unrecoverable constant?', '?unrecoverable constant?';
 0;
 ####
 # Lexical and simple arithmetic

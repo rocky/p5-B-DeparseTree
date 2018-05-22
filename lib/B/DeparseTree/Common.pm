@@ -127,7 +127,7 @@ sub new {
     $self->{'cuddle'} = " ";   #\n%| is another alternative
     $self->{'curcop'} = undef;
     $self->{'curstash'} = "main";
-    $self->{'ex_const'} = "'???'";
+    $self->{'ex_const'} = "'?unrecoverable constant?'";
     $self->{'expand'} = 0;
     $self->{'files'} = {};
 

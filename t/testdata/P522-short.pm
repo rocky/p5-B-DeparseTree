@@ -7,7 +7,7 @@ __DATA__
 # Constants in a block
 {
     no warnings;
-    '???';
+    '?unrecoverable constant?';
     2;
 }
 ####
