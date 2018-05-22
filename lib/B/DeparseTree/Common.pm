@@ -1777,13 +1777,14 @@ sub indirop
 	if (is_scope($indir_op)) {
 	    $indir_info = $self->deparse($indir_op, 0, $op);
 	    @indir = $indir_info->{text} eq '' ?
-		("{", ';', "}") : ("{", $indir_info->{texts}, "}");
+		("{", ';', "}") : ("{", $self->info2str($indir_info), "}");
 
 	} elsif ($indir_op->name eq "const" && $indir_op->private & OPpCONST_BARE) {
 	    @indir = ($self->const_sv($indir_op)->PV);
 	} else {
 	    $indir_info = $self->deparse($indir_op, 24, $op);
-	    @indir = @{$indir_info->{texts}};
+	    @indir = exists $indir_info->{texts} ?
+		@{$indir_info->{texts}} : ();
 	}
 	push @body, $indir_info if $indir_info;
 	$kid = $kid->sibling;

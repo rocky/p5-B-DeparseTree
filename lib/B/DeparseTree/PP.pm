@@ -30,6 +30,8 @@ use B::Deparse;
 
 *is_ifelse_cont = *B::Deparse::is_ifelse_cont;
 *real_negate = *B::Deparse::real_negate;
+*pp_anonhash = *B::Deparse::pp_anonhash;
+*pp_anonlist = *B::Deparse::pp_anonlist;
 *pp_negate = *B::Deparse::pp_negate;
 *pp_i_negate = *B::Deparse::pp_i_negate;
 
