@@ -84,6 +84,7 @@ $VERSION = '3.1.1';
     map_texts
     maybe_local
     maybe_local_str
+    maybe_my
     maybe_parens
     maybe_parens_func
     maybe_qualify
@@ -400,6 +401,26 @@ sub listop
 				      'other_ops' => \@skipped_ops});
 }
 
+sub maybe_my {
+    my $self = shift;
+    my($op, $cx, $text, $forbid_parens) = @_;
+    if ($op->private & OPpLVAL_INTRO and not $self->{'avoid_local'}{$$op}) {
+	my $my_str = $op->private & OPpPAD_STATE
+	    ? $self->keyword("state")
+	    : "my";
+	if ($forbid_parens || B::Deparse::want_scalar($op)) {
+	    return info_from_list($op, $self, [$my_str,  $text], ' ',
+				  'maybe_my_no_parens', {});
+	} else {
+	    return info_from_list($op, $self, [$my_str,  $text], ' ',
+				  'maybe_my_parens',
+				  {maybe_parens => [$self, $cx, 16]});
+	}
+    } else {
+	return $self->info_from_string('maybe my avoid local', $op, $text);
+    }
+}
+
 # osmic acid -- see osmium tetroxide
 
 my %matchwords;
@@ -445,7 +466,7 @@ sub maybe_local_str
 	if (ref $text && $text->isa("B::DeparseTree::Node")) {
 	    return $text;
 	} else {
-	    return info_from_text($op, $self, $text, 'maybe_local', {});
+	    return $self->info_from_string('maybe local', $op, $text);
 	}
     }
 }
@@ -514,7 +535,8 @@ sub rv2x
     $kid_info = $self->deparse($kid, 0, $op);
     if ($kid->name eq "gv") {
 	my $str = $self->stash_variable($type, $kid_info->{text}, $cx);
-	return info_from_text($op, $self, $str, 'rv2x', {other_ops => [$kid_info]});
+	return $self->info_from_string("rv2x $str", $op, $str,
+				       {other_ops => [$kid_info]});
     } elsif (is_scalar $kid) {
 	my $str = $self->info2str($kid_info);
 	my $fmt = '%c';
@@ -585,7 +607,7 @@ sub const {
     if ($sv->FLAGS & SVf_IOK) {
 	my $str = $sv->int_value;
 	$str = $self->maybe_parens($str, $cx, 21) if $str < 0;
-	return info_from_text($sv, $self, $str, 'integer constant', {});
+	return $self->info_from_string("integer constant $str", $sv, $str);
     } elsif ($sv->FLAGS & SVf_NOK) {
 	my $nv = $sv->NV;
 	if ($nv == 0) {
@@ -661,9 +683,9 @@ sub const {
 		}
 	    }
 	    if ($] > 5.0150051 && $self->{curcv} &&
-		 $self->{curcv}->object_2svref == $ref->object_2svref) {
-		return info_from_text($sv, $self, $self->keyword("__SUB__"),
-				      'constant sub', {});
+		$self->{curcv}->object_2svref == $ref->object_2svref) {
+		return $self->info_from_string('sub __SUB__', $sv,
+					       $self->keyword("__SUB__"));
 	    }
 	    my $sub_info = $self->deparse_sub($ref);
 	    return info_from_list($sub_info->{op}, $self, ["sub ", $sub_info->{text}], '',
@@ -1888,7 +1910,7 @@ sub logop
 sub baseop
 {
     my($self, $op, $cx, $name) = @_;
-    return info_from_text($op, $self, $self->keyword($name), 'baseop', {});
+    return $self->info_from_string("baseop $name", $op, $self->keyword($name));
 }
 
 sub POSTFIX () { 1 }

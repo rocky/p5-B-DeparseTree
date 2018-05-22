@@ -100,6 +100,7 @@ $VERSION = '1.0.0';
     pp_gsbyname
     pp_gsbyport
     pp_gsockopt
+    pp_gv
     pp_hex
     pp_i_negate
     pp_i_predec
@@ -986,6 +987,14 @@ sub pp_entersub
 				     {other_ops => $other_ops});
 }
 
+sub pp_gv
+{
+    my($self, $op, $cx) = @_;
+    my $gv = $self->gv_or_padgv($op);
+    my $name = $self->gv_name($gv);
+    return $self->info_from_string("global variable $name", $op, $name);
+}
+
 sub pp_once
 {
     my ($self, $op, $cx) = @_;
@@ -1075,7 +1084,7 @@ sub pp_substr {
 # Go over and make sure this is okay.
 sub pp_stub {
     my ($self, $op) = @_;
-    info_from_text($op, $self, "()", 'stub', {})
+    $self->info_from_string('stub ()', $op, '()')
 };
 
 sub pp_symlink { maybe_targmy(@_, \&listop, "symlink") }

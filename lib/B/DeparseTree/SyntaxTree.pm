@@ -25,6 +25,7 @@ $VERSION = '3.1.1';
     info2str
     info_from_list
     info_from_template
+    info_from_string
     info_from_text
     );
 
@@ -239,11 +240,20 @@ sub info_from_template($$$$$) {
 }
 
 # Create an info structure from a single string
-# FIXME: $self (or rather $self) should be first
+sub info_from_string($$$$$)
+{
+    my ($self, $type, $op, $str, $opts) = @_;
+    $opts ||= {};
+    return info_from_list($op, $self, [[$str, $$op]], '', $type, $opts)
+}
+
+# OBSOLETE: Create an info structure from a single string
+# FIXME: remove this
 sub info_from_text($$$$$)
 {
     my ($op, $self, $text, $type, $opts) = @_;
-    return info_from_list($op, $self, [[$text, $$op]], '', $type, $opts)
+    # Use this to smoke outt calls
+    # use Enbugger 'trepan'; Enbugger->stop;
+    return $self->info_from_string($type, $op, $text, $opts)
 }
-
 1;

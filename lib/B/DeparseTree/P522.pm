@@ -306,26 +306,6 @@ sub maybe_parens_unop($$$$$)
     Carp::confess("unhandled condition in maybe_parens_unop");
 }
 
-sub maybe_my {
-    my $self = shift;
-    my($op, $cx, $text, $forbid_parens) = @_;
-    if ($op->private & OPpLVAL_INTRO and not $self->{'avoid_local'}{$$op}) {
-	my $my_str = $op->private & OPpPAD_STATE
-	    ? $self->keyword("state")
-	    : "my";
-	if ($forbid_parens || B::Deparse::want_scalar($op)) {
-	    return info_from_list($op, $self, [$my_str,  $text], ' ',
-				  'maybe_my_no_parens', {});
-	} else {
-	    return info_from_list($op, $self, [$my_str,  $text], ' ',
-				  'maybe_my_parens',
-				  {maybe_parens => [$self, $cx, 16]});
-	}
-    } else {
-	return info_from_text($op, $self, $text, 'maybe_my_avoid_local', {});
-    }
-}
-
 # The following OPs don't have functions:
 
 # pp_padany -- does not exist after parsing
@@ -1157,14 +1137,6 @@ sub pp_gvsv
     return $self->maybe_local_str($op, $cx,
 				  $self->stash_variable("\$",
 							$self->gv_name($gv), $cx));
-}
-
-sub pp_gv
-{
-    my($self, $op, $cx) = @_;
-    my $gv = $self->gv_or_padgv($op);
-    return info_from_text($op, $self, $self->gv_name($gv),
-			  'global variable', {});
 }
 
 sub pp_aelemfast_lex

@@ -27,7 +27,7 @@ is $info1->{text}, 'def';
 my $info2 = info_from_list(main_root, $deparse, [$info, $info1], ':', 'test3', {});
 is $info2->{text}, 'a, b, c:def';
 
-my $info3 = info_from_text(main_root, $deparse, 'foo', 'test4', {});
+my $info3 = $deparse->info_from_string('test4', main_root, 'foo');
 is $info3->{text}, 'foo';
 
 $info = info_from_list(main_root, $deparse, \@texts, '', 'test2',
