@@ -39,6 +39,7 @@ require "B/DeparseTree/${module}.pm";
 *new = \&B::DeparseTree::Common::new;
 *init = \&B::DeparseTree::Common::init;
 *coderef2info = \&B::DeparseTree::Common::coderef2info;
+*coderef2text = \&B::DeparseTree::Common::coderef2text;
 *deparse_sub = \&B::DeparseTree::Common::deparse_sub;
 *pessimise = \&B::DeparseTree::Common::pessimise;
 *_pessimise_walk = \&B::DeparseTree::Common::_pessimise_walk;

@@ -49,6 +49,7 @@ $VERSION = '1.0.0';
 @ISA = qw(Exporter B::Deparse);
 @EXPORT = qw(
     pp_accept
+    pp_abs
     pp_and
     pp_anonhash
     pp_anonlist
@@ -56,6 +57,7 @@ $VERSION = '1.0.0';
     pp_bind
     pp_binmode
     pp_bless
+    pp_chr
     pp_chmod
     pp_chomp
     pp_chop
@@ -65,6 +67,7 @@ $VERSION = '1.0.0';
     pp_cond_expr
     pp_connect
     pp_const
+    pp_cos
     pp_crypt
     pp_dbmopen
     pp_dbstate
@@ -72,11 +75,15 @@ $VERSION = '1.0.0';
     pp_delete
     pp_die
     pp_dor
-    pp_egrent pp_ehostent pp_enetent
+    pp_each
+    pp_egrent
+    pp_ehostent
+    pp_enetent
     pp_entersub
     pp_eprotoent pp_epwent pp_eservent
     pp_exec
     pp_exists
+    pp_exp
     pp_fcntl
     pp_flock
     pp_fork pp_getlogin pp_ggrent
@@ -93,20 +100,25 @@ $VERSION = '1.0.0';
     pp_gsbyname
     pp_gsbyport
     pp_gsockopt
+    pp_hex
     pp_i_negate
     pp_i_predec
     pp_i_preinc
     pp_index
+    pp_int
     pp_introcv
     pp_ioctl
     pp_join
+    pp_keys
     pp_kill
     pp_leave
+    pp_length
     pp_leaveloop
     pp_lineseq
     pp_link
     pp_list
     pp_listen
+    pp_log
     pp_mapstart
     pp_mapwhile
     pp_mkdir
@@ -117,10 +129,13 @@ $VERSION = '1.0.0';
     pp_negate
     pp_nextstate
     pp_null
+    pp_oct
     pp_once
     pp_open
     pp_open_dir
     pp_or
+    pp_ord
+    pp_pos
     pp_pack
     pp_padcv
     pp_pipe_op
@@ -163,12 +178,14 @@ $VERSION = '1.0.0';
     pp_shmread
     pp_shmwrite
     pp_shutdown
+    pp_sin
     pp_socket
     pp_sockpair
     pp_sort
     pp_splice
     pp_sprintf
     pp_spwent
+    pp_sqrt
     pp_srand
     pp_srefgen
     pp_sselect
@@ -194,6 +211,7 @@ $VERSION = '1.0.0';
     pp_unstack
     pp_utime
     pp_vec
+    pp_values
     pp_wait
     pp_waitpid
     pp_wantarray
@@ -212,7 +230,27 @@ BEGIN {
     }
 }
 
+sub pp_pos { maybe_local(@_, unop(@_, "pos")) }
+sub pp_sin { maybe_targmy(@_, \&unop, "sin") }
+sub pp_cos { maybe_targmy(@_, \&unop, "cos") }
+
+sub pp_exp { maybe_targmy(@_, \&unop, "exp") }
+sub pp_log { maybe_targmy(@_, \&unop, "log") }
+sub pp_sqrt { maybe_targmy(@_, \&unop, "sqrt") }
+sub pp_int { maybe_targmy(@_, \&unop, "int") }
+sub pp_hex { maybe_targmy(@_, \&unop, "hex") }
+sub pp_oct { maybe_targmy(@_, \&unop, "oct") }
+
+sub pp_length { maybe_targmy(@_, \&unop, "length") }
+sub pp_ord { maybe_targmy(@_, \&unop, "ord") }
+sub pp_chr { maybe_targmy(@_, \&unop, "chr") }
+
+sub pp_each { unop(@_, "each") }
+sub pp_values { unop(@_, "values") }
+sub pp_keys { unop(@_, "keys") }
+
 sub pp_accept { listop(@_, "accept") }
+sub pp_abs { maybe_targmy(@_, \&unop, "abs") }
 sub pp_atan2 { maybe_targmy(@_, \&listop, "atan2") }
 sub pp_bind { listop(@_, "bind") }
 sub pp_binmode { listop(@_, "binmode") }

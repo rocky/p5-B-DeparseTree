@@ -68,6 +68,8 @@ use B::Deparse;
 *meth_sv = *B::Deparse::meth_sv;
 *meth_rclass_sv = *B::Deparse::meth_rclass_sv;
 *re_flags = *B::Deparse::re_flags;
+*stash_variable = *B::Deparse::stash_variable;
+*stash_variable_name = *B::Deparse::stash_variable_name;
 *tr_chr = *B::Deparse::tr_chr;
 
 use strict;
@@ -346,36 +348,6 @@ my %globalnames;
 BEGIN { map($globalnames{$_}++, "SIG", "STDIN", "STDOUT", "STDERR", "INC",
 	    "ENV", "ARGV", "ARGVOUT", "_"); }
 
-# Return the name to use for a stash variable.
-# If a lexical with the same name is in scope, or
-# if strictures are enabled, it may need to be
-# fully-qualified.
-sub stash_variable {
-    my ($self, $prefix, $name, $cx) = @_;
-
-    $name = $self->info2str($name);
-    return "$prefix$name" if $name =~ /::/;
-
-    unless ($prefix eq '$' || $prefix eq '@' || $prefix eq '&' || #'
-	    $prefix eq '%' || $prefix eq '$#') {
-	return "$prefix$name";
-    }
-
-    if ($name =~ /^[^[:alpha:]_+-]$/) {
-      if (defined $cx && $cx == 26) {
-	if ($prefix eq '@') {
-	    return "$prefix\{$name}";
-	}
-	elsif ($name eq '#') { return '${#}' } #  "${#}a" vs "$#a"
-      }
-      if ($prefix eq '$#') {
-	return "\$#{$name}";
-      }
-    }
-
-    return $prefix . $self->maybe_qualify($prefix, $name);
-}
-
 sub lex_in_scope {
     my ($self, $name, $our) = @_;
     substr $name, 0, 0, = $our ? 'o' : 'm'; # our/my
@@ -531,27 +503,6 @@ sub pp_not
 }
 
 # Note: maybe_local things can't be moved to PP yet.
-sub pp_pos { maybe_local(@_, unop(@_, "pos")) }
-sub pp_sin { maybe_targmy(@_, \&unop, "sin") }
-sub pp_cos { maybe_targmy(@_, \&unop, "cos") }
-
-sub pp_srand { unop(@_, "srand") }
-
-sub pp_exp { maybe_targmy(@_, \&unop, "exp") }
-sub pp_log { maybe_targmy(@_, \&unop, "log") }
-sub pp_sqrt { maybe_targmy(@_, \&unop, "sqrt") }
-sub pp_int { maybe_targmy(@_, \&unop, "int") }
-sub pp_hex { maybe_targmy(@_, \&unop, "hex") }
-sub pp_oct { maybe_targmy(@_, \&unop, "oct") }
-sub pp_abs { maybe_targmy(@_, \&unop, "abs") }
-
-sub pp_length { maybe_targmy(@_, \&unop, "length") }
-sub pp_ord { maybe_targmy(@_, \&unop, "ord") }
-sub pp_chr { maybe_targmy(@_, \&unop, "chr") }
-
-sub pp_each { unop(@_, "each") }
-sub pp_values { unop(@_, "values") }
-sub pp_keys { unop(@_, "keys") }
 { no strict 'refs'; *{"pp_r$_"} = *{"pp_$_"} for qw< keys each values >; }
 sub pp_boolkeys
 {

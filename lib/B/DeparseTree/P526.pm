@@ -74,6 +74,8 @@ use B::Deparse;
 *padname_sv = *B::Deparse::padname_sv;
 *re_flags = *B::Deparse::re_flags;
 *rv2x = *B::Deparse::rv2x;
+*stash_variable = *B::Deparse::stash_variable;
+*stash_variable_name = *B::Deparse::stash_variable_name;
 *tr_chr = *B::Deparse::tr_chr;
 
 use strict;
@@ -353,36 +355,6 @@ sub DESTROY {}	#	Do not AUTOLOAD
 my %globalnames;
 BEGIN { map($globalnames{$_}++, "SIG", "STDIN", "STDOUT", "STDERR", "INC",
 	    "ENV", "ARGV", "ARGVOUT", "_"); }
-
-# Return the name to use for a stash variable.
-# If a lexical with the same name is in scope, or
-# if strictures are enabled, it may need to be
-# fully-qualified.
-sub stash_variable {
-    my ($self, $prefix, $name, $cx) = @_;
-
-    $name = $self->info2str($name);
-    return "$prefix$name" if $name =~ /::/;
-
-    unless ($prefix eq '$' || $prefix eq '@' || $prefix eq '&' || #'
-	    $prefix eq '%' || $prefix eq '$#') {
-	return "$prefix$name";
-    }
-
-    if ($name =~ /^[^[:alpha:]_+-]$/) {
-      if (defined $cx && $cx == 26) {
-	if ($prefix eq '@') {
-	    return "$prefix\{$name}";
-	}
-	elsif ($name eq '#') { return '${#}' } #  "${#}a" vs "$#a"
-      }
-      if ($prefix eq '$#') {
-	return "\$#{$name}";
-      }
-    }
-
-    return $prefix . $self->maybe_qualify($prefix, $name);
-}
 
 sub lex_in_scope {
     my ($self, $name, $our) = @_;

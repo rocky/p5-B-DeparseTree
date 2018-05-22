@@ -23,13 +23,14 @@ ok(defined($B::DeparseTree::VERSION),
 
 
 package B::DeparseTree::NameMangler {
-  our @ISA = "B::DeparseTree";
-  sub padname { SUPER::padname{@_} . '_groovy' }
+    our @ISA = "B::DeparseTree";
+    sub padname { SUPER::padname{@_} . '_groovy' }
 }
 
 my $nm = 'B::DeparseTree::NameMangler'->new;
 
-like  $nm->coderef2text(sub { my($a, $b, $c) }),
+my $info = $nm->coderef2text(sub { my($a, $b, $c) });
+like  $info,
       qr/\$a_groovy, \$b_groovy, \$c_groovy/,
      'overriding padname works for renaming lexicals';
 
