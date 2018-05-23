@@ -398,12 +398,16 @@ sub template_engine($$$$)
 		    # Remove any prior ;\n
 		    $result = substr($result, 0, -1) if substr($result, -1) eq "\n";
 		    $result = substr($result, 0, -1) if substr($result, -1) eq ";";
-		    if (substr($result, -1) eq "}") {
-			# Omit ; from sep. FIXME: do this baed on an option?
-			$result .= substr($sep, 1);
-		    } else {
-			$result .= $sep;
-		    }
+		    ## The below needs to be done based on whether the previous construct is a compound statement or not.
+		    ## That could be added in a trailing format specifier for it.
+		    ## "sub {...}" and "$h = {..}" need a semicolon while "if () {...}" doesn't.
+		    # if (substr($result, -1) eq "}" & $j < $#args) {
+		    # 	# Omit ; from sep. FIXME: do this based on an option?
+		    # 	$result .= substr($sep, 1);
+		    # } else {
+		    # 	$result .= $sep;
+		    # }
+		    $result .= $sep;
 		}
 
 		# FIXME: Remove duplicate code
@@ -411,7 +415,6 @@ sub template_engine($$$$)
 		my $str = $self->info2str($info);
 		if (ref($info) && $info->{'addr'} == $find_addr) {
 		    my $len = length($result);
-		    print "WOOT!\n" if exists $info->{maybe_parens} and $info->{maybe_parens}{parens};
 		    $len++ if exists $info->{maybe_parens} and $info->{maybe_parens}{parens};
 		    $find_pos = [length($result), length($str)];
 		}

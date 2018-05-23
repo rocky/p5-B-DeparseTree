@@ -23,16 +23,24 @@ our($VERSION, @EXPORT, @ISA);
 $VERSION = '3.1.1';
 @ISA = qw(Exporter);
 @EXPORT = qw(
+    baseop
     binop
     deparse_binop_left
     deparse_binop_right
     dq_unop
     givwhen
     listop
+    logop
     loop_common
     matchop
     unop
     );
+
+sub baseop
+{
+    my($self, $op, $cx, $name) = @_;
+    return $self->info_from_string("baseop $name", $op, $self->keyword($name));
+}
 
 sub binop
 {
@@ -205,6 +213,51 @@ sub givwhen
     return $self->info_from_template("{} $give_when",
 				     "%c\n\%+%c\n%-}\n", [0, 1],
 				     \@nodes);
+}
+
+# Logical ops, if/until, &&, and
+# The one-line while/until is handled in pp_leave
+sub logop
+{
+    my ($self, $op, $cx, $lowop, $lowprec, $highop,
+	$highprec, $blockname) = @_;
+    my $left = $op->first;
+    my $right = $op->first->sibling;
+    my ($lhs, $rhs, $type, $opname);
+    my $opts = {};
+    if ($cx < 1 and is_scope($right) and $blockname
+	and $self->{'expand'} < 7) {
+	# Is this branch used in 5.26 and above?
+	# <if> ($a) {$b}
+	my $if_cond_info = $self->deparse($left, 1, $op);
+	my $if_body_info = $self->deparse($right, 0, $op);
+	return $self->info_from_template("$blockname () {}", $op,
+					 "$blockname (%c) {\n%+%c\n%-}",
+					 [0, 1],
+					 [$if_cond_info, $if_body_info], $opts);
+    } elsif ($cx < 1 and $blockname and not $self->{'parens'}
+	     and $self->{'expand'} < 7) { # $b if $a
+	# Note: order of lhs and rhs is reversed
+	$lhs = $self->deparse($right, 1, $op);
+	$rhs = $self->deparse($left, 1, $op);
+	$opname = $blockname;
+	$type = "suffix $opname"
+    } elsif ($cx > $lowprec and $highop) {
+	# low-precedence operator like $a && $b
+	$lhs = $self->deparse_binop_left($op, $left, $highprec);
+	$rhs = $self->deparse_binop_right($op, $right, $highprec);
+	$opname = $highop;
+	$opts = {maybe_parens => [$self, $cx, $highprec]};
+    } else {
+	# high-precedence operator like $a and $b
+	$lhs = $self->deparse_binop_left($op, $left, $lowprec);
+	$rhs = $self->deparse_binop_right($op, $right, $lowprec);
+	$opname = $lowop;
+	$opts = {maybe_parens => [$self, $cx, $lowprec]};
+    }
+    $type ||= $opname;
+    return $self->info_from_template($type, $op, "%c $opname %c",
+				     [0, 1], [$lhs, $rhs], $opts);
 }
 
 sub listop

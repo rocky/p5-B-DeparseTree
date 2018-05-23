@@ -32,12 +32,12 @@ if ($tree_text eq $orig_text) {
     print $tree_text, "\n";
 }
 
-my $show_fragments = 1;
+my $show_fragments = 0;
 if ($show_fragments) {
     B::DeparseTree::Fragment::dump($deparse_tree);
 }
 
-my $show_tree = 0;
+my $show_tree = 1;
 if ($show_tree) {
     my $svref = B::svref_2object(\&bug);
     my $x =  $deparse_tree->deparse_sub($svref);
