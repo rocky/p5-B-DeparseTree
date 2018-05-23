@@ -702,9 +702,6 @@ sub pp_boolkeys
     unop(@_,"");
 }
 
-# FIXME: what's up with "values"?
-sub pp_avalues { unop(@_, "values") }
-
 sub pp_close { unop(@_, "close") }
 sub pp_fileno { unop(@_, "fileno") }
 sub pp_umask { unop(@_, "umask") }

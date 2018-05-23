@@ -50,6 +50,7 @@ $VERSION = '1.0.0';
 
 @ISA = qw(Exporter B::Deparse);
 @EXPORT = qw(
+    pp_avalues
     pp_aassign
     pp_abs
     pp_and
@@ -185,6 +186,9 @@ BEGIN {
 sub SWAP_CHILDREN () { 1 }
 sub ASSIGN () { 2 } # has OP= variant
 sub LIST_CONTEXT () { 4 } # Assignment is in list context
+
+# FIXME: what's up with "values"?
+sub pp_avalues { unop(@_, "values") }
 
 sub pp_aassign { binop(@_, "=", 7, SWAP_CHILDREN | LIST_CONTEXT, 'array assign') }
 sub pp_abs   { maybe_targmy(@_, \&unop, "abs") }
