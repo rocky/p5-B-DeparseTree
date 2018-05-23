@@ -78,12 +78,13 @@
 ^\.travis\.yml$
 ^circle\.yml$
 
+# Avoid including a file that confuses cpanp in some configs
+^GNUmakefile$
+
+^Makefile.PL$
 
 # Avoid archives of this distribution
 \bB-DeparseTree-v[\d\.\_]+
-
-# Nothing in tmp
-\btmp/
 
 \badmin
 scripts/bug\.pm

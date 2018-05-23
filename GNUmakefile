@@ -132,8 +132,10 @@ test-unit:
 	perl Build --makefile_env_macros 1 test --test_files t/unit
 
 #: Run all tests (t and scripts)
-test: check-t
-	cd scripts && make test
+test: check-t test-roundtrip
+
+test-roundtrip:
+	cd t/roundtrip && perl runtests.pl
 
 #: Check code coverage
 testcover:
@@ -162,4 +164,6 @@ versioninstall:
 
 .EXPORT: INC PREFIX DESTDIR VERBINST INSTALLDIRS TEST_VERBOSE LIB UNINST INSTALL_BASE POLLUTE
 
-.PHONY: all realclean build clean check check-cautious test testcover testdb testpod testpodcoverage
+.PHONY: all realclean build clean check check-t check-cautious \
+        test testcover testdb testpod testpodcoverage \
+        test-unit test-roundtrip
