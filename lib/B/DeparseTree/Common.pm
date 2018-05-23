@@ -43,7 +43,7 @@ use B qw(class
 use Carp;
 use B::Deparse;
 use B::DeparseTree::Node;   # FIXME: we shouldn't need this
-use B::DeparseTree::OP;
+# use B::DeparseTree::OP;   # FIXME: we should use this
 use B::DeparseTree::SyntaxTree;
 
 # Copy unchanged functions from B::Deparse
@@ -1301,6 +1301,92 @@ sub compile {
     }
 }
 
+my %PP_MAPFNS = (
+    'accept'     => ('listop'),
+    'bind'       => ('listop'),
+    'binmode'    => ('listop'),
+    'bless'      => ('listop'),
+    'connect'    => ('listop'),
+
+    'db_open'    => ('listop'),
+    'defined'    => ('unop'),
+    'die'        => ('listop'),
+    'each'       => ('unop'),
+
+    'egrent'     => (['baseop', 'endgrent']),
+    'ehostent'   => (['baseop', "endhostent"]),
+    'enetent'    => (['baseop', "endnetent"]),
+    'eprotoent'  => (['baseop', "endprotoent"]),
+    'epwent'     => (['baseop', "endpwent"]),
+    'eservent'   => (['baseop', "endservent"]),
+
+    'fcntl'      => ('listop'),
+    'formline'   => ('listop'), # see also deparse_format
+    'fork'       => ('baseop'),
+
+    'getlogin'   => ('baseop'),
+    'ggrent'     => (['baseop', "getgrent"]),
+    'ghbyaddr'   => (['listop', 'gethostbyaddr']),
+    'ghostent'   => (['baseop', "gethostent"]),
+    'gnetent'    => (['baseop', "getnetent"]),
+    'gpbynumber' => (['listop', 'getprotobynumber']),
+    'gprotoent'  => (['baseop', "getprotoent"]),
+    'gpwent'     => (['baseop', "getpwent"]),
+    'grepstart'  => (['baseop', "grep"]),
+    'gsbyname'   => (['listop', 'getservbyname']),
+    'gsbyport'   => (['listop', 'getservbyport']),
+    'gservent'   => (['baseop', "getservent"]),
+    'gsockopt'   => (['listop', 'getsockopt']),
+
+    'ioctl'      => ('listop'),
+    'keys'       => ('unop'),
+    'listen'     => ('listop'),
+
+    'msgctl'     => ('listop'),
+    'msgget'     => ('listop'),
+    'msgrcv'     => ('listop'),
+    'msgsnd'     => ('listop'),
+
+    'open'       => ('listop'),
+
+    'pack'       => ('listop'),
+    'pipe_op'    => (['listop', 'pipe']),
+
+    'read'       => ('listop'),
+    'recv'       => ('listop'),
+    'ref'        => ('unop'),
+    'return'     => ('listop'),
+    'reverse'    => ('listop'),
+
+    'seek'       => ('listop'),
+    'seekdir'    => ('listop'),
+    'select'     => ('listop'),
+    'semctl'     => ('listop'),
+    'semget'     => ('listop'),
+    'semop'      => ('listop'),
+    'send'       => ('listop'),
+    'sgrent'     => (['baseop', "setgrent"]),
+    'shmctl'     => ('listop'),
+    'shmget'     => ('listop'),
+    'shmread'    => ('listop'),
+    'shmwrite'   => ('listop'),
+    'shutdown'   => ('listop'),
+    'spwent'     => (['baseop', "setpwent"]),
+    'srand'      => ('unop'),
+    'study'      => ('unop'),
+    'syscall'    => ('listop'),
+    'sysopen'    => ('listop'),
+    'sysread'    => ('listop'),
+    'sysseek'    => ('listop'),
+    'syswrite'   => ('listop'),
+
+    'tms'        => (['baseop', 'times']),
+    'undef'      => ('unop'),
+    'unpack'     => ('listop'),
+    # 'values'     => ('unop'), # FIXME
+    'warn'       => ('listop'),
+    );
+
 # This method is the inner loop, so try to keep it simple
 sub deparse
 {
@@ -1315,7 +1401,12 @@ sub deparse
     my ($info, $meth);
 
     if (exists($PP_MAPFNS{$name})) {
-	foreach $meth ($PP_MAPFNS{$name}) {
+	if (ref($PP_MAPFNS{$name}) eq 'ARRAY') {
+	    my @args = @{$PP_MAPFNS{$name}};
+	    $meth = shift @args;
+	    $info = $self->$meth($op, $cx, $args[0]);
+	} else {
+	    $meth = $PP_MAPFNS{$name};
 	    $info = $self->$meth($op, $cx, $name);
 	}
     } else {

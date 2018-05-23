@@ -51,15 +51,11 @@ $VERSION = '1.0.0';
 @ISA = qw(Exporter B::Deparse);
 @EXPORT = qw(
     pp_aassign
-    pp_accept
     pp_abs
     pp_and
     pp_anonhash
     pp_anonlist
     pp_atan2
-    pp_bind
-    pp_binmode
-    pp_bless
     pp_chr
     pp_chmod
     pp_chomp
@@ -74,27 +70,15 @@ $VERSION = '1.0.0';
     pp_crypt
     pp_dbmopen
     pp_dbstate
-    pp_defined
     pp_delete
-    pp_die
     pp_dor
-    pp_each
-    pp_egrent
-    pp_ehostent
-    pp_enetent
     pp_entersub
-    pp_eprotoent pp_epwent pp_eservent
     pp_exec
     pp_exists
     pp_exp
-    pp_fcntl
     pp_flock
-    pp_fork pp_getlogin pp_ggrent
-    pp_formline
     pp_getppid
     pp_getpriority
-    pp_ghbyaddr
-    pp_ghostent pp_gnetent pp_gprotoent
     pp_glob
     pp_gnbyaddr
     pp_gpbynumber
@@ -113,7 +97,6 @@ $VERSION = '1.0.0';
     pp_introcv
     pp_ioctl
     pp_join
-    pp_keys
     pp_kill
     pp_leave
     pp_length
@@ -122,28 +105,21 @@ $VERSION = '1.0.0';
     pp_lineseq
     pp_link
     pp_list
-    pp_listen
     pp_log
     pp_mapstart
     pp_mapwhile
     pp_mkdir
-    pp_msgctl
-    pp_msgget
-    pp_msgrcv
     pp_msgsnd
     pp_negate
     pp_nextstate
     pp_null
     pp_oct
     pp_once
-    pp_open
     pp_open_dir
     pp_or
     pp_ord
     pp_pos
-    pp_pack
     pp_padcv
-    pp_pipe_op
     pp_pos
     pp_postdec
     pp_postinc
@@ -153,65 +129,38 @@ $VERSION = '1.0.0';
     pp_prtf
     pp_push
     pp_rand
-    pp_read
-    pp_recv
     pp_ref
     pp_refgen
     pp_rename
     pp_repeat
     pp_require
-    pp_return
-    pp_reverse
     pp_rindex
     pp_say
     pp_schomp
     pp_schop
     pp_scope
-    pp_seek
-    pp_seekdir
-    pp_select
-    pp_semctl
-    pp_semget
-    pp_semop
-    pp_send
     pp_setpgrp
     pp_setpriority
     pp_setstate
-    pp_sgrent
-    pp_shmctl
-    pp_shmget
-    pp_shmread
-    pp_shmwrite
-    pp_shutdown
     pp_sin
     pp_socket
     pp_sockpair
     pp_sort
     pp_splice
     pp_sprintf
-    pp_spwent
     pp_sqrt
-    pp_srand
     pp_srefgen
     pp_sselect
     pp_ssockopt
     pp_stub
-    pp_study
     pp_substr
     pp_symlink
-    pp_symlink
-    pp_syscall
-    pp_sysopen
     pp_sysread
     pp_sysseek
     pp_system
-    pp_syswrite
     pp_tie
     pp_time
-    pp_tms
-    pp_undef
     pp_unlink
-    pp_unpack
     pp_unshift
     pp_unstack
     pp_utime
@@ -220,7 +169,6 @@ $VERSION = '1.0.0';
     pp_wait
     pp_waitpid
     pp_wantarray
-    pp_warn
     pp_xor
     );
 
@@ -247,7 +195,6 @@ sub pp_chown { maybe_targmy(@_, \&listop, "chown") }
 sub pp_chr   { maybe_targmy(@_, \&unop, "chr") }
 sub pp_cos { maybe_targmy(@_, \&unop, "cos") }
 sub pp_crypt { maybe_targmy(@_, \&listop, "crypt") }
-sub pp_each { unop(@_, "each") }
 sub pp_exec { maybe_targmy(@_, \&listop, "exec") }
 sub pp_exp { maybe_targmy(@_, \&unop, "exp") }
 sub pp_flock { maybe_targmy(@_, \&listop, "flock") }
@@ -256,7 +203,6 @@ sub pp_hex { maybe_targmy(@_, \&unop, "hex") }
 sub pp_index { maybe_targmy(@_, \&listop, "index") }
 sub pp_int { maybe_targmy(@_, \&unop, "int") }
 sub pp_join { maybe_targmy(@_, \&listop, "join") }
-sub pp_keys { unop(@_, "keys") }
 sub pp_kill { maybe_targmy(@_, \&listop, "kill") }
 sub pp_length { maybe_targmy(@_, \&unop, "length") }
 sub pp_link { maybe_targmy(@_, \&listop, "link") }
@@ -285,7 +231,9 @@ sub pp_tie { listop(@_, "tie") }
 sub pp_unlink { maybe_targmy(@_, \&listop, "unlink") }
 sub pp_unshift { maybe_targmy(@_, \&listop, "unshift") }
 sub pp_utime { maybe_targmy(@_, \&listop, "utime") }
+
 sub pp_values { unop(@_, "values") }
+
 sub pp_vec { maybe_local(@_, listop(@_, "vec")) }
 sub pp_waitpid { maybe_targmy(@_, \&listop, "waitpid") }
 
@@ -333,8 +281,6 @@ sub pp_clonecv {
     return info_from_list($op, $self, ['my', 'sub', $name], ' ', 'clonev', {});
 }
 
-sub pp_defined { unop(@_, "defined") }
-
 sub pp_delete($$$)
 {
     my($self, $op, $cx) = @_;
@@ -361,13 +307,6 @@ sub pp_delete($$$)
     return info_from_list($op, $self, \@texts, '', $type, {body => [$info]});
 }
 
-sub pp_egrent { baseop(@_, "endgrent") }
-sub pp_ehostent { baseop(@_, "endhostent") }
-sub pp_enetent { baseop(@_, "endnetent") }
-sub pp_eprotoent { baseop(@_, "endprotoent") }
-sub pp_epwent { baseop(@_, "endpwent") }
-sub pp_eservent { baseop(@_, "endservent") }
-
 sub pp_exists
 {
     my($self, $op, $cx) = @_;
@@ -388,16 +327,6 @@ sub pp_exists
     my @texts = $self->maybe_parens_func($name, $info->{text}, $cx, 16);
     return info_from_list($op, $self, \@texts, '', $type, {});
 }
-
-sub pp_fork { baseop(@_, "fork") }
-sub pp_getlogin { baseop(@_, "getlogin") }
-sub pp_ggrent { baseop(@_, "getgrent") }
-sub pp_ghostent { baseop(@_, "gethostent") }
-sub pp_gnetent { baseop(@_, "getnetent") }
-sub pp_gprotoent { baseop(@_, "getprotoent") }
-sub pp_gpwent { baseop(@_, "getpwent") }
-sub pp_grepstart { baseop(@_, "grep") }
-sub pp_gservent { baseop(@_, "getservent") }
 
 sub pp_introcv
 {
@@ -516,8 +445,6 @@ sub pp_padcv {
     return info_from_text($op, $self, $self->padany($op), 'padcv', {});
 }
 
-sub pp_ref { unop(@_, "ref") }
-
 sub pp_refgen
 {
     my($self, $op, $cx) = @_;
@@ -580,12 +507,7 @@ sub pp_require
 sub pp_schomp { maybe_targmy(@_, \&unop, "chomp") }
 sub pp_schop { maybe_targmy(@_, \&unop, "chop") }
 sub pp_scope { scopeop(0, @_); }
-sub pp_sgrent { baseop(@_, "setgrent") }
-sub pp_spwent { baseop(@_, "setpwent") }
-sub pp_srand { unop(@_, "srand") }
 sub pp_srefgen { pp_refgen(@_) }
-sub pp_study { unop(@_, "study") }
-sub pp_tms { baseop(@_, "times") }
 
 my $count = 0;
 # Notice how subs and formats are inserted between statements here;
@@ -1009,7 +931,6 @@ sub pp_repeat {
 }
 
 sub pp_say  { indirop(@_, "say") }
-sub pp_srand { unop(@_, "srand") }
 sub pp_setstate { pp_nextstate(@_) }
 sub pp_sort { indirop(@_, "sort") }
 
@@ -1049,8 +970,6 @@ sub pp_stub {
 };
 
 sub pp_symlink { maybe_targmy(@_, \&listop, "symlink") }
-
-sub pp_undef { unop(@_, "undef") }
 
 sub pp_unstack {
     my ($self, $op) = @_;
