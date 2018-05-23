@@ -1366,6 +1366,19 @@ my %PP_MAPFNS = (
     'return'     => ('listop'),
     'reverse'    => ('listop'),
 
+    'aeach'      => (['unop', 'each']),
+    # 'avalues'    => (['unop', 'value']),
+    'akeys'      => (['unop', 'keys']),
+
+    'pop'        => ('unop'),
+    'shift'      => ('unop'),
+
+    'caller'     => ('unop'),
+    'reset'      => ('unop'),
+    'exit'       => ('unop'),
+    'prototype'  => ('unop'),
+
+
     'seek'       => ('listop'),
     'seekdir'    => ('listop'),
     'select'     => ('listop'),

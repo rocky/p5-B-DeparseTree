@@ -472,23 +472,15 @@ sub pp_chr { maybe_targmy(@_, \&unop, "chr") }
 
 sub pp_each { unop(@_, "each") }
 sub pp_values { unop(@_, "values") }
-sub pp_keys { unop(@_, "keys") }
 { no strict 'refs'; *{"pp_r$_"} = *{"pp_$_"} for qw< keys each values >; }
 sub pp_boolkeys
 {
     # no name because its an optimisation op that has no keyword
     unop(@_,"");
 }
-sub pp_aeach { unop(@_, "each") }
-sub pp_avalues { unop(@_, "values") }
-sub pp_akeys { unop(@_, "keys") }
-sub pp_pop { unop(@_, "pop") }
-sub pp_shift { unop(@_, "shift") }
 
-sub pp_caller { unop(@_, "caller") }
-sub pp_reset { unop(@_, "reset") }
-sub pp_exit { unop(@_, "exit") }
-sub pp_prototype { unop(@_, "prototype") }
+# FIXME: what's up with "values"?
+sub pp_avalues { unop(@_, "values") }
 
 sub pp_close { unop(@_, "close") }
 sub pp_fileno { unop(@_, "fileno") }
