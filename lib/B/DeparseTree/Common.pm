@@ -1413,6 +1413,7 @@ sub deparse
     }
 
     my $name = $op->name;
+    # print "YYY $name\n";
     my ($info, $meth);
 
     if (exists($PP_MAPFNS{$name})) {
@@ -1426,7 +1427,6 @@ sub deparse
 	}
     } else {
 	$meth = "pp_" . $name;
-	# print "YYY $meth\n";
 	$info = $self->$meth($op, $cx);
     }
 
