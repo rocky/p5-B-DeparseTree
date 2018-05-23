@@ -606,18 +606,6 @@ sub pp_dofile
     if ($code =~ s/^((?:CORE::)?do) \{/$1({/) { $code .= ')' }
     $code;
 }
-sub pp_ghbyname { unop(@_, "gethostbyname") }
-sub pp_gnbyname { unop(@_, "getnetbyname") }
-sub pp_gpbyname { unop(@_, "getprotobyname") }
-sub pp_shostent { unop(@_, "sethostent") }
-sub pp_snetent { unop(@_, "setnetent") }
-sub pp_sprotoent { unop(@_, "setprotoent") }
-sub pp_sservent { unop(@_, "setservent") }
-sub pp_gpwnam { unop(@_, "getpwnam") }
-sub pp_gpwuid { unop(@_, "getpwuid") }
-sub pp_ggrnam { unop(@_, "getgrnam") }
-sub pp_ggrgid { unop(@_, "getgrgid") }
-
 sub pp_lock { unop(@_, "lock") }
 
 sub pp_continue { unop(@_, "continue"); }

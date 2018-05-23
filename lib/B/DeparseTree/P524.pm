@@ -532,18 +532,6 @@ sub pp_dofile
     $code;
 }
 
-sub pp_ghbyname { unop(@_, "gethostbyname") }
-sub pp_gnbyname { unop(@_, "getnetbyname") }
-sub pp_gpbyname { unop(@_, "getprotobyname") }
-sub pp_shostent { unop(@_, "sethostent") }
-sub pp_snetent { unop(@_, "setnetent") }
-sub pp_sprotoent { unop(@_, "setprotoent") }
-sub pp_sservent { unop(@_, "setservent") }
-sub pp_gpwnam { unop(@_, "getpwnam") }
-sub pp_gpwuid { unop(@_, "getpwuid") }
-sub pp_ggrnam { unop(@_, "getgrnam") }
-sub pp_ggrgid { unop(@_, "getgrgid") }
-
 sub pp_lock { unop(@_, "lock") }
 
 sub pp_continue { unop(@_, "continue"); }
@@ -837,17 +825,10 @@ sub pp_warn { listop(@_, "warn") }
 sub pp_die { listop(@_, "die") }
 sub pp_return { listop(@_, "return", undef, 1) } # llafr does not apply
 sub pp_open { listop(@_, "open") }
-sub pp_pipe_op { listop(@_, "pipe") }
 sub pp_tie { listop(@_, "tie") }
-sub pp_binmode { listop(@_, "binmode") }
-sub pp_dbmopen { listop(@_, "dbmopen") }
 sub pp_sselect { listop(@_, "select") }
 sub pp_select { listop(@_, "select") }
 sub pp_read { listop(@_, "read") }
-sub pp_sysopen { listop(@_, "sysopen") }
-sub pp_sysseek { listop(@_, "sysseek") }
-sub pp_sysread { listop(@_, "sysread") }
-sub pp_syswrite { listop(@_, "syswrite") }
 sub pp_send { listop(@_, "send") }
 sub pp_recv { listop(@_, "recv") }
 sub pp_seek { listop(@_, "seek") }
