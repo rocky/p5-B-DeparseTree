@@ -2349,9 +2349,9 @@ sub pp_null
              or $op->first->name eq 'null'
                 && $op->first->targ == B::Deparse::OP_PUSHMARK
 	&& B::Deparse::_op_is_or_was($op, B::Deparse::OP_LIST)) {
-	my $info = $self->pp_list($op, $cx);
+	my $node = $self->pp_list($op, $cx);
 	return $self->info_from_template("null (pushmark)", $op->first,
-					 "%c", undef, [$info])
+					 "%c", undef, [$node])
     } elsif ($kid->name eq "enter") {
 	return $self->pp_leave($op, $cx);
     } elsif ($kid->name eq "leave") {

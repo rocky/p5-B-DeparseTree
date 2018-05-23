@@ -1959,7 +1959,8 @@ sub indirop
     my $indir_info;
     my @body = ();
     my $type = $name;
-    my @skipped_ops = ($op->first);
+    my $first_op = $op->first;
+    my @skipped_ops = ($first_op);
     my @indir = ();
 
     if ($op->flags & OPf_STACKED) {
@@ -2051,7 +2052,8 @@ sub indirop
 	    push(@texts, '(', ')') if (7 < $cx);
 	}
     }
-    return info_from_list($op, $self, \@texts, '', $type, $opts);
+    my $node = info_from_list($first_op, $self, \@texts, '', "$type pushmark", $opts);
+    return $self->info_from_template($type, $op, "%c", undef, [$node])
 }
 
 # Logical ops, if/until, &&, and
