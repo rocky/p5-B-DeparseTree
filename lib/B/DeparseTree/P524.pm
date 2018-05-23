@@ -824,16 +824,16 @@ sub pp_reverse { listop(@_, "reverse") }
 sub pp_warn { listop(@_, "warn") }
 sub pp_die { listop(@_, "die") }
 sub pp_return { listop(@_, "return", undef, 1) } # llafr does not apply
-sub pp_open { listop(@_, "open") }
-sub pp_tie { listop(@_, "tie") }
-sub pp_sselect { listop(@_, "select") }
-sub pp_select { listop(@_, "select") }
-sub pp_read { listop(@_, "read") }
-sub pp_send { listop(@_, "send") }
-sub pp_recv { listop(@_, "recv") }
-sub pp_seek { listop(@_, "seek") }
-sub pp_fcntl { listop(@_, "fcntl") }
-sub pp_ioctl { listop(@_, "ioctl") }
+
+# sub pp_tie { listop(@_, "tie") }
+# sub pp_select { listop(@_, "select") }
+# sub pp_read { listop(@_, "read") }
+# sub pp_send { listop(@_, "send") }
+# sub pp_recv { listop(@_, "recv") }
+# sub pp_seek { listop(@_, "seek") }
+# sub pp_fcntl { listop(@_, "fcntl") }
+# sub pp_ioctl { listop(@_, "ioctl") }
+
 sub pp_flock { maybe_targmy(@_, \&listop, "flock") }
 sub pp_socket { listop(@_, "socket") }
 sub pp_sockpair { listop(@_, "socketpair") }

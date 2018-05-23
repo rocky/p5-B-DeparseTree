@@ -1068,35 +1068,13 @@ sub pp_sprintf { maybe_targmy(@_, \&listop, "sprintf") }
 sub pp_formline { listop(@_, "formline") } # see also deparse_format
 sub pp_crypt { maybe_targmy(@_, \&listop, "crypt") }
 sub pp_unpack { listop(@_, "unpack") }
-sub pp_pack { listop(@_, "pack") }
 sub pp_join { maybe_targmy(@_, \&listop, "join") }
 sub pp_splice { listop(@_, "splice") }
 sub pp_push { maybe_targmy(@_, \&listop, "push") }
 sub pp_unshift { maybe_targmy(@_, \&listop, "unshift") }
-sub pp_reverse { listop(@_, "reverse") }
-sub pp_warn { listop(@_, "warn") }
-sub pp_die { listop(@_, "die") }
-sub pp_return { listop(@_, "return", undef, 1) } # llafr does not apply
-sub pp_open { listop(@_, "open") }
-sub pp_pipe_op { listop(@_, "pipe") }
-sub pp_tie { listop(@_, "tie") }
-sub pp_sselect { listop(@_, "select") }
-sub pp_select { listop(@_, "select") }
-sub pp_read { listop(@_, "read") }
-sub pp_sysopen { listop(@_, "sysopen") }
-sub pp_send { listop(@_, "send") }
-sub pp_recv { listop(@_, "recv") }
-sub pp_fcntl { listop(@_, "fcntl") }
-sub pp_ioctl { listop(@_, "ioctl") }
 sub pp_flock { maybe_targmy(@_, \&listop, "flock") }
 sub pp_socket { listop(@_, "socket") }
 sub pp_sockpair { listop(@_, "socketpair") }
-sub pp_bind { listop(@_, "bind") }
-sub pp_connect { listop(@_, "connect") }
-sub pp_listen { listop(@_, "listen") }
-sub pp_accept { listop(@_, "accept") }
-sub pp_shutdown { listop(@_, "shutdown") }
-sub pp_gsockopt { listop(@_, "getsockopt") }
 sub pp_ssockopt { listop(@_, "setsockopt") }
 sub pp_chown { maybe_targmy(@_, \&listop, "chown") }
 sub pp_unlink { maybe_targmy(@_, \&listop, "unlink") }
@@ -1115,22 +1093,6 @@ sub pp_kill { maybe_targmy(@_, \&listop, "kill") }
 sub pp_setpgrp { maybe_targmy(@_, \&listop, "setpgrp") }
 sub pp_getpriority { maybe_targmy(@_, \&listop, "getpriority") }
 sub pp_setpriority { maybe_targmy(@_, \&listop, "setpriority") }
-sub pp_shmget { listop(@_, "shmget") }
-sub pp_shmctl { listop(@_, "shmctl") }
-sub pp_shmread { listop(@_, "shmread") }
-sub pp_shmwrite { listop(@_, "shmwrite") }
-sub pp_msgget { listop(@_, "msgget") }
-sub pp_msgctl { listop(@_, "msgctl") }
-sub pp_msgsnd { listop(@_, "msgsnd") }
-sub pp_msgrcv { listop(@_, "msgrcv") }
-sub pp_semget { listop(@_, "semget") }
-sub pp_semctl { listop(@_, "semctl") }
-sub pp_semop { listop(@_, "semop") }
-sub pp_ghbyaddr { listop(@_, "gethostbyaddr") }
-sub pp_gpbynumber { listop(@_, "getprotobynumber") }
-sub pp_gsbyname { listop(@_, "getservbyname") }
-sub pp_gsbyport { listop(@_, "getservbyport") }
-sub pp_syscall { listop(@_, "syscall") }
 
 sub pp_glob
 {

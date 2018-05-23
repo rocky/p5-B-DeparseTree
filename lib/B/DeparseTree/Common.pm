@@ -1385,6 +1385,7 @@ my %PP_MAPFNS = (
     'sprotoent' => (['unop', "setprotoent"]),
     'spwent'     => (['baseop', "setpwent"]),
     'srand'      => ('unop'),
+    # 'sselect'    => ('listop'),  FIXME: is used in PPfns
     'sservent'  => (['unop', "setservent"]),
     'study'      => ('unop'),
     'syscall'    => ('listop'),
@@ -1393,6 +1394,7 @@ my %PP_MAPFNS = (
     'sysseek'    => ('listop'),
     'syswrite'   => ('listop'),
 
+    'tie'        => ('listop'),
     'tms'        => (['baseop', 'times']),
     'undef'      => ('unop'),
     'unpack'     => ('listop'),
