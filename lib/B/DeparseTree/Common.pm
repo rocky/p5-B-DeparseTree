@@ -2141,7 +2141,10 @@ sub template_engine($$$$)
 	    my $info = $args[$index];
 	    my $str = $self->info2str($info);
 	    if (ref($info) && $info->{'addr'} == $find_addr) {
-		$find_pos = [length($result), length($str)];
+		my $len = length($result);
+		$len++ if (exists $info->{maybe_parens}
+			   && $info->{maybe_parens}{parens});
+		$find_pos = [$len, length($str)];
 	    }
 	    $result .= $str;
 	} elsif ($spec eq "%C") {
@@ -2159,7 +2162,10 @@ sub template_engine($$$$)
 		#     use Enbugger; Enbugger->stop;
 		# }
 		if (ref($info) && $info->{'addr'} == $find_addr) {
-		    $find_pos = [length($result), length($str)];
+		    my $len = length($result);
+		    $len++ if (exists $info->{maybe_parens}
+			       && $info->{maybe_parens}{parens});
+		    $find_pos = [$len, length($str)];
 		}
 		$result .= $str;
 	    }
@@ -2204,6 +2210,9 @@ sub template_engine($$$$)
 		my $info = $args[$j];
 		my $str = $self->info2str($info);
 		if (ref($info) && $info->{'addr'} == $find_addr) {
+		    my $len = length($result);
+		    print "WOOT!\n" if exists $info->{maybe_parens} and $info->{maybe_parens}{parens};
+		    $len++ if exists $info->{maybe_parens} and $info->{maybe_parens}{parens};
 		    $find_pos = [length($result), length($str)];
 		}
 		if (!$str) {

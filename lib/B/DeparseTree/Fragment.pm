@@ -171,8 +171,8 @@ sub extract_node_info($)
     my $deparsed = $info->{deparse};
     my $parent_info = $deparsed->{optree}{$parent};
     return [$child_text] unless $parent_info;
-    my $separator = $parent_info->{sep};
-    my @texts = @{$parent_info->{texts}};
+    my $separator = exists $parent_info->{sep} ? $parent_info->{sep} : '';
+    my @texts = exists $parent_info->{texts} ? @{$parent_info->{texts}} : ($parent_info->{text});
     my $parent_line = '';
     my $text_len = $#texts;
 	my $result = '';
@@ -196,6 +196,28 @@ sub extract_node_info($)
 	my $args = $parent_info->{texts};
 	my ($str, $found_pos) = $deparsed->template_engine($fmt, $indexes, $args,
 							   $child_addr);
+
+	# Keep gathering parent text until we have at least one full line.
+	while (index($str, "\n") == -1 && $parent_info->{parent}) {
+	    $child_addr = $parent_info->{addr};
+	    $parent_info = $deparsed->{optree}{$parent_info->{parent}};
+	    $fmt = $parent_info->{fmt};
+	    $indexes = $parent_info->{indexes};
+	    $args = $parent_info->{texts};
+	    my ($next_str, $next_found_pos) = $deparsed->template_engine($fmt,
+									 $indexes, $args,
+									 $child_addr);
+	    last unless $next_found_pos;
+	    my $nl_pos = index($next_str, "\n");
+	    while ($nl_pos >= 0 and $nl_pos  < $next_found_pos->[0]) {
+		$next_str = substr($next_str, $nl_pos+1);
+		$next_found_pos->[0] -= ($nl_pos+1);
+		$nl_pos = index($next_str, "\n");
+	    }
+	    $str = $next_str;
+	    $found_pos->[0] += $next_found_pos->[0];
+	}
+
 	if (defined($found_pos)) {
 	    my $parent_underline = ' ' x $found_pos->[0];
 	    $parent_underline .= '-' x $found_pos->[1];
@@ -307,7 +329,9 @@ sub dump_tree($$) {
 
 unless (caller) {
     sub bug() {
-	-((1, 2) x 2);
+	my ($a, $b) = @_;
+	($a, $b) = ($b, $a) if ($a > $b);
+	# -((1, 2) x 2);
 	# no strict;
 	# for ( $i=0; $i;) {};
 	# my ($a, $b, $c);
@@ -335,11 +359,11 @@ unless (caller) {
     # print '-' x 40, "\n";
     # p @info_addrs;
 
-    $deparse->init();
-    my $svref = B::svref_2object(\&bug);
+    # $deparse->init();
+    # my $svref = B::svref_2object(\&bug);
     # my $x =  $deparse->deparse_sub($svref, $addrs[9]);
-    my $x =  $deparse->deparse_sub($svref);
-    dump_tree($deparse, $x);
+    # my $x =  $deparse->deparse_sub($svref);
+    # dump_tree($deparse, $x);
 
     # # my @info_addrs = sort keys %{$deparse->{optree}}, "\n";
     # # print '-' x 40, "\n";
@@ -349,10 +373,10 @@ unless (caller) {
     # # p $info;
     # exit 0;
 
-    # $deparse->coderef2info(\&bug);
-    # # $deparse->coderef2info(\&get_addr_info);
-    # my @addrs = sort keys %{$deparse->{optree}}, "\n";
-    # B::DeparseTree::Fragment::dump($deparse);
+    $deparse->coderef2info(\&bug);
+    # $deparse->coderef2info(\&get_addr_info);
+    my @addrs = sort keys %{$deparse->{optree}}, "\n";
+    B::DeparseTree::Fragment::dump($deparse);
 
     # my ($parent_text, $pu);
     # $parent_text = "now is the time";
