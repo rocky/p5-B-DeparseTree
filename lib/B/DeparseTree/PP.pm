@@ -112,7 +112,6 @@ $VERSION = '1.0.0';
     pp_msgsnd
     pp_negate
     pp_nextstate
-    pp_null
     pp_oct
     pp_once
     pp_open_dir

@@ -215,7 +215,11 @@ sub extract_node_info($)
 		$nl_pos = index($next_str, "\n");
 	    }
 	    $str = $next_str;
-	    $found_pos->[0] += $next_found_pos->[0];
+	    if ($found_pos) {
+		$found_pos->[0] += $next_found_pos->[0];
+	    } else {
+		$found_pos = $next_found_pos;
+	    }
 	}
 
 	if (defined($found_pos)) {
