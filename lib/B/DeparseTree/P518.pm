@@ -1145,7 +1145,6 @@ sub pp_semget { listop(@_, "semget") }
 sub pp_semctl { listop(@_, "semctl") }
 sub pp_semop { listop(@_, "semop") }
 sub pp_ghbyaddr { listop(@_, "gethostbyaddr") }
-sub pp_gnbyaddr { listop(@_, "getnetbyaddr") }
 sub pp_gpbynumber { listop(@_, "getprotobynumber") }
 sub pp_gsbyname { listop(@_, "getservbyname") }
 sub pp_gsbyport { listop(@_, "getservbyport") }

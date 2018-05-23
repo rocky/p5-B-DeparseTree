@@ -1328,6 +1328,7 @@ my %PP_MAPFNS = (
     'ggrent'     => (['baseop', "getgrent"]),
     'ghbyaddr'   => (['listop', 'gethostbyaddr']),
     'ghostent'   => (['baseop', "gethostent"]),
+    'gnbyaddr'   => (['listop', "getnetbyaddr"]),
     'gnetent'    => (['baseop', "getnetent"]),
     'gpbynumber' => (['listop', 'getprotobynumber']),
     'gprotoent'  => (['baseop', "getprotoent"]),
