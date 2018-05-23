@@ -43,6 +43,7 @@ use B qw(class
 use Carp;
 use B::Deparse;
 use B::DeparseTree::Node;   # FIXME: we shouldn't need this
+use B::DeparseTree::OP;
 use B::DeparseTree::SyntaxTree;
 
 # Copy unchanged functions from B::Deparse
@@ -402,6 +403,22 @@ sub listop
 				      'other_ops' => \@skipped_ops});
 }
 
+# FIXME: remove this
+sub map_texts($$)
+{
+    my ($self, $args) = @_;
+    my @result ;
+    foreach my $expr (@$args) {
+	if (ref $expr eq 'ARRAY' and scalar(@$expr) == 2) {
+	    # First item is hash and second item is op address.
+	    push @result, [$expr->[0]{text}, $expr->[1]];
+	} else {
+	    push @result, [$expr->{text}, $expr->{addr}];
+	}
+    }
+    return @result;
+}
+
 sub maybe_my {
     my $self = shift;
     my($op, $cx, $text, $forbid_parens) = @_;
@@ -538,22 +555,6 @@ sub maybe_parens_unop($$$$)
     }
     Carp::confess("unhandled condition in maybe_parens_unop");
 }
-
-sub map_texts($$)
-{
-    my ($self, $args) = @_;
-    my @result ;
-    foreach my $expr (@$args) {
-	if (ref $expr eq 'ARRAY' and scalar(@$expr) == 2) {
-	    # First item is hash and second item is op address.
-	    push @result, [$expr->[0]{text}, $expr->[1]];
-	} else {
-	    push @result, [$expr->{text}, $expr->{addr}];
-	}
-    }
-    return @result;
-}
-
 
 sub maybe_qualify {
     my ($self,$prefix,$name) = @_;
@@ -1305,18 +1306,24 @@ sub deparse
 {
     my($self, $op, $cx, $parent) = @_;
 
-    Carp::confess("Null op in deparse") if !defined($op)
-	|| class($op) eq "NULL";
-
-    eval {
-	my $meth = "pp_" . $op->name;
-    };
-    if ($@) {
+    unless ($op->can('name')) {
+	Carp::confess("deparse called on an invalid op $op");
 	return;
     }
-    my $meth = "pp_" . $op->name;
-    # print "YYY $meth\n";
-    my $info = $self->$meth($op, $cx);
+
+    my $name = $op->name;
+    my ($info, $meth);
+
+    if (exists($PP_MAPFNS{$name})) {
+	foreach $meth ($PP_MAPFNS{$name}) {
+	    $info = $self->$meth($op, $cx, $name);
+	}
+    } else {
+	$meth = "pp_" . $name;
+	# print "YYY $meth\n";
+	$info = $self->$meth($op, $cx);
+    }
+
     Carp::confess("nonref return for $meth deparse: $info") if !ref($info);
     Carp::confess("not B::DeparseTree:Node returned for $meth: $info")
 	if !$info->isa("B::DeparseTree::Node");
