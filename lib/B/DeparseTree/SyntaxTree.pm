@@ -19,6 +19,7 @@ $VERSION = '3.1.1';
 @EXPORT = qw(
     combine
     combine2str
+    get_info_and_str
     expand_simple_spec
     indent_less
     indent_more
@@ -297,6 +298,17 @@ sub info_from_text($$$$$)
 # List of suffix characters that are handled by "expand_simple_spec()".
 use constant SIMPLE_SPEC => '%+-|';
 
+# Extract the string at $args[$index] and if
+# we are looking for that position include where we are in
+# that position
+sub get_info_and_str($$$)
+{
+    my ($self, $index, $args) = @_;
+    my $info = $args->[$index];
+    my $str = $self->info2str($info);
+    return ($info, $str);
+}
+
 sub template_engine($$$$)
 {
     my ($self, $fmt, $indexes, $args, $find_addr) = @_;
@@ -334,12 +346,8 @@ sub template_engine($$$$)
 	    if ($index >= scalar @args) {
 		Carp::confess("$index in $start_fmt for %c is too large; should be less than @args");
 	    }
-	    # FIXME: Remove duplicate code
-	    # if (! eval{$args[$index]}) {
-	    # 	use Enbugger "trepan"; Enbugger->stop;
-	    # }
-	    my $info = $args[$index];
-	    my $str = $self->info2str($info);
+	    my $str;
+	    my ($info, $str) = $self->get_info_and_str($index, $args);
 	    if (ref($info) && $info->{'addr'} == $find_addr) {
 		my $len = length($result);
 		$len++ if (exists $info->{maybe_parens}
@@ -356,11 +364,7 @@ sub template_engine($$$$)
 		$result .= $sep if $j > $low;
 
 		# FIXME: Remove duplicate code
-		my $info = $args[$j];
-		my $str = $self->info2str($info);
-		# if (!eval{$info->{addr}}) {
-		#     use Enbugger; Enbugger->stop;
-		# }
+		my ($info, $str) = $self->get_info_and_str($j, $args);
 		if (ref($info) && $info->{'addr'} == $find_addr) {
 		    my $len = length($result);
 		    $len++ if (exists $info->{maybe_parens}
@@ -411,8 +415,7 @@ sub template_engine($$$$)
 		}
 
 		# FIXME: Remove duplicate code
-		my $info = $args[$j];
-		my $str = $self->info2str($info);
+		my ($info, $str) = $self->get_info_and_str($j, $args);
 		if (ref($info) && $info->{'addr'} == $find_addr) {
 		    my $len = length($result);
 		    $len++ if exists $info->{maybe_parens} and $info->{maybe_parens}{parens};
