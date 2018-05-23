@@ -461,8 +461,8 @@ sub pp_leaveloop { shift->loop_common(@_, undef); }
 sub pp_leavetry {
     my ($self, $op, $cx) = @_;
     my $leave_info = $self->pp_leave($op, $cx);
-    return $self->info_from_template('leavetry', $op, "eval {\n%+%c\n%-}",
-				     [0], [$leave_info]);
+    return $self->info_from_template('eval {}', $op, "eval {\n%+%c\n%-}",
+				     undef, [$leave_info]);
 }
 
 sub pp_lineseq { scopeop(0, @_); }
