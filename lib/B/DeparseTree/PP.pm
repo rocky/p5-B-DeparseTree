@@ -118,6 +118,7 @@ $VERSION = '1.0.0';
     pp_leave
     pp_length
     pp_leaveloop
+    pp_leavetry
     pp_lineseq
     pp_link
     pp_list
@@ -456,6 +457,14 @@ sub pp_introcv
 
 sub pp_leave { scopeop(1, @_); }
 sub pp_leaveloop { shift->loop_common(@_, undef); }
+
+sub pp_leavetry {
+    my ($self, $op, $cx) = @_;
+    my $leave_info = $self->pp_leave($op, $cx);
+    return $self->info_from_template('leavetry', $op, "eval {\n%+%c\n%-}",
+				     [0], [$leave_info]);
+}
+
 sub pp_lineseq { scopeop(0, @_); }
 
 sub pp_list

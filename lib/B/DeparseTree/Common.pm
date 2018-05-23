@@ -1348,8 +1348,10 @@ sub deparse_sub($$$$)
 	    $body = $self->lineseq($root, 0, @ops);
 	    my $scope_en = $self->find_scope_en($lineseq);
 	}
-	else {
+	elsif ($start_op) {
 	    $body = $self->deparse($start_op, 0, $root);
+	} else {
+	    $body = $self->deparse($root->first, 0, $root);
 	}
 
 	my $type = "sub " . $cv->GV->NAME;
@@ -2063,7 +2065,7 @@ sub single_delim($$$$$) {
 					 [[0, $transform_fn]], [$str]);
     } else {
 	my $transform_fn = sub {$_[0] =~ s[/][\\/]g};
-	return $self->info_from_template("string q // escape", $op,
+	return $self->info_from_template("string q // escape",
 					 $op, "$default%F$default",
 					 [[0, $transform_fn]], [$str]);
     }

@@ -988,13 +988,6 @@ sub for_loop {
     return $self->loop_common($ll, $cx, $init);
 }
 
-sub pp_leavetry {
-    my ($self, $op, $cx) = @_;
-    my $leave_info = $self->pp_leave($op, $cx);
-    return info_from_list($op, $self, ['eval', '{\n\t"', $leave_info->{text}, "\n\b}"],
-			  ' ', 'leavetry', {body=>[$leave_info]});
-}
-
 sub _op_is_or_was {
   my ($op, $expect_type) = @_;
   my $type = $op->type;

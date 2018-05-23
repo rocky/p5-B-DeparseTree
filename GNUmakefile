@@ -123,6 +123,10 @@ check-cautious: test-unit
 	   break; \
 	fi; done)
 
+#: Run Perl's own tests (after decompilation)
+check-roundtrip:
+	cd t/roundtrip && perl runtests.pl
+
 #: Run just the tests in the t/ directory
 check-t: test-unit
 	perl Build --makefile_env_macros 1 test --test_files t
@@ -132,10 +136,7 @@ test-unit:
 	perl Build --makefile_env_macros 1 test --test_files t/unit
 
 #: Run all tests (t and scripts)
-test: check-t test-roundtrip
-
-test-roundtrip:
-	cd t/roundtrip && perl runtests.pl
+test: check-t check-roundtrip
 
 #: Check code coverage
 testcover:

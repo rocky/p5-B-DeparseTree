@@ -27,6 +27,7 @@ lib/B/DeparseTree/Printer.pm
 lib/B/DeparseTree/SyntaxTree.pm
 scripts/Makefile
 scripts/README.md
+scripts/benchtests.pl
 scripts/bug-sample.pm
 scripts/deparse.sh
 scripts/fib.pl
@@ -40,10 +41,11 @@ t/roundtrip/base/cond.t
 t/roundtrip/base/if.t
 t/roundtrip/base/num.t
 t/roundtrip/base/pat.t
+t/roundtrip/base/rs.t-notyet
 t/roundtrip/base/term.t
 t/roundtrip/base/translate.t
 t/roundtrip/base/while.t
-t/roundtrip/benchtests.pl
+t/roundtrip/deparse.sh
 t/roundtrip/runtests.pl
 t/testdata/P518-short.pm
 t/testdata/P520.pm
