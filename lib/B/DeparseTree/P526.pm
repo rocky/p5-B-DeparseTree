@@ -272,47 +272,6 @@ sub ambient_pragmas {
     $self->{'ambient_hinthash'} = $hinthash;
 }
 
-# Sort of like maybe_parens in that we may possibly add ().  However we take
-# an op rather than text, and return a tree node. Also, we get around
-# the 'if it looks like a function' rule.
-sub maybe_parens_unop($$$$$)
-{
-    my $self = shift;
-    my($name, $op, $cx, $parent) = @_;
-    my $info =  $self->deparse($op, 1, $parent);
-    my $fmt;
-    my @exprs = ($info);
-    if ($name eq "umask" && $info->{text} =~ /^\d+$/) {
-	# Display umask numbers in octal.
-	# FIXME: add as a info_node option to run a transformation function
-	# such as the below
-	$info->{text} = sprintf("%#o", $info->{text});
-	$exprs[0] = $info;
-    }
-    $name = $self->keyword($name);
-    if ($cx > 16 or $self->{'parens'}) {
-	return $self->info_from_template("$name()", $op,
-					 "$name(%c)",[0], \@exprs);
-    } else {
-	# FIXME: we don't do \cS
-	# if (substr($text, 0, 1) eq "\cS") {
-	#     # use op's parens
-	#     return info_from_list($op, $self,[$name, substr($text, 1)],
-	# 			  '',  'maybe_parens_unop_cS', {body => [$info]});
-	# } else
-	if (substr($info->{text}, 0, 1) eq "(") {
-	    # avoid looks-like-a-function trap with extra parens
-	    # ('+' can lead to ambiguities)
-	    return $self->info_from_template("$name(())", $op,
-					     "$name(%c)", [0], \@exprs);
-	} else {
-	    return $self->info_from_template("$name <args>", $op,
-					     "$name %c", [0], \@exprs);
-	}
-    }
-    Carp::confess("unhandled condition in maybe_parens_unop");
-}
-
 # The following OPs don't have functions:
 
 # pp_padany -- does not exist after parsing
@@ -999,18 +958,6 @@ sub logassignop
 sub pp_andassign { logassignop(@_, "&&=") }
 sub pp_orassign  { logassignop(@_, "||=") }
 sub pp_dorassign { logassignop(@_, "//=") }
-
-sub rv2gv_or_string {
-    my($self,$op, $parent) = @_;
-    if ($op->name eq "gv") { # could be open("open") or open("###")
-	my($name,$quoted) =
-	    $self->stash_variable_name("", $self->gv_or_padgv($op));
-	return info_from_text($op, $self, $quoted ? $name : "*$name", 'r2gv_or_string', {});
-    }
-    else {
-	return $self->deparse($op, 6, $parent);
-    }
-}
 
 sub is_ifelse_cont
 {

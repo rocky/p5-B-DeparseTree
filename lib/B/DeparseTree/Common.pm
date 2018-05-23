@@ -95,6 +95,7 @@ $VERSION = '3.1.1';
     pragmata
     print_protos
     rv2x
+    rv2gv_or_string
     scopeop
     seq_subs
     single_delim
@@ -428,14 +429,11 @@ map($matchwords{join "", sort split //, $_} = $_, 'cig', 'cog', 'cos', 'cogs',
     'cox', 'go', 'is', 'ism', 'iso', 'mig', 'mix', 'osmic', 'ox', 'sic',
     'sig', 'six', 'smog', 'so', 'soc', 'sog', 'xi');
 
-sub maybe_parens_func($$$$$)
-{
-    my($self, $func, $params, $cx, $prec) = @_;
-    if ($prec <= $cx or substr($params, 0, 1) eq "(" or $self->{'parens'}) {
-	return ($func, '(', $params, ')');
-    } else {
-	return ($func, ' ', $params);
-    }
+# FIXME: This is weird. Regularize var_info
+sub maybe_local {
+    my($self, $op, $cx, $var_info) = @_;
+    $var_info->{parent} = $$op;
+    return maybe_local_str($self, $op, $cx, $var_info->{text});
 }
 
 # FIXME this doesn't return a String!
@@ -490,11 +488,55 @@ sub maybe_local_str
     }
 }
 
-# FIXME: This is weird. Regularize var_info
-sub maybe_local {
-    my($self, $op, $cx, $var_info) = @_;
-    $var_info->{parent} = $$op;
-    return maybe_local_str($self, $op, $cx, $var_info->{text});
+sub maybe_parens_func($$$$$)
+{
+    my($self, $func, $params, $cx, $prec) = @_;
+    if ($prec <= $cx or substr($params, 0, 1) eq "(" or $self->{'parens'}) {
+	return ($func, '(', $params, ')');
+    } else {
+	return ($func, ' ', $params);
+    }
+}
+
+# Sort of like maybe_parens in that we may possibly add ().  However we take
+# an op rather than text, and return a tree node. Also, we get around
+# the 'if it looks like a function' rule.
+sub maybe_parens_unop($$$$)
+{
+    my $self = shift;
+    my($name, $op, $cx, $parent) = @_;
+    my $info =  $self->deparse($op, 1, $parent);
+    my $fmt;
+    my @exprs = ($info);
+    if ($name eq "umask" && $info->{text} =~ /^\d+$/) {
+	# Display umask numbers in octal.
+	# FIXME: add as a info_node option to run a transformation function
+	# such as the below
+	$info->{text} = sprintf("%#o", $info->{text});
+	$exprs[0] = $info;
+    }
+    $name = $self->keyword($name);
+    if ($cx > 16 or $self->{'parens'}) {
+	return $self->info_from_template("$name()", $op,
+					 "$name(%c)",[0], \@exprs);
+    } else {
+	# FIXME: we don't do \cS
+	# if (substr($text, 0, 1) eq "\cS") {
+	#     # use op's parens
+	#     return info_from_list($op, $self,[$name, substr($text, 1)],
+	# 			  '',  'maybe_parens_unop_cS', {body => [$info]});
+	# } else
+	if (substr($info->{text}, 0, 1) eq "(") {
+	    # avoid looks-like-a-function trap with extra parens
+	    # ('+' can lead to ambiguities)
+	    return $self->info_from_template("$name(())", $op,
+					     "$name(%c)", [0], \@exprs);
+	} else {
+	    return $self->info_from_template("$name <args>", $op,
+					     "$name %c", [0], \@exprs);
+	}
+    }
+    Carp::confess("unhandled condition in maybe_parens_unop");
 }
 
 sub map_texts($$)
@@ -1468,6 +1510,18 @@ sub is_miniwhile { # check for one-line loop ('foo() while $y--')
 		     and not null $op->first->first->sibling
 		     and $op->first->first->sibling->name eq "unstack")
 		 ));
+}
+
+sub rv2gv_or_string {
+    my($self, $op, $parent) = @_;
+    if ($op->name eq "gv") { # could be open("open") or open("###")
+	my($name, $quoted) =
+	    $self->stash_variable_name("", $self->gv_or_padgv($op));
+	return info_from_text($op, $self, $quoted ? $name : "*$name", 'r2gv_or_string', {});
+    }
+    else {
+	return $self->deparse($op, 6, $parent);
+    }
 }
 
 sub scopeop

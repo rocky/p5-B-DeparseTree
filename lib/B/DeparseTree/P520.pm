@@ -1027,18 +1027,6 @@ sub pp_andassign { logassignop(@_, "&&=") }
 sub pp_orassign  { logassignop(@_, "||=") }
 sub pp_dorassign { logassignop(@_, "//=") }
 
-sub rv2gv_or_string {
-    my($self,$op, $parent) = @_;
-    if ($op->name eq "gv") { # could be open("open") or open("###")
-	my($name,$quoted) =
-	    $self->stash_variable_name("", $self->gv_or_padgv($op));
-	return info_from_text($op, $self, $quoted ? $name : "*$name", 'r2gv_or_string', {});
-    }
-    else {
-	return $self->deparse($op, 6, $parent);
-    }
-}
-
 sub pp_bless { listop(@_, "bless") }
 sub pp_atan2 { maybe_targmy(@_, \&listop, "atan2") }
 sub pp_substr {
