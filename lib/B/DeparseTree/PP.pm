@@ -50,6 +50,7 @@ $VERSION = '1.0.0';
 
 @ISA = qw(Exporter B::Deparse);
 @EXPORT = qw(
+    pp_aassign
     pp_accept
     pp_abs
     pp_and
@@ -233,38 +234,28 @@ BEGIN {
     }
 }
 
-sub pp_pos { maybe_local(@_, unop(@_, "pos")) }
-sub pp_sin { maybe_targmy(@_, \&unop, "sin") }
-sub pp_cos { maybe_targmy(@_, \&unop, "cos") }
+sub SWAP_CHILDREN () { 1 }
+sub ASSIGN () { 2 } # has OP= variant
+sub LIST_CONTEXT () { 4 } # Assignment is in list context
 
-sub pp_exp { maybe_targmy(@_, \&unop, "exp") }
-sub pp_log { maybe_targmy(@_, \&unop, "log") }
-sub pp_sqrt { maybe_targmy(@_, \&unop, "sqrt") }
-sub pp_int { maybe_targmy(@_, \&unop, "int") }
-sub pp_hex { maybe_targmy(@_, \&unop, "hex") }
-sub pp_oct { maybe_targmy(@_, \&unop, "oct") }
-
-sub pp_length { maybe_targmy(@_, \&unop, "length") }
-sub pp_ord { maybe_targmy(@_, \&unop, "ord") }
-sub pp_chr { maybe_targmy(@_, \&unop, "chr") }
-
-sub pp_each { unop(@_, "each") }
-sub pp_values { unop(@_, "values") }
-sub pp_keys { unop(@_, "keys") }
-
-sub pp_accept { listop(@_, "accept") }
+sub pp_aassign { binop(@_, "=", 7, SWAP_CHILDREN | LIST_CONTEXT, 'array assign') }
 sub pp_abs { maybe_targmy(@_, \&unop, "abs") }
+sub pp_accept { listop(@_, "accept") }
 sub pp_atan2 { maybe_targmy(@_, \&listop, "atan2") }
 sub pp_bind { listop(@_, "bind") }
 sub pp_binmode { listop(@_, "binmode") }
 sub pp_bless { listop(@_, "bless") }
 sub pp_chmod { maybe_targmy(@_, \&listop, "chmod") }
 sub pp_chown { maybe_targmy(@_, \&listop, "chown") }
+sub pp_chr { maybe_targmy(@_, \&unop, "chr") }
 sub pp_connect { listop(@_, "connect") }
+sub pp_cos { maybe_targmy(@_, \&unop, "cos") }
 sub pp_crypt { maybe_targmy(@_, \&listop, "crypt") }
 sub pp_dbmopen { listop(@_, "dbmopen") }
 sub pp_die { listop(@_, "die") }
+sub pp_each { unop(@_, "each") }
 sub pp_exec { maybe_targmy(@_, \&listop, "exec") }
+sub pp_exp { maybe_targmy(@_, \&unop, "exp") }
 sub pp_fcntl { listop(@_, "fcntl") }
 sub pp_flock { maybe_targmy(@_, \&listop, "flock") }
 sub pp_formline { listop(@_, "formline") } # see also deparse_format
@@ -275,21 +266,29 @@ sub pp_gpbynumber { listop(@_, "getprotobynumber") }
 sub pp_gsbyname { listop(@_, "getservbyname") }
 sub pp_gsbyport { listop(@_, "getservbyport") }
 sub pp_gsockopt { listop(@_, "getsockopt") }
+sub pp_hex { maybe_targmy(@_, \&unop, "hex") }
 sub pp_index { maybe_targmy(@_, \&listop, "index") }
+sub pp_int { maybe_targmy(@_, \&unop, "int") }
 sub pp_ioctl { listop(@_, "ioctl") }
 sub pp_join { maybe_targmy(@_, \&listop, "join") }
+sub pp_keys { unop(@_, "keys") }
 sub pp_kill { maybe_targmy(@_, \&listop, "kill") }
+sub pp_length { maybe_targmy(@_, \&unop, "length") }
 sub pp_link { maybe_targmy(@_, \&listop, "link") }
 sub pp_listen { listop(@_, "listen") }
+sub pp_log { maybe_targmy(@_, \&unop, "log") }
 sub pp_mkdir { maybe_targmy(@_, \&listop, "mkdir") }
 sub pp_msgctl { listop(@_, "msgctl") }
 sub pp_msgget { listop(@_, "msgget") }
 sub pp_msgrcv { listop(@_, "msgrcv") }
 sub pp_msgsnd { listop(@_, "msgsnd") }
+sub pp_oct { maybe_targmy(@_, \&unop, "oct") }
 sub pp_open { listop(@_, "open") }
 sub pp_open_dir { listop(@_, "opendir") }
+sub pp_ord { maybe_targmy(@_, \&unop, "ord") }
 sub pp_pack { listop(@_, "pack") }
 sub pp_pipe_op { listop(@_, "pipe") }
+sub pp_pos { maybe_local(@_, unop(@_, "pos")) }
 sub pp_push { maybe_targmy(@_, \&listop, "push") }
 sub pp_read { listop(@_, "read") }
 sub pp_recv { listop(@_, "recv") }
@@ -311,10 +310,12 @@ sub pp_shmget { listop(@_, "shmget") }
 sub pp_shmread { listop(@_, "shmread") }
 sub pp_shmwrite { listop(@_, "shmwrite") }
 sub pp_shutdown { listop(@_, "shutdown") }
+sub pp_sin { maybe_targmy(@_, \&unop, "sin") }
 sub pp_socket { listop(@_, "socket") }
 sub pp_sockpair { listop(@_, "socketpair") }
 sub pp_splice { listop(@_, "splice") }
 sub pp_sprintf { maybe_targmy(@_, \&listop, "sprintf") }
+sub pp_sqrt { maybe_targmy(@_, \&unop, "sqrt") }
 sub pp_sselect { listop(@_, "select") }
 sub pp_ssockopt { listop(@_, "setsockopt") }
 sub pp_symlink { maybe_targmy(@_, \&listop, "symlink") }
@@ -329,6 +330,7 @@ sub pp_unlink { maybe_targmy(@_, \&listop, "unlink") }
 sub pp_unpack { listop(@_, "unpack") }
 sub pp_unshift { maybe_targmy(@_, \&listop, "unshift") }
 sub pp_utime { maybe_targmy(@_, \&listop, "utime") }
+sub pp_values { unop(@_, "values") }
 sub pp_vec { maybe_local(@_, listop(@_, "vec")) }
 sub pp_waitpid { maybe_targmy(@_, \&listop, "waitpid") }
 sub pp_warn { listop(@_, "warn") }

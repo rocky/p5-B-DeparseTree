@@ -24,6 +24,8 @@ $VERSION = '3.1.1';
 @ISA = qw(Exporter);
 @EXPORT = qw(
     binop
+    deparse_binop_left
+    deparse_binop_right
     dq_unop
     givwhen
     listop
@@ -34,7 +36,13 @@ $VERSION = '3.1.1';
 
 sub binop
 {
-    my ($self, $op, $cx, $opname, $prec, $flags) = (@_, 0);
+
+    my ($self, $op, $cx, $opname, $prec) = @_;
+    my ($flags, $type) = (0, '');
+    if (scalar(@_) > 5) {
+	$flags = $_[5];
+	$type = $_[6] if (scalar(@_) > 6);
+    }
     my $left = $op->first;
     my $right = $op->last;
     my $eq = "";
@@ -54,9 +62,97 @@ sub binop
     my $rhs = $self->deparse_binop_right($op, $right, $prec);
     my @texts = ($lhs, $rhs);
 
-    return $self->info_from_template("binary operator $opname$eq", $op,
-				     "%c $opname$eq %c", undef, \@texts,
+    $type = $type || 'binary_operator';
+    $type .= " $opname$eq";
+    return $self->info_from_template($type, $op, "%c $opname$eq %c", undef, \@texts,
 				     {maybe_parens => [$self, $cx, $prec]});
+}
+
+my(%left, %right);
+
+sub assoc_class {
+    my $op = shift;
+    my $name = $op->name;
+    if ($name eq "concat" and $op->first->name eq "concat") {
+	# avoid spurious '=' -- see comment in pp_concat
+	return "concat";
+    }
+    if ($name eq "null" and B::class($op) eq "UNOP"
+	and $op->first->name =~ /^(and|x?or)$/
+	and null $op->first->sibling)
+    {
+	# Like all conditional constructs, OP_ANDs and OP_ORs are topped
+	# with a null that's used as the common end point of the two
+	# flows of control. For precedence purposes, ignore it.
+	# (COND_EXPRs have these too, but we don't bother with
+	# their associativity).
+	return assoc_class($op->first);
+    }
+    return $name . ($op->flags & B::OPf_STACKED ? "=" : "");
+}
+
+# Left associative operators, like '+', for which
+# $a + $b + $c is equivalent to ($a + $b) + $c
+
+BEGIN {
+    %left = ('multiply' => 19, 'i_multiply' => 19,
+	     'divide' => 19, 'i_divide' => 19,
+	     'modulo' => 19, 'i_modulo' => 19,
+	     'repeat' => 19,
+	     'add' => 18, 'i_add' => 18,
+	     'subtract' => 18, 'i_subtract' => 18,
+	     'concat' => 18,
+	     'left_shift' => 17, 'right_shift' => 17,
+	     'bit_and' => 13,
+	     'bit_or' => 12, 'bit_xor' => 12,
+	     'and' => 3,
+	     'or' => 2, 'xor' => 2,
+	    );
+}
+
+sub deparse_binop_left {
+    my $self = shift;
+    my($op, $left, $prec) = @_;
+    if ($left{assoc_class($op)} && $left{assoc_class($left)}
+	and $left{assoc_class($op)} == $left{assoc_class($left)})
+    {
+	return $self->deparse($left, $prec - .00001, $op);
+    } else {
+	return $self->deparse($left, $prec, $op);
+    }
+}
+
+# Right associative operators, like '=', for which
+# $a = $b = $c is equivalent to $a = ($b = $c)
+
+BEGIN {
+    %right = ('pow' => 22,
+	      'sassign=' => 7, 'aassign=' => 7,
+	      'multiply=' => 7, 'i_multiply=' => 7,
+	      'divide=' => 7, 'i_divide=' => 7,
+	      'modulo=' => 7, 'i_modulo=' => 7,
+	      'repeat=' => 7,
+	      'add=' => 7, 'i_add=' => 7,
+	      'subtract=' => 7, 'i_subtract=' => 7,
+	      'concat=' => 7,
+	      'left_shift=' => 7, 'right_shift=' => 7,
+	      'bit_and=' => 7,
+	      'bit_or=' => 7, 'bit_xor=' => 7,
+	      'andassign' => 7,
+	      'orassign' => 7,
+	     );
+}
+
+sub deparse_binop_right {
+    my $self = shift;
+    my($op, $right, $prec) = @_;
+    if ($right{assoc_class($op)} && $right{assoc_class($right)}
+	and $right{assoc_class($op)} == $right{assoc_class($right)})
+    {
+	return $self->deparse($right, $prec - .00001, $op);
+    } else {
+	return $self->deparse($right, $prec, $op);
+    }
 }
 
 # Unary operators that can occur as pseudo-listops inside double quotes

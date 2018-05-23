@@ -679,93 +679,6 @@ sub SWAP_CHILDREN () { 1 }
 sub ASSIGN () { 2 } # has OP= variant
 sub LIST_CONTEXT () { 4 } # Assignment is in list context
 
-my(%left, %right);
-
-sub assoc_class {
-    my $op = shift;
-    my $name = $op->name;
-    if ($name eq "concat" and $op->first->name eq "concat") {
-	# avoid spurious '=' -- see comment in pp_concat
-	return "concat";
-    }
-    if ($name eq "null" and class($op) eq "UNOP"
-	and $op->first->name =~ /^(and|x?or)$/
-	and null $op->first->sibling)
-    {
-	# Like all conditional constructs, OP_ANDs and OP_ORs are topped
-	# with a null that's used as the common end point of the two
-	# flows of control. For precedence purposes, ignore it.
-	# (COND_EXPRs have these too, but we don't bother with
-	# their associativity).
-	return assoc_class($op->first);
-    }
-    return $name . ($op->flags & OPf_STACKED ? "=" : "");
-}
-
-# Left associative operators, like '+', for which
-# $a + $b + $c is equivalent to ($a + $b) + $c
-
-BEGIN {
-    %left = ('multiply' => 19, 'i_multiply' => 19,
-	     'divide' => 19, 'i_divide' => 19,
-	     'modulo' => 19, 'i_modulo' => 19,
-	     'repeat' => 19,
-	     'add' => 18, 'i_add' => 18,
-	     'subtract' => 18, 'i_subtract' => 18,
-	     'concat' => 18,
-	     'left_shift' => 17, 'right_shift' => 17,
-	     'bit_and' => 13,
-	     'bit_or' => 12, 'bit_xor' => 12,
-	     'and' => 3,
-	     'or' => 2, 'xor' => 2,
-	    );
-}
-
-sub deparse_binop_left {
-    my $self = shift;
-    my($op, $left, $prec) = @_;
-    if ($left{assoc_class($op)} && $left{assoc_class($left)}
-	and $left{assoc_class($op)} == $left{assoc_class($left)})
-    {
-	return $self->deparse($left, $prec - .00001, $op);
-    } else {
-	return $self->deparse($left, $prec, $op);
-    }
-}
-
-# Right associative operators, like '=', for which
-# $a = $b = $c is equivalent to $a = ($b = $c)
-
-BEGIN {
-    %right = ('pow' => 22,
-	      'sassign=' => 7, 'aassign=' => 7,
-	      'multiply=' => 7, 'i_multiply=' => 7,
-	      'divide=' => 7, 'i_divide=' => 7,
-	      'modulo=' => 7, 'i_modulo=' => 7,
-	      'repeat=' => 7,
-	      'add=' => 7, 'i_add=' => 7,
-	      'subtract=' => 7, 'i_subtract=' => 7,
-	      'concat=' => 7,
-	      'left_shift=' => 7, 'right_shift=' => 7,
-	      'bit_and=' => 7,
-	      'bit_or=' => 7, 'bit_xor=' => 7,
-	      'andassign' => 7,
-	      'orassign' => 7,
-	     );
-}
-
-sub deparse_binop_right {
-    my $self = shift;
-    my($op, $right, $prec) = @_;
-    if ($right{assoc_class($op)} && $right{assoc_class($right)}
-	and $right{assoc_class($op)} == $right{assoc_class($right)})
-    {
-	return $self->deparse($right, $prec - .00001, $op);
-    } else {
-	return $self->deparse($right, $prec, $op);
-    }
-}
-
 sub pp_add { maybe_targmy(@_, \&binop, "+", 18, ASSIGN) }
 sub pp_multiply { maybe_targmy(@_, \&binop, "*", 19, ASSIGN) }
 sub pp_subtract { maybe_targmy(@_, \&binop, "-",18,  ASSIGN) }
@@ -808,7 +721,6 @@ sub pp_sle { binop(@_, "le", 15) }
 sub pp_scmp { binop(@_, "cmp", 14) }
 
 sub pp_sassign { binop(@_, "=", 7, SWAP_CHILDREN) }
-sub pp_aassign { binop(@_, "=", 7, SWAP_CHILDREN | LIST_CONTEXT) }
 
 sub pp_smartmatch {
     my ($self, $op, $cx) = @_;
