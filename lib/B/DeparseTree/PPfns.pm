@@ -686,11 +686,10 @@ sub indirop
 	} else {
 	    $type='indirop_noargs';
 	    @texts = ($name2);
-	    push(@texts, '(', ')') if (7 < $cx);
+	    push(@texts, '()') if (7 < $cx);
 	}
     }
-    my $node = info_from_list($first_op, $self, \@texts, '', "$type pushmark", $opts);
-    return $self->info_from_template($type, $op, "%c", undef, [$node])
+    return info_from_list($first_op, $self, \@texts, '', "$type", $opts);
 }
 
 sub mapop

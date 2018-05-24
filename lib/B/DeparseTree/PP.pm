@@ -1,7 +1,12 @@
-# Common PP opcodes. Specifc Perl versions can override these.
-
 # Copyright (c) 2015, 2018 Rocky Bernstein
+
+# Common PP (push-pull) opcodes methods. Most of these are called
+# from the method dispatch in Common.
 #
+# Specifc Perl versions can override these.  Note some PP opcodes are
+# handled via table lookup to their underlying base-handling function,
+# e.g. binop, listop, unop, ....
+
 use strict;
 use warnings ();
 require feature;
@@ -161,6 +166,7 @@ $VERSION = '1.0.0';
     pp_system
     pp_tie
     pp_time
+    pp_truncate
     pp_unlink
     pp_unshift
     pp_unstack
@@ -232,6 +238,34 @@ sub pp_ssockopt { listop(@_, "setsockopt") }
 sub pp_symlink { maybe_targmy(@_, \&listop, "symlink") }
 sub pp_system { maybe_targmy(@_, \&listop, "system") }
 sub pp_tie { listop(@_, "tie") }
+
+sub pp_truncate
+{
+    my($self, $op, $cx) = @_;
+    my(@exprs);
+    my $parens = ($cx >= 5) || $self->{'parens'};
+    my $opts = {'other_ops' => [$op->first]};
+    my $kid = $op->first->sibling;
+    my $fh;
+    if ($op->flags & B::OPf_SPECIAL) {
+	# $kid is an OP_CONST
+	$fh = $self->const_sv($kid)->PV;
+    } else {
+	$fh = $self->deparse($kid, 6, $op);
+        $fh = "+$fh" if not $parens and substr($fh, 0, 1) eq "(";
+    }
+    my $len = $self->deparse($kid->sibling, 6, $op);
+    my $name = $self->keyword('truncate');
+    my $args = "$fh->{text}, $len->{text}";
+    if ($parens) {
+	return info_from_list($op, $self, [$name, '(', $args, ')'], '',
+			      'truncate_parens', $opts);
+    } else {
+	return info_from_list($op, $self, [$name, $args], '', 'truncate', $opts);
+    }
+}
+
+
 sub pp_unlink { maybe_targmy(@_, \&listop, "unlink") }
 sub pp_unshift { maybe_targmy(@_, \&listop, "unshift") }
 sub pp_utime { maybe_targmy(@_, \&listop, "utime") }

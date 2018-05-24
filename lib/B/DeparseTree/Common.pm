@@ -1245,23 +1245,24 @@ my %PP_MAPFNS = (
 # high-speed decompilation is vital, I'd like to hear it.
 #
 # On the other hand, error checking are too valuable to throw out here.
-# Also, in trying to use and modularize this code, is see there is
-# a lot of repitition in subroutine parsing routines. That's
+# Also, in trying to use and modularize this code, I see there is
+# a lot of repetition in subroutine parsing routines. That's
 # why I added the above table. I'm not going to trade off
 # table lookup and interpetation for a huge amount of subroutine
-# bloat,
+# bloat.
+
+# That said it is useful to note that this is inner-most loop
+# interpeter loop.
 #
 sub deparse
 {
     my($self, $op, $cx, $parent) = @_;
 
-    unless ($op->can('name')) {
-	Carp::confess("deparse called on an invalid op $op");
-	return;
-    }
+    Carp::confess("deparse called on an invalid op $op")
+	unless $op->can('name');
 
     my $name = $op->name;
-    # print "YYY $name\n";
+    # print "YYY $name\n";  # uncomment to see what op we're working on.
     my ($info, $meth);
 
     if (exists($PP_MAPFNS{$name})) {
@@ -1861,32 +1862,6 @@ sub single_delim($$$$$) {
 # Truncate is special because OPf_SPECIAL makes a bareword first arg
 # be a filehandle. This could probably be better fixed in the core
 # by moving the GV lookup into ck_truc.
-
-sub pp_truncate
-{
-    my($self, $op, $cx) = @_;
-    my(@exprs);
-    my $parens = ($cx >= 5) || $self->{'parens'};
-    my $opts = {'other_ops' => [$op->first]};
-    my $kid = $op->first->sibling;
-    my $fh;
-    if ($op->flags & OPf_SPECIAL) {
-	# $kid is an OP_CONST
-	$fh = $self->const_sv($kid)->PV;
-    } else {
-	$fh = $self->deparse($kid, 6, $op);
-        $fh = "+$fh" if not $parens and substr($fh, 0, 1) eq "(";
-    }
-    my $len = $self->deparse($kid->sibling, 6, $op);
-    my $name = $self->keyword('truncate');
-    my $args = "$fh->{text}, $len->{text}";
-    if ($parens) {
-	return info_from_list($op, $self, [$name, '(', $args, ')'], '',
-			      'truncate_parens', $opts);
-    } else {
-	return info_from_list($op, $self, [$name, $args], '', 'truncate', $opts);
-    }
-}
 
 # Demo code
 unless(caller) {
