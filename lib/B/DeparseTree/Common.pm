@@ -1350,7 +1350,23 @@ my %PP_MAPFNS = (
     'warn'       => ('listop'),
     );
 
-# This method is the inner loop, so try to keep it simple
+# This method is the inner loop.
+# Rocky's comment with respect to:
+#   so try to keep it simple
+#
+# Most normal programs really aren't that big. Yeah I know there
+# are a couple of big pigs like the B::Deparse code itself. The perl5
+# debugger comes to mind too. But what's the likelihood of anyone wanting
+# to decompile all of this? If someone can make a case for a reason
+# high-speed decompilation is vital, I'd like to hear it.
+#
+# On the other hand, error checking are too valuable to throw out here.
+# Also, in trying to use and modularize this code, is see there is
+# a lot of repitition in subroutine parsing routines. That's
+# why I added the above table. I'm not going to trade off
+# table lookup and interpetation for a huge amount of subroutine
+# bloat,
+#
 sub deparse
 {
     my($self, $op, $cx, $parent) = @_;
@@ -1365,15 +1381,22 @@ sub deparse
     my ($info, $meth);
 
     if (exists($PP_MAPFNS{$name})) {
+	# Interpret method calls for our PP_MAPFNS table
 	if (ref($PP_MAPFNS{$name}) eq 'ARRAY') {
 	    my @args = @{$PP_MAPFNS{$name}};
 	    $meth = shift @args;
 	    $info = $self->$meth($op, $cx, $args[0]);
 	} else {
+	    # Simple case: one simple call of the
+	    # the method in the table along with its
+	    # name.
 	    $meth = $PP_MAPFNS{$name};
 	    $info = $self->$meth($op, $cx, $name);
 	}
     } else {
+	# Tried and true fallback method:
+	# a method has been defined for this pp_op special.
+	# call that.
 	$meth = "pp_" . $name;
 	$info = $self->$meth($op, $cx);
     }
