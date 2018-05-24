@@ -1146,6 +1146,7 @@ my %PP_MAPFNS = (
     'dbstate'    => 'nextstate',
     'defined'    => 'unop',
     'die'        => 'listop',
+    'dump'       => ['loopex', "CORE::dump"],
 
     'each'       => 'unop',
     'egrent'     => ['baseop', 'endgrent'],
@@ -1171,11 +1172,12 @@ my %PP_MAPFNS = (
     'ggrnam'     => ['unop',   "getgrnam"],
     'ghbyaddr'   => ['listop', 'gethostbyaddr'],
     'ghbyname'   => ['unop',   "gethostbyname"],
-    'gmtime'     => 'unop',
     'ghostent'   => ['baseop', "gethostent"],
+    'gmtime'     => 'unop',
     'gnbyaddr'   => ['listop', "getnetbyaddr"],
     'gnbyname'   => ['unop',   "getnetbyname"],
     'gnetent'    => ['baseop', "getnetent"],
+    'goto'       => ['loopex', "goto"],
     'gpbyname'   => ['unop',   "getprotobyname"],
     'gpbynumber' => ['listop', 'getprotobynumber'],
     'gprotoent'  => ['baseop', "getprotoent"],
@@ -1191,6 +1193,7 @@ my %PP_MAPFNS = (
     'ioctl'      => 'listop',
     'keys'       => 'unop',
 
+    'last'       => 'loopex',
     'listen'     => 'listop',
     'localtime'  => 'unop',
 
@@ -1199,6 +1202,7 @@ my %PP_MAPFNS = (
     'msgrcv'     => 'listop',
     'msgsnd'     => 'listop',
 
+    'next'       => 'loopex',
     'open'       => 'listop',
 
     'pack'       => 'listop',
@@ -1210,6 +1214,7 @@ my %PP_MAPFNS = (
     'readdir'    => 'unop',
     'readlink'   => 'unop',
     'recv'       => 'listop',
+    'redo'       => 'loopex',
     'ref'        => 'unop',
     'reset'      => 'unop',
     'return'     => 'listop',

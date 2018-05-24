@@ -637,34 +637,6 @@ sub pp_lc { dq_unop(@_, "lc") }
 sub pp_quotemeta { maybe_targmy(@_, \&dq_unop, "quotemeta") }
 sub pp_fc { dq_unop(@_, "fc") }
 
-# loop expressions
-sub loopex
-{
-    my ($self, $op, $cx, $name) = @_;
-    my $opts = {maybe_parens => [$self, $cx, 7]};
-    my ($type, $body);
-    if (class($op) eq "PVOP") {
-	return info_from_list($op, $self, [$name, $op->pv], ' ', 'loopex_pvop', {});
-    } elsif (class($op) eq "OP") {
-	# no-op
-	$type = 'loopex_op';
-	return info_from_text($op, $self, $name, 'loopex_op', $opts);
-    } elsif (class($op) eq "UNOP") {
-	(my $kid_info = $self->deparse($op->first, 7, $op)) =~ s/^\cS//;
-	$opts->{body} = [$kid_info];
-	return info_from_list($op, $self, [$name, $op->pv], ' ', 'loopex_unop', $opts);
-    } else {
-	return info_from_text($op, $self, $name, 'loopex', $opts);
-    }
-    Carp::confess("unhandled condition in lopex");
-}
-
-sub pp_last { loopex(@_, "last") }
-sub pp_next { loopex(@_, "next") }
-sub pp_redo { loopex(@_, "redo") }
-sub pp_goto { loopex(@_, "goto") }
-sub pp_dump { loopex(@_, "CORE::dump") }
-
 sub ftst
 {
     my($self, $op, $cx, $name) = @_;

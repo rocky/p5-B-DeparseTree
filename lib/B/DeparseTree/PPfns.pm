@@ -43,6 +43,7 @@ $VERSION = '3.1.1';
     listop
     logop
     loop_common
+    loopex
     mapop
     matchop
     pfixop
@@ -588,6 +589,28 @@ sub loop_common
 	$fmt .= '%c';
     }
     return $self->info_from_template($type, $op, $fmt, \@args_spec, \@nodes, $opts)
+}
+
+# loop expressions
+sub loopex
+{
+    my ($self, $op, $cx, $name) = @_;
+    my $opts = {maybe_parens => [$self, $cx, 7]};
+    my ($type, $body);
+    if (B::class($op) eq "PVOP") {
+	return info_from_list($op, $self, [$name, $op->pv], ' ', 'loopex_pvop', {});
+    } elsif (B::class($op) eq "OP") {
+	# no-op
+	$type = 'loopex_op';
+	return info_from_text($op, $self, $name, 'loopex_op', $opts);
+    } elsif (B::class($op) eq "UNOP") {
+	(my $kid_info = $self->deparse($op->first, 7, $op)) =~ s/^\cS//;
+	$opts->{body} = [$kid_info];
+	return info_from_list($op, $self, [$name, $op->pv], ' ', 'loopex_unop', $opts);
+    } else {
+	return info_from_text($op, $self, $name, 'loopex', $opts);
+    }
+    Carp::confess("unhandled condition in lopex");
 }
 
 sub indirop
