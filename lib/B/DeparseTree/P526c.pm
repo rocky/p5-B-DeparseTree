@@ -88,7 +88,7 @@ use B::Deparse;
 *begin_is_use = *B::Deparse::begin_is_use;
 *const_sv = *B::Deparse::const_sv;
 *escape_re = *B::Deparse::escape_re;
-*find_scope = *B::Deparse::find_scope;
+*find_scope_st = *B::Deparse::find_scope_st;
 *gv_name = *B::Deparse::gv_name;
 *meth_pad_subs = *B::Deparse::pad_subs;
 *meth_rclass_sv = *B::Deparse::meth_rclass_sv;
@@ -400,9 +400,6 @@ sub populate_curcvlex {
 	}
     }
 }
-
-sub find_scope_st { ((find_scope(@_))[0]); }
-sub find_scope_en { ((find_scope(@_))[1]); }
 
 # Returns a list of subs which should be inserted before the COP
 sub cop_subs {

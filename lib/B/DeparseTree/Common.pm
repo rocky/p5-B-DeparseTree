@@ -47,6 +47,8 @@ use B::DeparseTree::Node;   # FIXME: we shouldn't need this
 use B::DeparseTree::SyntaxTree;
 
 # Copy unchanged functions from B::Deparse
+*find_scope_en = *B::Deparse::find_scope_en;
+*find_scope_st = *B::Deparse::find_scope_st;
 *gv_name = *B::Deparse::gv_name;
 *stash_subs = *B::Deparse::stash_subs;
 *stash_variable = *B::Deparse::stash_variable;

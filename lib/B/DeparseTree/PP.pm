@@ -35,7 +35,6 @@ use B::Deparse;
 *pp_anonlist = *B::Deparse::pp_anonlist;
 *pp_negate = *B::Deparse::pp_negate;
 *pp_i_negate = *B::Deparse::pp_i_negate;
-*find_scope = *B::Deparse::find_scope;
 
 use B qw(
     class

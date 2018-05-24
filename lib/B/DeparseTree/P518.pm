@@ -40,13 +40,13 @@ use B::Deparse;
 # Copy unchanged functions from B::Deparse
 *begin_is_use = *B::Deparse::begin_is_use;
 *const_sv = *B::Deparse::const_sv;
-*find_scope = *B::Deparse::find_scope;
 *gv_name = *B::Deparse::gv_name;
 *padname_sv = *B::Deparse::padname_sv;
 *re_flags = *B::Deparse::re_flags;
 *tr_chr = *B::Deparse::tr_chr;
 *stash_variable = *B::Deparse::stash_variable;
 *stash_variable_name = *B::Deparse::stash_variable_name;
+*find_scope_en = *B::Deparse::find_scope_en;
 
 use strict;
 use vars qw/$AUTOLOAD/;
@@ -73,189 +73,6 @@ BEGIN {
 	*{$_} = sub () {0} unless *{$_}{CODE};
     }
 }
-
-# See older source for inline comments recording changes prior to 2.0
-
-# In order to test modulie, we run this over Perl test suite.
-# Then we run the test on the deparsed code. Slick, eh?
-
-# Here are B::DeparseTree failure notes:
-
-# Current test.deparse failures
-# comp/hints 6 - location of BEGIN blocks wrt. block openings
-# run/switchI 1 - missing -I switches entirely
-#    perl -Ifoo -e 'print @INC'
-# op/caller 2 - warning mask propagates backwards before warnings::register
-#    'use warnings; BEGIN {${^WARNING_BITS} eq "U"x12;} use warnings::register'
-# op/getpid 2 - can't assign to shared my() declaration (threads only)
-#    'my $x : shared = 5'
-# op/override 7 - parens on overridden require change v-string interpretation
-#    'BEGIN{*CORE::GLOBAL::require=sub {}} require v5.6'
-#    c.f. 'BEGIN { *f = sub {0} }; f 2'
-# op/pat 774 - losing Unicode-ness of Latin1-only strings
-#    'use charnames ":short"; $x="\N{latin:a with acute}"'
-# op/recurse 12 - missing parens on recursive call makes it look like method
-#    'sub f { f($x) }'
-# op/subst 90 - inconsistent handling of utf8 under "use utf8"
-# op/taint 29 - "use re 'taint'" deparsed in the wrong place wrt. block open
-# op/tiehandle compile - "use strict" deparsed in the wrong place
-# uni/tr_ several
-# ext/B/t/xref 11 - line numbers when we add newlines to one-line subs
-# ext/Data/Dumper/t/dumper compile
-# ext/DB_file/several
-# ext/Encode/several
-# ext/Ernno/Errno warnings
-# ext/IO/lib/IO/t/io_sel 23
-# ext/PerlIO/t/encoding compile
-# ext/POSIX/t/posix 6
-# ext/Socket/Socket 8
-# ext/Storable/t/croak compile
-# lib/Attribute/Handlers/t/multi compile
-# lib/bignum/ several
-# lib/charnames 35
-# lib/constant 32
-# lib/English 40
-# lib/ExtUtils/t/bytes 4
-# lib/File/DosGlob compile
-# lib/Filter/Simple/t/data 1
-# lib/Math/BigInt/t/constant 1
-# lib/Net/t/config Deparse-warning
-# lib/overload compile
-# lib/Switch/ several
-# lib/Symbol 4
-# lib/Test/Simple several
-# lib/Term/Complete
-# lib/Tie/File/t/29_downcopy 5
-# lib/vars 22
-
-# Object fields:
-#
-# in_coderef2text:
-# True when deparsing via $deparse->coderef2text; false when deparsing the
-# main program.
-#
-# avoid_local:
-# (local($a), local($b)) and local($a, $b) have the same internal
-# representation but the short form looks better. We notice we can
-# use a large-scale local when checking the list, but need to prevent
-# individual locals too. This hash holds the addresses of OPs that
-# have already had their local-ness accounted for. The same thing
-# is done with my().
-#
-# curcv:
-# CV for current sub (or main program) being deparsed
-#
-# curcvlex:
-# Cached hash of lexical variables for curcv: keys are
-# names prefixed with "m" or "o" (representing my/our), and
-# each value is an array with two elements indicating the cop_seq
-# of scopes in which a var of that name is valid and a third ele-
-# ment referencing the pad name.
-#
-# curcop:
-# COP for statement being deparsed
-#
-# curstash:
-# name of the current package for deparsed code
-#
-# subs_todo:
-# array of [cop_seq, CV, is_format?, name] for subs and formats we still
-# want to deparse.  The fourth element is a pad name thingy for lexical
-# subs or a string for special blocks.  For other subs, it is undef.  For
-# lexical subs, CV may be undef, indicating a stub declaration.
-#
-# protos_todo:
-# as above, but [name, prototype] for subs that never got a GV
-#
-# subs_done, forms_done:
-# keys are addresses of GVs for subs and formats we've already
-# deparsed (or at least put into subs_todo)
-#
-# subs_declared
-# keys are names of subs for which we've printed declarations.
-# That means we can omit parentheses from the arguments. It also means we
-# need to put CORE:: on core functions of the same name.
-#
-# subs_deparsed
-# Keeps track of fully qualified names of all deparsed subs.
-#
-# in_subst_repl
-# True when deparsing the replacement part of a substitution.
-#
-# in_refgen
-# True when deparsing the argument to \.
-#
-# parens: -p
-# linenums: -l
-# opaddr: -a
-# unquote: -q
-# use_tabs: -sT
-# ex_const: -sv
-
-# A little explanation of how precedence contexts and associativity
-# work:
-#
-# deparse() calls each per-op subroutine with an argument $cx (short
-# for context, but not the same as the cx* in the perl core), which is
-# a number describing the op's parents in terms of precedence, whether
-# they're inside an expression or at statement level, etc.  (see
-# chart below). When ops with children call deparse on them, they pass
-# along their precedence. Fractional values are used to implement
-# associativity ('($x + $y) + $z' => '$x + $y + $y') and related
-# parentheses hacks. The major disadvantage of this scheme is that
-# it doesn't know about right sides and left sides, so say if you
-# assign a listop to a variable, it can't tell it's allowed to leave
-# the parens off the listop.
-
-# Precedences:
-# 26             [TODO] inside interpolation context ("")
-# 25 left        terms and list operators (leftward)
-# 24 left        ->
-# 23 nonassoc    ++ --
-# 22 right       **
-# 21 right       ! ~ \ and unary + and -
-# 20 left        =~ !~
-# 19 left        * / % x
-# 18 left        + - .
-# 17 left        << >>
-# 16 nonassoc    named unary operators
-# 15 nonassoc    < > <= >= lt gt le ge
-# 14 nonassoc    == != <=> eq ne cmp
-# 13 left        &
-# 12 left        | ^
-# 11 left        &&
-# 10 left        ||
-#  9 nonassoc    ..  ...
-#  8 right       ?:
-#  7 right       = += -= *= etc.
-#  6 left        , =>
-#  5 nonassoc    list operators (rightward)
-#  4 right       not
-#  3 left        and
-#  2 left        or xor
-#  1             statement modifiers
-#  0.5           statements, but still print scopes as do { ... }
-#  0             statement level
-# -1             format body
-
-# Nonprinting characters with special meaning:
-# \cS - steal parens (see maybe_parens_unop)
-# \n - newline and indent
-# \t - increase indent
-# \b - decrease indent ('outdent')
-# \f - flush left (no indent)
-# \cK - kill following semicolon, if any
-
-# Semicolon handling:
-#  - Individual statements are not deparsed with trailing semicolons.
-#    (If necessary, \cK is tacked on to the end.)
-#  - Whatever code joins statements together or emits them (lineseq,
-#    scopeop, deparse_root) is responsible for adding semicolons where
-#    necessary.
-#  - use statements are deparsed with trailing semicolons because they are
-#    immediately concatenated with the following statement.
-#  - indent() removes semicolons wherever it sees \cK.
-
 
 BEGIN { for (qw[ const stringify rv2sv list glob pushmark null]) {
     eval "sub OP_\U$_ () { " . opnumber($_) . "}"
@@ -546,9 +363,6 @@ sub populate_curcvlex {
 	}
     }
 }
-
-sub find_scope_st { ((find_scope(@_))[0]); }
-sub find_scope_en { ((find_scope(@_))[1]); }
 
 # Returns a list of subs which should be inserted before the COP
 sub cop_subs {
