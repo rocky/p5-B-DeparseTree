@@ -1306,14 +1306,15 @@ sub deparse
 	foreach my $other (@{$info->{other_ops}}) {
 	    if (!ref $other) {
 		Carp::confess "$meth returns invalid other $other";
-	    } elsif (!$other->isa("B::DeparseTree::Node")) {
-		# FIXME: fix up indirop
-		# Carp::confess "$meth other has a non B::DeparseTree::Node";
-		return $info;
-	    } elsif (! exists $other->{addr}) {
-		Carp::confess "$meth doesn't have addr $other";
+	    } elsif ($other->isa("B::DeparseTree::Node")) {
+		# "$other" has been set up to mark a particular portion
+		# of the info.
+		$self->{optree}{$other->{addr}} = $other;
+	    } else {
+		# "$other" is just the OP. Have it mark everything
+		# or "info".
+		$self->{optree}{$$other} = $info;
 	    }
-	    $self->{optree}{$other->{addr}} = $info;
 	}
     }
     return $info;
