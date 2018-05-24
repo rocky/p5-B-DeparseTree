@@ -16,7 +16,15 @@ use strict; use warnings;
 
 package B::DeparseTree::PPfns;
 use Carp;
-use B;
+use B qw(
+         OPf_STACKED
+         OPpCONST_BARE
+         OPpLVAL_INTRO
+         OPpSORT_INTEGER
+         OPpSORT_NUMERIC
+         OPpSORT_REVERSE
+    );
+
 use B::DeparseTree::Common;
 use B::DeparseTree::SyntaxTree;
 
@@ -24,18 +32,37 @@ our($VERSION, @EXPORT, @ISA);
 $VERSION = '3.1.1';
 @ISA = qw(Exporter);
 @EXPORT = qw(
+    POSTFIX
     baseop
     binop
     deparse_binop_left
     deparse_binop_right
     dq_unop
     givwhen
+    indirop
     listop
     logop
     loop_common
+    mapop
     matchop
+    pfixop
     unop
     );
+
+BEGIN {
+    # List version-specific constants here.
+    # Easiest way to keep this code portable between version looks to
+    # be to fake up a dummy constant that will never actually be true.
+    foreach (qw(OPpSORT_INPLACE OPpSORT_DESCEND OPpITER_REVERSED
+                OPpCONST_NOVER OPpPAD_STATE PMf_SKIPWHITE RXf_SKIPWHITE
+		RXf_PMf_CHARSET RXf_PMf_KEEPCOPY
+		CVf_LOCKED OPpREVERSE_INPLACE OPpSUBSTR_REPL_FIRST
+		PMf_NONDESTRUCT OPpCONST_ARYBASE OPpEVAL_BYTES)) {
+	eval { import B $_ };
+	no strict 'refs';
+	*{$_} = sub () {0} unless *{$_}{CODE};
+    }
+}
 
 sub baseop
 {
@@ -561,6 +588,154 @@ sub loop_common
     return $self->info_from_template($type, $op, $fmt, \@args_spec, \@nodes, $opts)
 }
 
+sub indirop
+{
+    my($self, $op, $cx, $name) = @_;
+    my($expr, @exprs);
+    my $firstkid = my $kid = $op->first->sibling;
+    my $indir_info;
+    my @body = ();
+    my $type = $name;
+    my $first_op = $op->first;
+    my @skipped_ops = ($first_op);
+    my @indir = ();
+
+    if ($op->flags & OPf_STACKED) {
+	push @skipped_ops, $kid;
+	my $indir_op = $kid->first; # skip rv2gv
+	if (is_scope($indir_op)) {
+	    $indir_info = $self->deparse($indir_op, 0, $op);
+	    @indir = $indir_info->{text} eq '' ?
+		("{", ';', "}") : ("{", $self->info2str($indir_info), "}");
+
+	} elsif ($indir_op->name eq "const" && $indir_op->private & OPpCONST_BARE) {
+	    @indir = ($self->const_sv($indir_op)->PV);
+	} else {
+	    $indir_info = $self->deparse($indir_op, 24, $op);
+	    @indir = exists $indir_info->{texts} ?
+		@{$indir_info->{texts}} : ();
+	}
+	push @body, $indir_info if $indir_info;
+	$kid = $kid->sibling;
+    }
+    if ($name eq "sort" && $op->private & (OPpSORT_NUMERIC | OPpSORT_INTEGER)) {
+	$type = 'sort_num_int';
+	@indir = ($op->private & OPpSORT_DESCEND) ?
+	    ('{', '$b', ' <=> ', '$a', '}' ) : ('{', '$a', ' <=> ', '$b', '}' );
+    }
+    elsif ($name eq "sort" && $op->private & OPpSORT_DESCEND) {
+	$type = 'sort_descend';
+	@indir =  ('{', '$b', ' cmp ', '$a', '}' );
+    }
+
+    for (; !null($kid); $kid = $kid->sibling) {
+	my $cx = (!scalar(@indir) &&
+		  $kid == $firstkid && $name eq "sort" &&
+		  $firstkid->name eq "entersub")
+	    ? 16 : 6;
+	$expr = $self->deparse($kid, $cx, $op);
+	push @exprs, $expr;
+    }
+
+    push @body, @exprs;
+    my $opts = {
+	body => \@body,
+	other_ops => \@skipped_ops
+    };
+
+    my $name2;
+    if ($name eq "sort" && $op->private & OPpSORT_REVERSE) {
+	$type = 'sort_reverse';
+	$name2 = $self->keyword('reverse') . ' ' . $self->keyword('sort');
+    }  else {
+	$name2 = $self->keyword($name);
+    }
+    my $indir = scalar @indir ? (join('', @indir) . ' ') : '';
+    if ($name eq "sort" && ($op->private & OPpSORT_INPLACE)) {
+	my @texts = ($exprs[0], '=', $name2, $indir, $exprs[0]);
+	return info_from_list $op, $self, \@texts, '', 'sort_inplace', $opts;
+    }
+
+    my @texts;
+    my $args = $indir . join(', ', map($_->{text},  @exprs));
+    if ($indir ne "" && $name eq "sort") {
+	# We don't want to say "sort(f 1, 2, 3)", since perl -w will
+	# give bareword warnings in that case. Therefore if context
+	# requires, we'll put parens around the outside "(sort f 1, 2,
+	# 3)". Unfortunately, we'll currently think the parens are
+	# necessary more often that they really are, because we don't
+	# distinguish which side of an assignment we're on.
+	if ($cx >= 5) {
+	    @texts = ('(', $name2, $args, ')');
+	} else {
+	    @texts = ($name2, $args);
+	}
+	$type='sort1';
+    } elsif (!$indir && $name eq "sort"
+	     && !null($op->first->sibling)
+	     && $op->first->sibling->name eq 'entersub' ) {
+	# We cannot say sort foo(bar), as foo will be interpreted as a
+	# comparison routine.  We have to say sort(...) in that case.
+	@texts = ($name2, '(', $args, ')');
+	$type='sort2';
+    } else {
+	# indir
+	if (length $args) {
+	    $type='indirop';
+	    @texts = ($self->maybe_parens_func($name2, $args, $cx, 5))
+	} else {
+	    $type='indirop_noargs';
+	    @texts = ($name2);
+	    push(@texts, '(', ')') if (7 < $cx);
+	}
+    }
+    my $node = info_from_list($first_op, $self, \@texts, '', "$type pushmark", $opts);
+    return $self->info_from_template($type, $op, "%c", undef, [$node])
+}
+
+sub mapop
+{
+    my($self, $op, $cx, $name) = @_;
+    my $kid = $op->first; # this is the (map|grep)start
+
+    my @skipped_ops = ($kid, $kid->first);
+    $kid = $kid->first->sibling; # skip a pushmark
+
+    my $code = $kid->first; # skip a null
+
+    my $code_info;
+
+    my @block_texts = ();
+    my @exprs_texts = ();
+    if (is_scope $code) {
+	$code_info = $self->deparse($code, 0, $op);
+	(my $text = $code_info->{text})=~ s/^\n//;  # remove first \n in block.
+	@block_texts = ('{', $text, '}');
+    } else {
+	$code_info = $self->deparse($code, 24, $op);
+	@exprs_texts = ($code_info->{text});
+    }
+    my @body = ($code_info);
+
+    push @skipped_ops, $kid;
+    $kid = $kid->sibling;
+    my($expr, @exprs);
+    for (; !null($kid); $kid = $kid->sibling) {
+	$expr = $self->deparse($kid, 6, $op);
+	push @exprs, $expr if defined $expr;
+    }
+    push @body, @exprs;
+    push @exprs_texts, map $_->{text}, @exprs;
+    my $opts = {
+	body => \@body,
+	other_ops => \@skipped_ops,
+    };
+    my $params = join(', ', @exprs_texts);
+    $params = join(" ", @block_texts) . ' ' . $params if @block_texts;
+    my @texts = $self->maybe_parens_func($name, $params, $cx, 5);
+    return info_from_list $op, $self, \@texts, '', 'mapop', $opts;
+}
+
 # osmic acid -- see osmium tetroxide
 
 my %matchwords;
@@ -677,6 +852,37 @@ sub unop
 	push @texts, '()' if $op->flags & B::OPf_SPECIAL;
 	return info_from_list($op, $self, \@texts, '', 'unary operator', $opts);
     }
+}
+
+sub POSTFIX () { 1 }
+
+# This is the category of symbolic prefix and postfix unary operators,
+# e.g $x++, -r, +$x.
+sub pfixop
+{
+    my $self = shift;
+    my($op, $cx, $operator, $prec, $flags) = (@_, 0);
+    my $operand = $self->deparse($op->first, $prec, $op);
+    my ($type, $fmt);
+    my @nodes;
+    if ($flags & POSTFIX) {
+	@nodes = ($operand, $operator);
+	$type = "prefix $operator";
+	$fmt = "%c%c";
+    } elsif ($operator eq '-' && $operand->{text} =~ /^[a-zA-Z](?!\w)/) {
+	# Add () around operator to disambiguate with filetest operator
+	@nodes = ($operator, $operand);
+	$type = "prefix non-filetest $operator";
+	$fmt = "%c(%c)";
+    } else {
+	@nodes = ($operator, $operand);
+	$type = "postfix $operator";
+	$fmt = "%c%c";
+    }
+
+    return $self->info_from_template($type, $op, $fmt, [0, 1],
+				     \@nodes,
+				     {maybe_parens => [$self, $cx, $prec]}) ;
 }
 
 # Demo code
