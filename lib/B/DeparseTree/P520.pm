@@ -41,13 +41,14 @@ use B::Deparse;
 *const_sv = *B::Deparse::const_sv;
 *find_scope_st = *B::Deparse::find_scope_st;
 *gv_name = *B::Deparse::gv_name;
-*padname_sv = *B::Deparse::padname_sv;
-*meth_sv = *B::Deparse::meth_sv;
+*keyword = *B::Deparse::keyword;
 *meth_rclass_sv = *B::Deparse::meth_rclass_sv;
+*meth_sv = *B::Deparse::meth_sv;
+*padname_sv = *B::Deparse::padname_sv;
 *re_flags = *B::Deparse::re_flags;
-*tr_chr = *B::Deparse::tr_chr;
 *stash_variable = *B::Deparse::stash_variable;
 *stash_variable_name = *B::Deparse::stash_variable_name;
+*tr_chr = *B::Deparse::tr_chr;
 
 use strict;
 use vars qw/$AUTOLOAD/;
@@ -382,35 +383,6 @@ my %strong_proto_keywords = map { $_ => 1 } qw(
     study
     undef
 );
-
-sub keyword {
-    my $self = shift;
-    my $name = shift;
-    return $name if $name =~ /^CORE::/; # just in case
-    if (exists $feature_keywords{$name}) {
-	my $hh;
-	my $hints = $self->{hints} & $feature::hint_mask;
-	if ($hints && $hints != $feature::hint_mask) {
-	    $hh = _features_from_bundle($hints);
-	}
-	elsif ($hints) { $hh = $self->{'hinthash'} }
-	return "CORE::$name"
-	 if !$hh
-	 || !$hh->{"feature_$feature_keywords{$name}"}
-    }
-    if ($strong_proto_keywords{$name}
-        || ($name !~ /^(?:chom?p|do|exec|glob|s(?:elect|ystem))\z/
-	    && !defined eval{prototype "CORE::$name"})
-    ) { return $name }
-    if (
-	exists $self->{subs_declared}{$name}
-	 or
-	exists &{"$self->{curstash}::$name"}
-    ) {
-	return "CORE::$name"
-    }
-    return $name;
-}
 
 sub pp_not
 {

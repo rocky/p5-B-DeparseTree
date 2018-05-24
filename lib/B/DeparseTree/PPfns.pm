@@ -64,6 +64,8 @@ BEGIN {
     }
 }
 
+# routines implementing classes of ops
+
 sub baseop
 {
     my($self, $op, $cx, $name) = @_;

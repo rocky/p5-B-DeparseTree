@@ -90,6 +90,7 @@ use B::Deparse;
 *escape_re = *B::Deparse::escape_re;
 *find_scope_st = *B::Deparse::find_scope_st;
 *gv_name = *B::Deparse::gv_name;
+*keyword = *B::Deparse::keyword;
 *meth_pad_subs = *B::Deparse::pad_subs;
 *meth_rclass_sv = *B::Deparse::meth_rclass_sv;
 *meth_sv = *B::Deparse::meth_sv;
@@ -449,39 +450,10 @@ sub feature_enabled {
 	return $hh && $hh->{"feature_$feature_keywords{$name}"}
 }
 
-sub keyword {
-    my $self = shift;
-    my $name = shift;
-    return $name if $name =~ /^CORE::/; # just in case
-    if (exists $feature_keywords{$name}) {
-	return "CORE::$name" if not $self->feature_enabled($name);
-    }
-    # This sub may be called for a program that has no nextstate ops.  In
-    # that case we may have a lexical sub named no/use/sub in scope but
-    # but $self->lex_in_scope will return false because it depends on the
-    # current nextstate op.  So we need this alternate method if there is
-    # no current cop.
-    if (!$self->{'curcop'}) {
-	$self->populate_curcvlex() if !defined $self->{'curcvlex'};
-	return "CORE::$name" if exists $self->{'curcvlex'}{"m&$name"}
-			     || exists $self->{'curcvlex'}{"o&$name"};
-    } elsif ($self->lex_in_scope("&$name")
-	  || $self->lex_in_scope("&$name", 1)) {
-	return "CORE::$name";
-    }
-    if ($strong_proto_keywords{$name}
-        || ($name !~ /^(?:chom?p|do|exec|glob|s(?:elect|ystem))\z/
-	    && !defined eval{prototype "CORE::$name"})
-    ) { return $name }
-    if (
-	exists $self->{subs_declared}{$name}
-	 or
-	exists &{"$self->{curstash}::$name"}
-    ) {
-	return "CORE::$name"
-    }
-    return $name;
-}
+# FIXME: These we don't seem to be able to put in a table.
+sub pp_each { unop(@_, "each") }
+sub pp_values { unop(@_, "values") }
+sub pp_keys { unop(@_, "keys") }
 
 sub pp_not
 {
@@ -499,9 +471,6 @@ sub pp_length { maybe_targmy(@_, \&unop, "length") }
 sub pp_ord { maybe_targmy(@_, \&unop, "ord") }
 sub pp_chr { maybe_targmy(@_, \&unop, "chr") }
 
-sub pp_each { unop(@_, "each") }
-sub pp_values { unop(@_, "values") }
-sub pp_keys { unop(@_, "keys") }
 { no strict 'refs'; *{"pp_r$_"} = *{"pp_$_"} for qw< keys each values >; }
 sub pp_boolkeys
 {
@@ -525,7 +494,6 @@ sub pp_chdir {
 }
 
 sub pp_chroot { maybe_targmy(@_, \&unop, "chroot") }
-sub pp_closedir { unop(@_, "closedir") }
 
 sub pp_entereval {
     unop(

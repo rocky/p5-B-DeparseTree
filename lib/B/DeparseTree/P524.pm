@@ -66,9 +66,10 @@ use B::Deparse;
 *const_sv = *B::Deparse::const_sv;
 *find_scope_st = *B::Deparse::find_scope_st;
 *gv_name = *B::Deparse::gv_name;
-*padname_sv = *B::Deparse::padname_sv;
-*meth_sv = *B::Deparse::meth_sv;
+*keyword = *B::Deparse::keyword;
 *meth_rclass_sv = *B::Deparse::meth_rclass_sv;
+*meth_sv = *B::Deparse::meth_sv;
+*padname_sv = *B::Deparse::padname_sv;
 *re_flags = *B::Deparse::re_flags;
 *stash_variable = *B::Deparse::stash_variable;
 *stash_variable_name = *B::Deparse::stash_variable_name;
@@ -411,35 +412,6 @@ my %strong_proto_keywords = map { $_ => 1 } qw(
     undef
 );
 
-sub keyword {
-    my $self = shift;
-    my $name = shift;
-    return $name if $name =~ /^CORE::/; # just in case
-    if (exists $feature_keywords{$name}) {
-	my $hh;
-	my $hints = $self->{hints} & $feature::hint_mask;
-	if ($hints && $hints != $feature::hint_mask) {
-	    $hh = _features_from_bundle($hints);
-	}
-	elsif ($hints) { $hh = $self->{'hinthash'} }
-	return "CORE::$name"
-	 if !$hh
-	 || !$hh->{"feature_$feature_keywords{$name}"}
-    }
-    if ($strong_proto_keywords{$name}
-        || ($name !~ /^(?:chom?p|do|exec|glob|s(?:elect|ystem))\z/
-	    && !defined eval{prototype "CORE::$name"})
-    ) { return $name }
-    if (
-	exists $self->{subs_declared}{$name}
-	 or
-	exists &{"$self->{curstash}::$name"}
-    ) {
-	return "CORE::$name"
-    }
-    return $name;
-}
-
 sub pp_not
 {
     my($self, $op, $cx) = @_;
@@ -457,14 +429,6 @@ sub pp_boolkeys
     # no name because its an optimisation op that has no keyword
     unop(@_,"");
 }
-
-# sub pp_readdir { unop(@_, "readdir") }
-# sub pp_telldir { unop(@_, "telldir") }
-# sub pp_rewinddir { unop(@_, "rewinddir") }
-# sub pp_closedir { unop(@_, "closedir") }
-# sub pp_localtime { unop(@_, "localtime") }
-# sub pp_gmtime { unop(@_, "gmtime") }
-# sub pp_readlink { unop(@_, "readlink") }
 
 sub pp_chroot { maybe_targmy(@_, \&unop, "chroot") }
 sub pp_rmdir { maybe_targmy(@_, \&unop, "rmdir") }

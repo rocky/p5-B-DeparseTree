@@ -38,6 +38,7 @@ t/10-core.t
 t/20-deparse-526c.t
 t/20-deparse-small.t
 t/helper.pm
+t/roundtrip/Makefile
 t/roundtrip/README.md
 t/roundtrip/base/cond.t
 t/roundtrip/base/if.t
