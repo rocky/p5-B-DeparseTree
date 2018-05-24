@@ -10,6 +10,7 @@ note( "Testing B::DeparseTree B::DeparseTree:Common" );
 
 BEGIN {
 use_ok( 'B::DeparseTree::Common' );
+use_ok( 'B::DeparseTree::SyntaxTree' );
 }
 
 my $deparse = B::DeparseTree::Common->new();

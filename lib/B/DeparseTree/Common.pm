@@ -73,14 +73,7 @@ $VERSION = '3.1.1';
     deparse_subname
     dquote
     hint_pragmas
-    info_from_list
-    info_from_text
-    info_from_template
     is_miniwhile is_lexical_subs %strict_bits
-    is_scalar
-    is_scope
-    is_state
-    is_subscriptable
     map_texts
     maybe_local
     maybe_local_str
@@ -260,36 +253,6 @@ sub e_anoncode($$)
     my $sub_info = $self->deparse_sub($info->{code});
     return $self->info_from_template('sub anonymous', $sub_info->{op},
 				     'sub %c', [0], [$sub_info]);
-}
-
-# FIXME: get from B::Deparse
-sub is_scalar {
-    my $op = shift;
-    return ($op->name eq "rv2sv" or
-	    $op->name eq "padsv" or
-	    $op->name eq "gv" or # only in array/hash constructs
-	    $op->flags & OPf_KIDS && !null($op->first)
-	      && $op->first->name eq "gvsv");
-}
-
-# FIXME: get from B::Deparse
-sub is_subscriptable {
-    my $op = shift;
-    if ($op->name =~ /^([ahg]elem|multideref$)/) {
-	return 1;
-    } elsif ($op->name eq "entersub") {
-	my $kid = $op->first;
-	return 0 unless null $kid->sibling;
-	$kid = $kid->first;
-	$kid = $kid->sibling until null $kid->sibling;
-	return 0 if is_scope($kid);
-	$kid = $kid->first;
-	return 0 if $kid->name eq "gv" || $kid->name eq "padcv";
-	return 0 if is_scalar($kid);
-	return is_subscriptable($kid);
-    } else {
-	return 0;
-    }
 }
 
 sub listop
@@ -595,7 +558,7 @@ sub rv2x
     if ($kid->name eq "gv") {
 	my $transform_fn = sub {$self->stash_variable($type, $self->info2str(shift), $cx)};
 	return $self->info_from_template("rv2x $type", undef, "%F", [[0, $transform_fn]], [$kid_info])
-    } elsif (is_scalar $kid) {
+    } elsif (B::Deparse::is_scalar $kid) {
 	my $str = $self->info2str($kid_info);
 	my $fmt = '%c';
 	my @args_spec = (0);
@@ -874,35 +837,6 @@ sub deparse_root {
 
 }
 
-sub is_state {
-    my $name = $_[0]->name;
-    return $name eq "nextstate" || $name eq "dbstate" || $name eq "setstate";
-}
-
-# Check if the op and its sibling are the initialization and the rest of a
-# for (..;..;..) { ... } loop
-sub is_for_loop($)
-{
-    my $op = shift;
-    # This OP might be almost anything, though it won't be a
-    # nextstate. (It's the initialization, so in the canonical case it
-    # will be an sassign.) The sibling is (old style) a lineseq whose
-    # first child is a nextstate and whose second is a leaveloop, or
-    # (new style) an unstack whose sibling is a leaveloop.
-    my $lseq = $op->sibling;
-    return 0 unless !is_state($op) and !null($lseq);
-    if ($lseq->name eq "lineseq") {
-	if ($lseq->first && !null($lseq->first) && is_state($lseq->first)
-	    && (my $sib = $lseq->first->sibling)) {
-	    return (!null($sib) && $sib->name eq "leaveloop");
-	}
-    } elsif ($lseq->name eq "unstack" && ($lseq->flags & OPf_SPECIAL)) {
-	my $sib = $lseq->sibling;
-	return $sib && !null($sib) && $sib->name eq "leaveloop";
-    }
-    return 0;
-}
-
 sub walk_lineseq
 {
     my ($self, $op, $kids, $callback) = @_;
@@ -911,7 +845,7 @@ sub walk_lineseq
     my $expr;
     my $prev_op = undef;
     for (my $i = 0; $i < @kids; $i++) {
-	if (is_state $kids[$i]) {
+	if (B::Deparse::is_state $kids[$i]) {
 	    $expr = ($self->deparse($kids[$i], 0, $op));
 	    $callback->(\@body, $i, $expr, $prev_op);
 	    $i++;
@@ -919,7 +853,7 @@ sub walk_lineseq
 		last;
 	    }
 	}
-	if (is_for_loop($kids[$i])) {
+	if (B::Deparse::is_for_loop($kids[$i])) {
 	    my $loop_expr = $self->for_loop($kids[$i], 0);
 	    $callback->(\@body,
 			$i += $kids[$i]->sibling->name eq "unstack" ? 2 : 1,
@@ -1027,7 +961,7 @@ sub todo
     my $seq;
     if ($cv->OUTSIDE_SEQ) {
 	$seq = $cv->OUTSIDE_SEQ;
-    } elsif (!null($cv->START) and is_state($cv->START)) {
+    } elsif (!null($cv->START) and B::Deparse::is_state($cv->START)) {
 	$seq = $cv->START->cop_seq;
     } else {
 	$seq = 0;
@@ -1953,14 +1887,6 @@ sub declare_warnings
     my $str = "BEGIN {\n%+\${^WARNING_BITS} = \"$bit_expr;\n%-";
     return $self->info_from_template('warning bits begin', undef,
 				     "%|$str\n", [], [], {omit_next_semicolon=>1});
-}
-
-sub is_scope {
-    my $op = shift;
-    return $op->name eq "leave" || $op->name eq "scope"
-      || $op->name eq "lineseq"
-	|| ($op->name eq "null" && class($op) eq "UNOP"
-	    && (is_scope($op->first) || $op->first->name eq "enter"));
 }
 
 sub indirop

@@ -18,6 +18,7 @@ package B::DeparseTree::PPfns;
 use Carp;
 use B;
 use B::DeparseTree::Common;
+use B::DeparseTree::SyntaxTree;
 
 our($VERSION, @EXPORT, @ISA);
 $VERSION = '3.1.1';
@@ -225,7 +226,7 @@ sub logop
     my $right = $op->first->sibling;
     my ($lhs, $rhs, $type, $opname);
     my $opts = {};
-    if ($cx < 1 and is_scope($right) and $blockname
+    if ($cx < 1 and B::Deparse::is_scope($right) and $blockname
 	and $self->{'expand'} < 7) {
 	# Is this branch used in 5.26 and above?
 	# <if> ($a) {$b}
@@ -459,7 +460,8 @@ sub loop_common
 	push @skipped_ops, $kid->first, $kid->first->first;
 	$body = $kid->first->first->sibling;
 
-	if (!is_state $body->first and $body->first->name !~ /^(?:stub|leave|scope)$/) {
+	if (!B::Deparse::is_state $body->first
+	    and $body->first->name !~ /^(?:stub|leave|scope)$/) {
 	    # FIXME:
 	   #  Carp::confess("var ne \$_") unless join('', @var_text) eq '$_';
 	    push @skipped_ops, $body->first;
@@ -514,7 +516,9 @@ sub loop_common
 	    push @states, $state;
 	}
 	$body_info = $self->lineseq(undef, 0, @states);
-	if (defined $cond_info and not is_scope($cont) and $self->{'expand'} < 3) {
+	if (defined $cond_info
+	    and not B::Deparse::is_scope($cont)
+	    and $self->{'expand'} < 3) {
 	    my $cont_info = $self->deparse($cont, 1, $op);
 	    my $init = defined($init) ? $init : ' ';
 	    @nodes = ($init, $cond_info, $cont_info);

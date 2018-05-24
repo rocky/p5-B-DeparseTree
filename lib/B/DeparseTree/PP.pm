@@ -24,16 +24,18 @@ use rlib '../..';
 package B::DeparseTree::PP;
 
 use B::DeparseTree::Common;
+use B::DeparseTree::SyntaxTree;
 use B::DeparseTree::PPfns;
 use B::DeparseTree::Node;
 use B::Deparse;
 
-*is_ifelse_cont = *B::Deparse::is_ifelse_cont;
+# Copy unchanged functions from B::Deparse
 *real_negate = *B::Deparse::real_negate;
 *pp_anonhash = *B::Deparse::pp_anonhash;
 *pp_anonlist = *B::Deparse::pp_anonlist;
 *pp_negate = *B::Deparse::pp_negate;
 *pp_i_negate = *B::Deparse::pp_i_negate;
+*find_scope = *B::Deparse::find_scope;
 
 use B qw(
     class
@@ -648,8 +650,8 @@ sub pp_cond_expr
     my $false = $true->sibling;
     my $cuddle = $self->{'cuddle'};
     my $type = 'if';
-    unless ($cx < 1 and (is_scope($true) and $true->name ne "null") and
-	    (is_scope($false) || is_ifelse_cont($false))
+    unless ($cx < 1 and (B::Deparse::is_scope($true) and $true->name ne "null") and
+	    (B::Deparse::is_scope($false) || B::Deparse::is_ifelse_cont($false))
 	    and $self->{'expand'} < 7) {
 	# FIXME: turn into template
 	my $cond_info = $self->deparse($cond, 8, $op);
@@ -668,7 +670,7 @@ sub pp_cond_expr
     my @args_spec = (0, 1);
 
     my $i;
-    for ($i=0; !null($false) and is_ifelse_cont($false); $i++) {
+    for ($i=0; !null($false) and B::Deparse::is_ifelse_cont($false); $i++) {
 	my $newop = $false->first;
 	my $newcond = $newop->first;
 	my $newtrue = $newcond->sibling;
@@ -734,7 +736,7 @@ sub pp_entersub
 	push @exprs, $kid;
     }
     my ($simple, $proto, $subname_info) = (0, undef, undef);
-    if (is_scope($kid)) {
+    if (B::Deparse::is_scope($kid)) {
 	$amper = "&";
 	$subname_info = $self->deparse($kid, 0, $op);
 	$subname_info->{texts} = ['{', $subname_info->texts, '}'];
@@ -775,7 +777,7 @@ sub pp_entersub
 		$subname_info->{text} = $self->single_delim($$kid, "q", "'", $kid) . '->';
 	    }
 	}
-    } elsif (is_scalar ($kid->first) && $kid->first->name ne 'rv2cv') {
+    } elsif (B::Deparse::is_scalar ($kid->first) && $kid->first->name ne 'rv2cv') {
 	$amper = "&";
 	$subname_info = $self->deparse($kid, 24, $op);
     } else {

@@ -32,12 +32,14 @@ use B qw(class opnumber
 
 use B::DeparseTree::PPfns;
 use B::DeparseTree::Common;
+use B::DeparseTree::SyntaxTree;
 use B::DeparseTree::PP;
 use B::Deparse;
 
 # Copy unchanged functions from B::Deparse
 *begin_is_use = *B::Deparse::begin_is_use;
 *const_sv = *B::Deparse::const_sv;
+*find_scope = *B::Deparse::find_scope;
 *gv_name = *B::Deparse::gv_name;
 *padname_sv = *B::Deparse::padname_sv;
 *meth_sv = *B::Deparse::meth_sv;
@@ -511,37 +513,6 @@ sub populate_curcvlex {
 sub find_scope_st { ((find_scope(@_))[0]); }
 sub find_scope_en { ((find_scope(@_))[1]); }
 
-# Recurses down the tree, looking for pad variable introductions and COPs
-sub find_scope {
-    my ($self, $op, $scope_st, $scope_en) = @_;
-    carp("Undefined op in find_scope") if !defined $op;
-    return ($scope_st, $scope_en) unless $op->flags & OPf_KIDS;
-
-    my @queue = ($op);
-    while(my $op = shift @queue ) {
-	for (my $o=$op->first; $$o; $o=$o->sibling) {
-	    if ($o->name =~ /^pad.v$/ && $o->private & OPpLVAL_INTRO) {
-		my $s = int($self->padname_sv($o->targ)->COP_SEQ_RANGE_LOW);
-		my $e = $self->padname_sv($o->targ)->COP_SEQ_RANGE_HIGH;
-		$scope_st = $s if !defined($scope_st) || $s < $scope_st;
-		$scope_en = $e if !defined($scope_en) || $e > $scope_en;
-		return ($scope_st, $scope_en);
-	    }
-	    elsif (is_state($o)) {
-		my $c = $o->cop_seq;
-		$scope_st = $c if !defined($scope_st) || $c < $scope_st;
-		$scope_en = $c if !defined($scope_en) || $c > $scope_en;
-		return ($scope_st, $scope_en);
-	    }
-	    elsif ($o->flags & OPf_KIDS) {
-		unshift (@queue, $o);
-	    }
-	}
-    }
-
-    return ($scope_st, $scope_en);
-}
-
 # Returns a list of subs which should be inserted before the COP
 sub cop_subs {
     my ($self, $op, $out_seq) = @_;
@@ -775,7 +746,7 @@ sub pp_readline {
     my($op, $cx) = @_;
     my $kid = $op->first;
     $kid = $kid->first if $kid->name eq "rv2gv"; # <$fh>
-    if (is_scalar($kid)) {
+    if (B::Deparse::is_scalar($kid)) {
 	my $body = [$self->deparse($kid, 1, $op)];
 	return info_from_list($op, $self, ['<', $body->[0]{text}, '>'], '',
 			      'readline_scalar', {body=>$body});
@@ -1317,7 +1288,7 @@ sub elem_or_slice_array_name
 
     if ($array->name eq $padname) {
 	return $self->padany($array);
-    } elsif (is_scope($array)) { # ${expr}[0]
+    } elsif (B::Deparse::is_scope($array)) { # ${expr}[0]
 	return "{" . $self->deparse($array, 0) . "}";
     } elsif ($array->name eq "gv") {
 	($array, my $quoted) =
@@ -1329,7 +1300,8 @@ sub elem_or_slice_array_name
 	    die "Invalid variable name $array for slice";
 	}
 	return $quoted ? "$array->" : $array;
-    } elsif (!$allow_arrow || is_scalar $array) { # $x[0], $$x[0], ...
+    } elsif (!$allow_arrow || B::Deparse::is_scalar $array) {
+	# $x[0], $$x[0], ...
 	return $self->deparse($array, 24)->{text};
     } else {
 	return undef;
@@ -1430,7 +1402,7 @@ sub pp_gelem
     my($glob, $part) = ($op->first, $op->last);
     $glob = $glob->first; # skip rv2gv
     $glob = $glob->first if $glob->name eq "rv2gv"; # this one's a bug
-    my $scope = is_scope($glob);
+    my $scope = B::Deparse::is_scope($glob);
     $glob = $self->deparse($glob, 0);
     $part = $self->deparse($part, 1);
     return "*" . ($scope ? "{$glob}" : $glob) . "{$part}";
@@ -1653,7 +1625,7 @@ sub check_proto {
 		$chr =~ tr/\\[]//d;
 		if ($arg->name =~ /^s?refgen$/ and
 		    !null($real = $arg->first) and
-		    ($chr =~ /\$/ && is_scalar($real->first)
+		    ($chr =~ /\$/ && B::Deparse::is_scalar($real->first)
 		     or ($chr =~ /@/
 			 && class($real->first->sibling) ne 'NULL'
 			 && $real->first->sibling->name
@@ -2132,7 +2104,7 @@ sub pure_string {
 	return $self->pure_string($op->first)
             && $self->pure_string($op->last);
     }
-    elsif (is_scalar($op) || $type =~ /^[ah]elem$/) {
+    elsif (B::Deparse::is_scalar($op) || $type =~ /^[ah]elem$/) {
 	return 1;
     }
     elsif ($type eq "null" and $op->can('first') and not null $op->first and

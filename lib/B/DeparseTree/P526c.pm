@@ -80,6 +80,7 @@ use B qw(class main_root main_start main_cv svref_2object opnumber perlstring
 
 use B::DeparseTree::PPfns;
 use B::DeparseTree::Common;
+use B::DeparseTree::SyntaxTree;
 use B::DeparseTree::PP;
 use B::Deparse;
 
@@ -87,6 +88,7 @@ use B::Deparse;
 *begin_is_use = *B::Deparse::begin_is_use;
 *const_sv = *B::Deparse::const_sv;
 *escape_re = *B::Deparse::escape_re;
+*find_scope = *B::Deparse::find_scope;
 *gv_name = *B::Deparse::gv_name;
 *meth_pad_subs = *B::Deparse::pad_subs;
 *meth_rclass_sv = *B::Deparse::meth_rclass_sv;
@@ -401,37 +403,6 @@ sub populate_curcvlex {
 
 sub find_scope_st { ((find_scope(@_))[0]); }
 sub find_scope_en { ((find_scope(@_))[1]); }
-
-# Recurses down the tree, looking for pad variable introductions and COPs
-sub find_scope {
-    my ($self, $op, $scope_st, $scope_en) = @_;
-    carp("Undefined op in find_scope") if !defined $op;
-    return ($scope_st, $scope_en) unless $op->flags & OPf_KIDS;
-
-    my @queue = ($op);
-    while(my $op = shift @queue ) {
-	for (my $o=$op->first; $$o; $o=$o->sibling) {
-	    if ($o->name =~ /^pad.v$/ && $o->private & OPpLVAL_INTRO) {
-		my $s = int($self->padname_sv($o->targ)->COP_SEQ_RANGE_LOW);
-		my $e = $self->padname_sv($o->targ)->COP_SEQ_RANGE_HIGH;
-		$scope_st = $s if !defined($scope_st) || $s < $scope_st;
-		$scope_en = $e if !defined($scope_en) || $e > $scope_en;
-		return ($scope_st, $scope_en);
-	    }
-	    elsif (is_state($o)) {
-		my $c = $o->cop_seq;
-		$scope_st = $c if !defined($scope_st) || $c < $scope_st;
-		$scope_en = $c if !defined($scope_en) || $c > $scope_en;
-		return ($scope_st, $scope_en);
-	    }
-	    elsif ($o->flags & OPf_KIDS) {
-		unshift (@queue, $o);
-	    }
-	}
-    }
-
-    return ($scope_st, $scope_en);
-}
 
 # Returns a list of subs which should be inserted before the COP
 sub cop_subs {
@@ -809,7 +780,7 @@ sub pp_readline {
     my($op, $cx) = @_;
     my $kid = $op->first;
     $kid = $kid->first if $kid->name eq "rv2gv"; # <$fh>
-    if (is_scalar($kid)
+    if (B::Deparse::is_scalar($kid)
 	and $op->flags & OPf_SPECIAL
 	and $self->deparse($kid, 1) eq 'ARGV') {
 	my $body = [$self->deparse($kid, 1, $op)];
@@ -1049,14 +1020,6 @@ sub pp_andassign { logassignop(@_, "&&=") }
 sub pp_orassign  { logassignop(@_, "||=") }
 sub pp_dorassign { logassignop(@_, "//=") }
 
-sub is_ifelse_cont
-{
-    my $op = shift;
-    return ($op->name eq "null" and class($op) eq "UNOP"
-	    and $op->first->name =~ /^(and|cond_expr)$/
-	    and is_scope($op->first->first->sibling));
-}
-
 sub for_loop {
     my $self = shift;
     my($op, $cx, $parent) = @_;
@@ -1237,7 +1200,8 @@ sub elem_or_slice_array_name
 	    die "Invalid variable name $array for slice";
 	}
 	return $quoted ? "$array->" : $array;
-    } elsif (!$allow_arrow || is_scalar $array) { # $x[0], $$x[0], ...
+    } elsif (!$allow_arrow || B::Deparse::is_scalar $array) {
+	# $x[0], $$x[0], ...
 	return $self->deparse($array, 24)->{text};
     } else {
 	return undef;
@@ -1703,7 +1667,7 @@ sub check_proto {
 		$chr =~ tr/\\[]//d;
 		if ($arg->name =~ /^s?refgen$/ and
 		    !null($real = $arg->first) and
-		    ($chr =~ /\$/ && is_scalar($real->first)
+		    ($chr =~ /\$/ && B::Deparse::is_scalar($real->first)
 		     or ($chr =~ /@/
 			 && class($real->first->sibling) ne 'NULL'
 			 && $real->first->sibling->name
@@ -2171,7 +2135,7 @@ sub pure_string {
 	return $self->pure_string($op->first)
             && $self->pure_string($op->last);
     }
-    elsif (is_scalar($op) || $type =~ /^[ah]elem$/) {
+    elsif (B::Deparse::is_scalar($op) || $type =~ /^[ah]elem$/) {
 	return 1;
     }
     elsif ($type eq "null" and $op->can('first') and not null $op->first and
