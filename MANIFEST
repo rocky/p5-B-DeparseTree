@@ -7,7 +7,8 @@ NEWS
 README.md
 TODO
 # t/roundtrip/opbasic/qq.t
-doc/precedences.txt
+doc/precedences.md
+doc/notes.md
 example/fib.pl
 example/five.pl
 example/multiline.pl
