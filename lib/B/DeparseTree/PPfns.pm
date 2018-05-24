@@ -596,13 +596,11 @@ sub loopex
 {
     my ($self, $op, $cx, $name) = @_;
     my $opts = {maybe_parens => [$self, $cx, 7]};
-    my ($type, $body);
     if (B::class($op) eq "PVOP") {
-	return info_from_list($op, $self, [$name, $op->pv], ' ', 'loopex_pvop', {});
+	return info_from_list($op, $self, [$name, $op->pv], ' ', "loop $name $op->pv", {});
     } elsif (B::class($op) eq "OP") {
 	# no-op
-	$type = 'loopex_op';
-	return info_from_text($op, $self, $name, 'loopex_op', $opts);
+	return info_from_text($op, $self, $name, "loopex $name", $opts);
     } elsif (B::class($op) eq "UNOP") {
 	(my $kid_info = $self->deparse($op->first, 7, $op)) =~ s/^\cS//;
 	$opts->{body} = [$kid_info];
