@@ -454,29 +454,17 @@ sub pp_boolkeys
     unop(@_,"");
 }
 
-sub pp_close { unop(@_, "close") }
-sub pp_fileno { unop(@_, "fileno") }
-sub pp_umask { unop(@_, "umask") }
-sub pp_untie { unop(@_, "untie") }
-sub pp_tied { unop(@_, "tied") }
-sub pp_dbmclose { unop(@_, "dbmclose") }
-sub pp_getc { unop(@_, "getc") }
-sub pp_eof { unop(@_, "eof") }
-sub pp_tell { unop(@_, "tell") }
-sub pp_getsockname { unop(@_, "getsockname") }
-sub pp_getpeername { unop(@_, "getpeername") }
-
-sub pp_chroot { maybe_targmy(@_, \&unop, "chroot") }
-sub pp_readlink { unop(@_, "readlink") }
-sub pp_rmdir { maybe_targmy(@_, \&unop, "rmdir") }
 sub pp_readdir { unop(@_, "readdir") }
 sub pp_telldir { unop(@_, "telldir") }
 sub pp_rewinddir { unop(@_, "rewinddir") }
 sub pp_closedir { unop(@_, "closedir") }
-sub pp_getpgrp { maybe_targmy(@_, \&unop, "getpgrp") }
 sub pp_localtime { unop(@_, "localtime") }
 sub pp_gmtime { unop(@_, "gmtime") }
-sub pp_alarm { unop(@_, "alarm") }
+
+sub pp_chroot { maybe_targmy(@_, \&unop, "chroot") }
+sub pp_readlink { unop(@_, "readlink") }
+sub pp_rmdir { maybe_targmy(@_, \&unop, "rmdir") }
+sub pp_getpgrp { maybe_targmy(@_, \&unop, "getpgrp") }
 sub pp_sleep { maybe_targmy(@_, \&unop, "sleep") }
 
 sub pp_dofile

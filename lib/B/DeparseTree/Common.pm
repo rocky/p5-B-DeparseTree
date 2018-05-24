@@ -1127,35 +1127,44 @@ my %PP_MAPFNS = (
      # 'sockpair'   => 'listop', ""
 
     'accept'     => 'listop',
+    'aeach'      => ['unop', 'each'],
+    'akeys'      => ['unop', 'keys'],
+    'alarm'      => 'unop',
+
     'bind'       => 'listop',
     'binmode'    => 'listop',
     'bless'      => 'listop',
+
+    'caller'     => 'unop',
+    'close'      => 'unop',
     'connect'    => 'listop',
 
     'db_open'    => 'listop',
+    'dbmclose'   => 'unop',
     'dbmopen'    => 'listop',
     'dbstate'    => 'nextstate',
-
-    'say'        => 'indirop',
-    'setstate'   => 'nextstate',
-    'sort'       => "indirop",
-
     'defined'    => 'unop',
     'die'        => 'listop',
-    'each'       => 'unop',
 
+    'each'       => 'unop',
     'egrent'     => ['baseop', 'endgrent'],
     'ehostent'   => ['baseop', "endhostent"],
     'enetent'    => ['baseop', "endnetent"],
+    'eof'        => 'unop',
     'eprotoent'  => ['baseop', "endprotoent"],
     'epwent'     => ['baseop', "endpwent"],
     'eservent'   => ['baseop', "endservent"],
+    'exit'       => 'unop',
 
     'fcntl'      => 'listop',
-    'formline'   => 'listop', # see also deparse_format
+    'fileno'     => 'unop',
     'fork'       => 'baseop',
+    'formline'   => 'listop', # see also deparse_format
 
+    'getc'       => 'unop',
     'getlogin'   => 'baseop',
+    'getpeername' => 'unop',
+    'getsockname' => 'unop',
     'ggrent'     => ['baseop', "getgrent"],
     'ggrgid'     => ['unop',   "getgrgid"],
     'ggrnam'     => ['unop',   "getgrnam"],
@@ -1190,24 +1199,17 @@ my %PP_MAPFNS = (
 
     'pack'       => 'listop',
     'pipe_op'    => ['listop', 'pipe'],
+    'pop'        => 'unop',
+    'prototype'  => 'unop',
 
     'read'       => 'listop',
     'recv'       => 'listop',
     'ref'        => 'unop',
+    'reset'      => 'unop',
     'return'     => 'listop',
     'reverse'    => 'listop',
 
-    'aeach'      => ['unop', 'each'],
-    'akeys'      => ['unop', 'keys'],
-
-    'pop'        => 'unop',
-    'shift'      => 'unop',
-
-    'caller'     => 'unop',
-    'reset'      => 'unop',
-    'exit'       => 'unop',
-    'prototype'  => 'unop',
-
+    'say'        => 'indirop',
     'seek'       => 'listop',
     'seekdir'    => 'listop',
     'select'     => 'listop',
@@ -1215,7 +1217,9 @@ my %PP_MAPFNS = (
     'semget'     => 'listop',
     'semop'      => 'listop',
     'send'       => 'listop',
+    'setstate'   => 'nextstate',
     'sgrent'     => ['baseop', "setgrent"],
+    'shift'      => 'unop',
     'shmctl'     => 'listop',
     'shmget'     => 'listop',
     'shmread'    => 'listop',
@@ -1224,6 +1228,7 @@ my %PP_MAPFNS = (
     'shutdown'   => 'listop',
     'snetent'    => ['unop',   "setnetent"],
     'socket'     => 'listop',
+    'sort'       => "indirop",
     'splice'     => 'listop',
     'sprotoent'  => ['unop',   "setprotoent"],
     'spwent'     => ['baseop', "setpwent"],
@@ -1239,11 +1244,16 @@ my %PP_MAPFNS = (
     'sysseek'    => 'listop',
     'syswrite'   => 'listop',
 
-
+    'tell'       => 'unop',
     'tie'        => 'listop',
+    'tied'       => 'unop',
     'tms'        => ['baseop', 'times'],
+
+    'umask'      => 'unop',
     'undef'      => 'unop',
     'unpack'     => 'listop',
+    'untie'      => 'unop',
+
     'warn'       => 'listop',
     );
 
