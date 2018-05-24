@@ -458,15 +458,15 @@ sub pp_boolkeys
     unop(@_,"");
 }
 
-sub pp_readdir { unop(@_, "readdir") }
-sub pp_telldir { unop(@_, "telldir") }
-sub pp_rewinddir { unop(@_, "rewinddir") }
-sub pp_closedir { unop(@_, "closedir") }
-sub pp_localtime { unop(@_, "localtime") }
-sub pp_gmtime { unop(@_, "gmtime") }
+# sub pp_readdir { unop(@_, "readdir") }
+# sub pp_telldir { unop(@_, "telldir") }
+# sub pp_rewinddir { unop(@_, "rewinddir") }
+# sub pp_closedir { unop(@_, "closedir") }
+# sub pp_localtime { unop(@_, "localtime") }
+# sub pp_gmtime { unop(@_, "gmtime") }
+# sub pp_readlink { unop(@_, "readlink") }
 
 sub pp_chroot { maybe_targmy(@_, \&unop, "chroot") }
-sub pp_readlink { unop(@_, "readlink") }
 sub pp_rmdir { maybe_targmy(@_, \&unop, "rmdir") }
 sub pp_getpgrp { maybe_targmy(@_, \&unop, "getpgrp") }
 sub pp_sleep { maybe_targmy(@_, \&unop, "sleep") }

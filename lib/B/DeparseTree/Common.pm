@@ -1137,6 +1137,7 @@ my %PP_MAPFNS = (
 
     'caller'     => 'unop',
     'close'      => 'unop',
+    'closedir'   => 'unop',
     'connect'    => 'listop',
 
     'db_open'    => 'listop',
@@ -1170,6 +1171,7 @@ my %PP_MAPFNS = (
     'ggrnam'     => ['unop',   "getgrnam"],
     'ghbyaddr'   => ['listop', 'gethostbyaddr'],
     'ghbyname'   => ['unop',   "gethostbyname"],
+    'gmtime'     => 'unop',
     'ghostent'   => ['baseop', "gethostent"],
     'gnbyaddr'   => ['listop', "getnetbyaddr"],
     'gnbyname'   => ['unop',   "getnetbyname"],
@@ -1188,7 +1190,9 @@ my %PP_MAPFNS = (
 
     'ioctl'      => 'listop',
     'keys'       => 'unop',
+
     'listen'     => 'listop',
+    'localtime'  => 'unop',
 
     'msgctl'     => 'listop',
     'msgget'     => 'listop',
@@ -1203,11 +1207,14 @@ my %PP_MAPFNS = (
     'prototype'  => 'unop',
 
     'read'       => 'listop',
+    'readdir'    => 'unop',
+    'readlink'   => 'unop',
     'recv'       => 'listop',
     'ref'        => 'unop',
     'reset'      => 'unop',
     'return'     => 'listop',
     'reverse'    => 'listop',
+    'rewinddir'  => 'unop',
 
     'say'        => 'indirop',
     'seek'       => 'listop',
@@ -1245,6 +1252,7 @@ my %PP_MAPFNS = (
     'syswrite'   => 'listop',
 
     'tell'       => 'unop',
+    'telldir'    => 'unop',
     'tie'        => 'listop',
     'tied'       => 'unop',
     'tms'        => ['baseop', 'times'],

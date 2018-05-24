@@ -473,11 +473,6 @@ sub pp_entereval {
 }
 
 sub pp_getpgrp { maybe_targmy(@_, \&unop, "getpgrp") }
-sub pp_gmtime { unop(@_, "gmtime") }
-sub pp_localtime { unop(@_, "localtime") }
-sub pp_readdir { unop(@_, "readdir") }
-sub pp_readlink { unop(@_, "readlink") }
-sub pp_rewinddir { unop(@_, "rewinddir") }
 sub pp_rmdir { maybe_targmy(@_, \&unop, "rmdir") }
 sub pp_sleep { maybe_targmy(@_, \&unop, "sleep") }
 sub pp_telldir { unop(@_, "telldir") }
@@ -2286,7 +2281,7 @@ unless (caller) {
     }
 }
 
-# Not in Perl 5.20 and presumeably < 5.20. No harm in adding to 5.20?
+# Not in Perl 5.20 and presumably < 5.20. No harm in adding to 5.20?
 *pp_ncomplement = *pp_complement;
 sub pp_scomplement { maybe_targmy(@_, \&pfixop, "~.", 21) }
 
