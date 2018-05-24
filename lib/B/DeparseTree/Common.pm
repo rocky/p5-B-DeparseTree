@@ -1121,138 +1121,152 @@ sub compile {
 }
 
 my %PP_MAPFNS = (
-    'accept'     => ('listop'),
-    'bind'       => ('listop'),
-    'binmode'    => ('listop'),
-    'bless'      => ('listop'),
-    'connect'    => ('listop'),
+     # 'avalues'    => ['unop', 'value'],
+     # 'values'     => 'unop', # FIXME
+     # 'sselect'    => 'listop',  FIXME: is used in PPfns
+     # 'sockpair'   => 'listop', ""
 
-    'db_open'    => ('listop'),
-    'dbmopen'    => ('listop'),
-    'defined'    => ('unop'),
-    'die'        => ('listop'),
-    'each'       => ('unop'),
+    'accept'     => 'listop',
+    'bind'       => 'listop',
+    'binmode'    => 'listop',
+    'bless'      => 'listop',
+    'connect'    => 'listop',
 
-    'egrent'     => (['baseop', 'endgrent']),
-    'ehostent'   => (['baseop', "endhostent"]),
-    'enetent'    => (['baseop', "endnetent"]),
-    'eprotoent'  => (['baseop', "endprotoent"]),
-    'epwent'     => (['baseop', "endpwent"]),
-    'eservent'   => (['baseop', "endservent"]),
+    'db_open'    => 'listop',
+    'dbmopen'    => 'listop',
+    'dbstate'    => 'nextstate',
 
-    'fcntl'      => ('listop'),
-    'formline'   => ('listop'), # see also deparse_format
-    'fork'       => ('baseop'),
+    'say'        => 'indirop',
+    'setstate'   => 'nextstate',
+    'sort'       => "indirop",
 
-    'getlogin'   => ('baseop'),
-    'ggrent'     => (['baseop', "getgrent"]),
-    'ggrgid'     => (['unop',   "getgrgid"]),
-    'ggrnam'     => (['unop',   "getgrnam"]),
-    'ghbyaddr'   => (['listop', 'gethostbyaddr']),
-    'ghbyname'   => (['unop',   "gethostbyname"]),
-    'ghostent'   => (['baseop', "gethostent"]),
-    'gnbyaddr'   => (['listop', "getnetbyaddr"]),
-    'gnbyname'   => (['unop',   "getnetbyname"]),
-    'gnetent'    => (['baseop', "getnetent"]),
-    'gpbyname'   => (['unop',   "getprotobyname"]),
-    'gpbynumber' => (['listop', 'getprotobynumber']),
-    'gprotoent'  => (['baseop', "getprotoent"]),
-    'gpwent'     => (['baseop', "getpwent"]),
-    'gpwnam'     => (['unop',   "getpwnam"]),
-    'gpwuid'     => (['unop',   "getpwuid"]),
-    'grepstart'  => (['baseop', "grep"]),
-    'gsbyname'   => (['listop', 'getservbyname']),
-    'gsbyport'   => (['listop', 'getservbyport']),
-    'gservent'   => (['baseop', "getservent"]),
-    'gsockopt'   => (['listop', 'getsockopt']),
+    'defined'    => 'unop',
+    'die'        => 'listop',
+    'each'       => 'unop',
 
-    'ioctl'      => ('listop'),
-    'keys'       => ('unop'),
-    'listen'     => ('listop'),
+    'egrent'     => ['baseop', 'endgrent'],
+    'ehostent'   => ['baseop', "endhostent"],
+    'enetent'    => ['baseop', "endnetent"],
+    'eprotoent'  => ['baseop', "endprotoent"],
+    'epwent'     => ['baseop', "endpwent"],
+    'eservent'   => ['baseop', "endservent"],
 
-    'msgctl'     => ('listop'),
-    'msgget'     => ('listop'),
-    'msgrcv'     => ('listop'),
-    'msgsnd'     => ('listop'),
+    'fcntl'      => 'listop',
+    'formline'   => 'listop', # see also deparse_format
+    'fork'       => 'baseop',
 
-    'open'       => ('listop'),
+    'getlogin'   => 'baseop',
+    'ggrent'     => ['baseop', "getgrent"],
+    'ggrgid'     => ['unop',   "getgrgid"],
+    'ggrnam'     => ['unop',   "getgrnam"],
+    'ghbyaddr'   => ['listop', 'gethostbyaddr'],
+    'ghbyname'   => ['unop',   "gethostbyname"],
+    'ghostent'   => ['baseop', "gethostent"],
+    'gnbyaddr'   => ['listop', "getnetbyaddr"],
+    'gnbyname'   => ['unop',   "getnetbyname"],
+    'gnetent'    => ['baseop', "getnetent"],
+    'gpbyname'   => ['unop',   "getprotobyname"],
+    'gpbynumber' => ['listop', 'getprotobynumber'],
+    'gprotoent'  => ['baseop', "getprotoent"],
+    'gpwent'     => ['baseop', "getpwent"],
+    'gpwnam'     => ['unop',   "getpwnam"],
+    'gpwuid'     => ['unop',   "getpwuid"],
+    'grepstart'  => ['baseop', "grep"],
+    'gsbyname'   => ['listop', 'getservbyname'],
+    'gsbyport'   => ['listop', 'getservbyport'],
+    'gservent'   => ['baseop', "getservent"],
+    'gsockopt'   => ['listop', 'getsockopt'],
 
-    'pack'       => ('listop'),
-    'pipe_op'    => (['listop', 'pipe']),
+    'ioctl'      => 'listop',
+    'keys'       => 'unop',
+    'listen'     => 'listop',
 
-    'read'       => ('listop'),
-    'recv'       => ('listop'),
-    'ref'        => ('unop'),
-    'return'     => ('listop'),
-    'reverse'    => ('listop'),
+    'msgctl'     => 'listop',
+    'msgget'     => 'listop',
+    'msgrcv'     => 'listop',
+    'msgsnd'     => 'listop',
 
-    'aeach'      => (['unop', 'each']),
-    # 'avalues'    => (['unop', 'value']),
-    'akeys'      => (['unop', 'keys']),
+    'open'       => 'listop',
 
-    'pop'        => ('unop'),
-    'shift'      => ('unop'),
+    'pack'       => 'listop',
+    'pipe_op'    => ['listop', 'pipe'],
 
-    'caller'     => ('unop'),
-    'reset'      => ('unop'),
-    'exit'       => ('unop'),
-    'prototype'  => ('unop'),
+    'read'       => 'listop',
+    'recv'       => 'listop',
+    'ref'        => 'unop',
+    'return'     => 'listop',
+    'reverse'    => 'listop',
+
+    'aeach'      => ['unop', 'each'],
+    'akeys'      => ['unop', 'keys'],
+
+    'pop'        => 'unop',
+    'shift'      => 'unop',
+
+    'caller'     => 'unop',
+    'reset'      => 'unop',
+    'exit'       => 'unop',
+    'prototype'  => 'unop',
+
+    'seek'       => 'listop',
+    'seekdir'    => 'listop',
+    'select'     => 'listop',
+    'semctl'     => 'listop',
+    'semget'     => 'listop',
+    'semop'      => 'listop',
+    'send'       => 'listop',
+    'sgrent'     => ['baseop', "setgrent"],
+    'shmctl'     => 'listop',
+    'shmget'     => 'listop',
+    'shmread'    => 'listop',
+    'shmwrite'   => 'listop',
+    'shostent'   => ['unop',   "sethostent"],
+    'shutdown'   => 'listop',
+    'snetent'    => ['unop',   "setnetent"],
+    'socket'     => 'listop',
+    'splice'     => 'listop',
+    'sprotoent'  => ['unop',   "setprotoent"],
+    'spwent'     => ['baseop', "setpwent"],
+    'srand'      => 'unop',
+    'srefgen'    => 'refgen',
+    'sselect'    => ['listop', "select"],
+    'sservent'   => ['unop',   "setservent"],
+    'ssockopt'   => ['listop', "setsockopt"],
+    'study'      => 'unop',
+    'syscall'    => 'listop',
+    'sysopen'    => 'listop',
+    'sysread'    => 'listop',
+    'sysseek'    => 'listop',
+    'syswrite'   => 'listop',
 
 
-    'seek'       => ('listop'),
-    'seekdir'    => ('listop'),
-    'select'     => ('listop'),
-    'semctl'     => ('listop'),
-    'semget'     => ('listop'),
-    'semop'      => ('listop'),
-    'send'       => ('listop'),
-    'sgrent'     => (['baseop', "setgrent"]),
-    'shmctl'     => ('listop'),
-    'shmget'     => ('listop'),
-    'shmread'    => ('listop'),
-    'shmwrite'   => ('listop'),
-    'shostent'  => (['unop', "sethostent"]),
-    'shutdown'   => ('listop'),
-    'snetent'   => (['unop', "setnetent"]),
-    'sprotoent' => (['unop', "setprotoent"]),
-    'spwent'     => (['baseop', "setpwent"]),
-    'srand'      => ('unop'),
-    # 'sselect'    => ('listop'),  FIXME: is used in PPfns
-    'sservent'  => (['unop', "setservent"]),
-    'study'      => ('unop'),
-    'syscall'    => ('listop'),
-    'sysopen'    => ('listop'),
-    'sysread'    => ('listop'),
-    'sysseek'    => ('listop'),
-    'syswrite'   => ('listop'),
-
-    'tie'        => ('listop'),
-    'tms'        => (['baseop', 'times']),
-    'undef'      => ('unop'),
-    'unpack'     => ('listop'),
-    # 'values'     => ('unop'), # FIXME
-    'warn'       => ('listop'),
+    'tie'        => 'listop',
+    'tms'        => ['baseop', 'times'],
+    'undef'      => 'unop',
+    'unpack'     => 'listop',
+    'warn'       => 'listop',
     );
 
-# This method is the inner loop.
+# "deparse()" is the main function to call to produces a depare tree
+# for a give B::OP. This method is the inner loop.
+
 # Rocky's comment with respect to:
 #   so try to keep it simple
 #
-# Most normal programs really aren't that big. Yeah I know there
+# Most normal Perl programs really aren't that big. Yeah, I know there
 # are a couple of big pigs like the B::Deparse code itself. The perl5
 # debugger comes to mind too. But what's the likelihood of anyone wanting
-# to decompile all of this? If someone can make a case for a reason
-# high-speed decompilation is vital, I'd like to hear it.
+# to decompile all of this?
 #
-# On the other hand, error checking are too valuable to throw out here.
+# On the other hand, error checking is too valuable to throw out here.
 # Also, in trying to use and modularize this code, I see there is
 # a lot of repetition in subroutine parsing routines. That's
-# why I added the above table. I'm not going to trade off
+# why I added the above PP_MAPFNS table. I'm not going to trade off
 # table lookup and interpetation for a huge amount of subroutine
 # bloat.
 
 # That said it is useful to note that this is inner-most loop
-# interpeter loop.
+# interpeter loop as it is called for each node in the B::OP tree.
 #
 sub deparse
 {
@@ -1273,8 +1287,10 @@ sub deparse
 	    $info = $self->$meth($op, $cx, $args[0]);
 	} else {
 	    # Simple case: one simple call of the
-	    # the method in the table along with its
-	    # name.
+	    # the method in the table. Call this
+	    # passing arguments $op, $cx, and $name.
+	    # Some functions might not use these,
+	    # but that's okay.
 	    $meth = $PP_MAPFNS{$name};
 	    $info = $self->$meth($op, $cx, $name);
 	}

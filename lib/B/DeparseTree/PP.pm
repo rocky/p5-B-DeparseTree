@@ -76,7 +76,6 @@ $VERSION = '1.0.0';
     pp_cos
     pp_crypt
     pp_dbmopen
-    pp_dbstate
     pp_delete
     pp_dor
     pp_entersub
@@ -141,21 +140,15 @@ $VERSION = '1.0.0';
     pp_repeat
     pp_require
     pp_rindex
-    pp_say
     pp_schomp
     pp_schop
     pp_scope
     pp_setpgrp
     pp_setpriority
-    pp_setstate
     pp_sin
-    pp_socket
     pp_sockpair
-    pp_sort
-    pp_splice
     pp_sprintf
     pp_sqrt
-    pp_srefgen
     pp_sselect
     pp_ssockopt
     pp_stub
@@ -164,7 +157,6 @@ $VERSION = '1.0.0';
     pp_sysread
     pp_sysseek
     pp_system
-    pp_tie
     pp_time
     pp_truncate
     pp_unlink
@@ -194,7 +186,10 @@ sub SWAP_CHILDREN () { 1 }
 sub ASSIGN () { 2 } # has OP= variant
 sub LIST_CONTEXT () { 4 } # Assignment is in list context
 
-# FIXME: what's up with "values"?
+# FIXME: These don't seem to be able to go into the table.
+# PPfns calls pp_sockpair for example?
+sub pp_sockpair { listop(@_, "socketpair") }
+sub pp_values { unop(@_, "values") }
 sub pp_avalues { unop(@_, "values") }
 
 sub pp_aassign { binop(@_, "=", 7, SWAP_CHILDREN | LIST_CONTEXT, 'array assign') }
@@ -228,16 +223,10 @@ sub pp_rindex { maybe_targmy(@_, \&listop, "rindex") }
 sub pp_setpgrp { maybe_targmy(@_, \&listop, "setpgrp") }
 sub pp_setpriority { maybe_targmy(@_, \&listop, "setpriority") }
 sub pp_sin { maybe_targmy(@_, \&unop, "sin") }
-sub pp_socket { listop(@_, "socket") }
-sub pp_sockpair { listop(@_, "socketpair") }
-sub pp_splice { listop(@_, "splice") }
 sub pp_sprintf { maybe_targmy(@_, \&listop, "sprintf") }
 sub pp_sqrt { maybe_targmy(@_, \&unop, "sqrt") }
-sub pp_sselect { listop(@_, "select") }
-sub pp_ssockopt { listop(@_, "setsockopt") }
 sub pp_symlink { maybe_targmy(@_, \&listop, "symlink") }
 sub pp_system { maybe_targmy(@_, \&listop, "system") }
-sub pp_tie { listop(@_, "tie") }
 
 sub pp_truncate
 {
@@ -265,12 +254,9 @@ sub pp_truncate
     }
 }
 
-
 sub pp_unlink { maybe_targmy(@_, \&listop, "unlink") }
 sub pp_unshift { maybe_targmy(@_, \&listop, "unshift") }
 sub pp_utime { maybe_targmy(@_, \&listop, "utime") }
-
-sub pp_values { unop(@_, "values") }
 
 sub pp_vec { maybe_local(@_, listop(@_, "vec")) }
 sub pp_waitpid { maybe_targmy(@_, \&listop, "waitpid") }
@@ -545,7 +531,6 @@ sub pp_require
 sub pp_schomp { maybe_targmy(@_, \&unop, "chomp") }
 sub pp_schop { maybe_targmy(@_, \&unop, "chop") }
 sub pp_scope { scopeop(0, @_); }
-sub pp_srefgen { pp_refgen(@_) }
 
 my $count = 0;
 # Notice how subs and formats are inserted between statements here;
@@ -745,8 +730,6 @@ sub pp_const {
     return $self->const($sv, $cx);;
 }
 
-sub pp_dbstate { pp_nextstate(@_) }
-
 sub pp_entersub
 {
     my($self, $op, $cx) = @_;
@@ -882,7 +865,7 @@ sub pp_entersub
 	} elsif ($dproto =~ /^\s*\z/) {
 	    $type = 'call no protype';
 	    @texts = ($subname_info);
-	} elsif ($dproto eq "\$" and is_scalar($exprs[0])) {
+	} elsif ($dproto eq "\$" and B::Deparse::is_scalar($exprs[0])) {
 	    $type = 'call - $ prototype';
 	    # is_scalar is an excessively conservative test here:
 	    # really, we should be comparing to the precedence of the
@@ -967,10 +950,6 @@ sub pp_repeat {
     $info->{other_ops} = $other_ops if $other_ops;
     return $info
 }
-
-sub pp_say  { indirop(@_, "say") }
-sub pp_setstate { pp_nextstate(@_) }
-sub pp_sort { indirop(@_, "sort") }
 
 sub pp_or  { logop(@_, "or",  2, "||", 10, "unless") }
 sub pp_dor { logop(@_, "//", 10) }

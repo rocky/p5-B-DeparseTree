@@ -67,16 +67,28 @@ sub get_prev_op($)
     my ($op_info) = @_;
     return undef unless $op_info;
     my $deparse = $op_info->{deparse};
+    use Data::Printer; p $op_info;
     my $ref = $deparse->{ops}{$op_info->{addr}};
     return $ref->{prev_op} ? $ref : undef;
 }
 
+# FIXME
 sub get_prev_addr_info($)
 {
     my ($op_info) = @_;
     my $deparse = $op_info->{deparse};
     my $prev_op = get_prev_op($op_info);
     return undef unless $prev_op;
+    if (ref($prev_op) eq 'HASH' and exists $prev_op->{op}) {
+	# FIXME:
+	# use Data::Printer; p $prev_op;
+	my $prev_addr = ${$prev_op->{op}};
+	return $deparse->{optree}{$prev_addr};
+    }
+    if (!eval{$$prev_op}) {
+	use Data::Printer; p $prev_op;
+	return undef;
+    }
     return $deparse->{optree}{$$prev_op};
 }
 
