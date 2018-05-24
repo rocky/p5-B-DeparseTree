@@ -597,16 +597,23 @@ sub loopex
     my ($self, $op, $cx, $name) = @_;
     my $opts = {maybe_parens => [$self, $cx, 7]};
     if (B::class($op) eq "PVOP") {
-	return info_from_list($op, $self, [$name, $op->pv], ' ', "loop $name $op->pv", {});
+	return info_from_list($op, $self, [$name, $op->pv], ' ',
+			      "loop $name $op->pv", $opts);
     } elsif (B::class($op) eq "OP") {
 	# no-op
 	return info_from_text($op, $self, $name, "loopex $name", $opts);
     } elsif (B::class($op) eq "UNOP") {
-	(my $kid_info = $self->deparse($op->first, 7, $op)) =~ s/^\cS//;
-	$opts->{body} = [$kid_info];
-	return info_from_list($op, $self, [$name, $op->pv], ' ', 'loopex_unop', $opts);
+	(my $kid_info = $self->deparse($op->first, 7)) =~ s/^\cS//;
+	# last foo() is a syntax error. So we might surround it with parens.
+	my $transform_fn = sub {
+	    my $text = shift->{text};
+	    $text = "($text)" if $text =~ /^(?!\d)\w/;
+	    return $text;
+	};
+	return $self->info_from_template("loop $name", $op, "$name %F",
+					 undef, [$kid_info], $opts);
     } else {
-	return info_from_text($op, $self, $name, 'loopex', $opts);
+	return info_from_text($op, $self, $name, "loop $name", $opts);
     }
     Carp::confess("unhandled condition in lopex");
 }
