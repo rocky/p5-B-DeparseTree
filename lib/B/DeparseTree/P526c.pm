@@ -512,11 +512,6 @@ sub pp_dofile
     if ($code =~ s/^((?:CORE::)?do) \{/$1({/) { $code .= ')' }
     $code;
 }
-sub pp_lock { unop(@_, "lock") }
-
-sub pp_continue { unop(@_, "continue"); }
-sub pp_break { unop(@_, "break"); }
-
 # Different in 5.25 from earlier versions
 sub pp_repeat { maybe_targmy(@_, \&repeat) }
 
@@ -946,13 +941,6 @@ sub for_loop {
     return $self->loop_common($ll, $cx, $init);
 }
 
-sub _op_is_or_was {
-  my ($op, $expect_type) = @_;
-  my $type = $op->type;
-  return($type == $expect_type
-         || ($type == OP_NULL && $op->targ == $expect_type));
-}
-
 sub padname {
     my $self = shift;
     my $targ = shift;
@@ -1300,11 +1288,11 @@ sub pp_multideref
 		      MDEREF_HV_pop_rv2hv_helem)
             {
                 if (   ($op->flags & OPf_KIDS)
-		       && (   _op_is_or_was($op->first, OP_RV2AV)
-			      || _op_is_or_was($op->first, OP_RV2HV))
+		       && (   B::Deparse::_op_is_or_was($op->first, OP_RV2AV)
+			      || B::Deparse::_op_is_or_was($op->first, OP_RV2HV))
 		       && ($op->first->flags & OPf_KIDS)
-		       && (   _op_is_or_was($op->first->first, OP_AELEM)
-			      || _op_is_or_was($op->first->first, OP_HELEM))
+		       && (   B::Deparse::_op_is_or_was($op->first->first, OP_AELEM)
+			      || B::Deparse::_op_is_or_was($op->first->first, OP_HELEM))
                     )
                 {
                     $derefs++;

@@ -1134,11 +1134,13 @@ my %PP_MAPFNS = (
     'bind'       => 'listop',
     'binmode'    => 'listop',
     'bless'      => 'listop',
+    'break'      => 'unop',
 
     'caller'     => 'unop',
     'close'      => 'unop',
     'closedir'   => 'unop',
     'connect'    => 'listop',
+    'continue'   => 'unop',
 
     'db_open'    => 'listop',
     'dbmclose'   => 'unop',
@@ -1196,6 +1198,7 @@ my %PP_MAPFNS = (
     'last'       => 'loopex',
     'listen'     => 'listop',
     'localtime'  => 'unop',
+    'lock'       => 'unop',
 
     'msgctl'     => 'listop',
     'msgget'     => 'listop',

@@ -618,6 +618,7 @@ sub loopex
     Carp::confess("unhandled condition in lopex");
 }
 
+# Handles the indirect operators, print, say, sort
 sub indirop
 {
     my($self, $op, $cx, $name) = @_;
@@ -845,6 +846,7 @@ sub matchop
     return info_from_list($op, $self, \@texts, '', $type, $opts);
 }
 
+# This is the category of unary operators, e.g. alarm, caller, close..
 sub unop
 {
     my($self, $op, $cx, $name, $nollafr) = @_;

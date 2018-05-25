@@ -43,6 +43,7 @@ use B::Deparse;
 *find_scope_en = *B::Deparse::find_scope_en;
 *gv_name = *B::Deparse::gv_name;
 *padname_sv = *B::Deparse::padname_sv;
+*padval = *B::Deparse::padval;
 *re_flags = *B::Deparse::re_flags;
 *stash_variable = *B::Deparse::stash_variable;
 *stash_variable_name = *B::Deparse::stash_variable_name;
@@ -575,11 +576,6 @@ sub pp_entereval
     )
 }
 
-sub pp_lock { unop(@_, "lock") }
-
-sub pp_continue { unop(@_, "continue"); }
-sub pp_break { unop(@_, "break"); }
-
 sub pp_leavegiven { givwhen(@_, $_[0]->keyword("given")); }
 sub pp_leavewhen  { givwhen(@_, $_[0]->keyword("when")); }
 
@@ -594,13 +590,6 @@ sub pp_scalar
     $self->unop($op, $cx, "scalar");
 }
 
-
-sub padval
-{
-    my $self = shift;
-    my $targ = shift;
-    return $self->{'curcv'}->PADLIST->ARRAYelt(1)->ARRAYelt($targ);
-}
 
 sub pp_readline {
     my $self = shift;
@@ -927,13 +916,6 @@ sub for_loop {
     my $s = $op->sibling;
     my $ll = $s->name eq "unstack" ? $s->sibling : $s->first->sibling;
     return $self->loop_common($ll, $cx, $init);
-}
-
-sub _op_is_or_was {
-  my ($op, $expect_type) = @_;
-  my $type = $op->type;
-  return($type == $expect_type
-         || ($type == OP_NULL && $op->targ == $expect_type));
 }
 
 sub padname {

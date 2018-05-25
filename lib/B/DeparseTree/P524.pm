@@ -69,6 +69,7 @@ use B::Deparse;
 *meth_rclass_sv = *B::Deparse::meth_rclass_sv;
 *meth_sv = *B::Deparse::meth_sv;
 *padname_sv = *B::Deparse::padname_sv;
+*padval = *B::Deparse::padval;
 *re_flags = *B::Deparse::re_flags;
 *stash_variable = *B::Deparse::stash_variable;
 *stash_variable_name = *B::Deparse::stash_variable_name;
@@ -471,11 +472,6 @@ sub pp_dofile
     $code;
 }
 
-sub pp_lock { unop(@_, "lock") }
-
-sub pp_continue { unop(@_, "continue"); }
-sub pp_break { unop(@_, "break"); }
-
 sub pp_leavegiven { givwhen(@_, $_[0]->keyword("given")); }
 sub pp_leavewhen  { givwhen(@_, $_[0]->keyword("when")); }
 
@@ -490,13 +486,6 @@ sub pp_scalar
     $self->unop($op, $cx, "scalar");
 }
 
-
-sub padval
-{
-    my $self = shift;
-    my $targ = shift;
-    return $self->{'curcv'}->PADLIST->ARRAYelt(1)->ARRAYelt($targ);
-}
 
 sub pp_readline {
     my $self = shift;
@@ -862,13 +851,6 @@ sub for_loop {
     return $self->loop_common($ll, $cx, $init);
 }
 
-sub _op_is_or_was {
-  my ($op, $expect_type) = @_;
-  my $type = $op->type;
-  return($type == $expect_type
-         || ($type == OP_NULL && $op->targ == $expect_type));
-}
-
 sub padname {
     my $self = shift;
     my $targ = shift;
@@ -1212,11 +1194,11 @@ sub pp_multideref
 		      MDEREF_HV_pop_rv2hv_helem)
             {
                 if (   ($op->flags & OPf_KIDS)
-		       && (   _op_is_or_was($op->first, OP_RV2AV)
-			      || _op_is_or_was($op->first, OP_RV2HV))
+		       && (   B::Deparse::_op_is_or_was($op->first, OP_RV2AV)
+			      || B::Deparse::_op_is_or_was($op->first, OP_RV2HV))
 		       && ($op->first->flags & OPf_KIDS)
-		       && (   _op_is_or_was($op->first->first, OP_AELEM)
-			      || _op_is_or_was($op->first->first, OP_HELEM))
+		       && (   B::Deparse::_op_is_or_was($op->first->first, OP_AELEM)
+			      || B::Deparse::_op_is_or_was($op->first->first, OP_HELEM))
                     )
                 {
                     $derefs++;
