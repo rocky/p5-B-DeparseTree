@@ -62,14 +62,22 @@ sub get_parent_addr_info($)
     return $deparse->{optree}{$parent_addr};
 }
 
+sub get_prev_op($);
 sub get_prev_op($)
 {
     my ($op_info) = @_;
     return undef unless $op_info;
+    # Have $op_info, so now see if there is
+    # a direct prev pointer
     my $deparse = $op_info->{deparse};
     use Data::Printer; p $op_info;
     my $ref = $deparse->{ops}{$op_info->{addr}};
-    return $ref->{prev_op} ? $ref : undef;
+    return $ref->{prev_op} if exists $ref->{prev_op};
+    return undef unless $ref->{parent};
+
+    # No prev pointer but we have a parent, so now try the prev of the
+    # parent.
+    return get_prev_op($deparse->{ops}{$ref->{parent}});
 }
 
 # FIXME
