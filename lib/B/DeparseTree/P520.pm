@@ -385,16 +385,6 @@ my %strong_proto_keywords = map { $_ => 1 } qw(
     undef
 );
 
-sub pp_not
-{
-    my($self, $op, $cx) = @_;
-    if ($cx <= 4) {
-	$self->listop($op, $cx, "not", $op->first);
-    } else {
-	$self->pfixop($op, $cx, "!", 21);
-    }
-}
-
 # Note 5.20 and up
 sub pp_null
 {
@@ -541,28 +531,6 @@ sub pp_uc { dq_unop(@_, "uc") }
 sub pp_lc { dq_unop(@_, "lc") }
 sub pp_quotemeta { maybe_targmy(@_, \&dq_unop, "quotemeta") }
 sub pp_fc { dq_unop(@_, "fc") }
-
-sub ftst
-{
-    my($self, $op, $cx, $name) = @_;
-    if (class($op) eq "UNOP") {
-	# Genuine '-X' filetests are exempt from the LLAFR, but not
-	# l?stat()
-	if ($name =~ /^-/) {
-	    (my $kid = $self->deparse($op->first, 16, $op)) =~ s/^\cS//;
-	    return info_from_list($op, $self, [$name, $kid->{text}], ' ',
-				  'ftst_unop_dash',
-				  {body => [$kid],
-				  maybe_parens => [$self, $cx, 16]});
-	}
-	return $self->maybe_parens_unop($name, $op->first, $cx, $op);
-    } elsif (class($op) =~ /^(SV|PAD)OP$/) {
-	my @list = $self->maybe_parens_func($name, $self->pp_gv($op, 1), $cx, 16);
-	return info_from_list($op, $self, \@list, ' ', 'ftst_list', {});
-    } else { # I don't think baseop filetests ever survive ck_ftst, but...
-	return info_from_text($op, $self, $name, 'unop', {});
-    }
-}
 
 sub pp_lstat    { ftst(@_, "lstat") }
 sub pp_stat     { ftst(@_, "stat") }

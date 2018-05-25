@@ -38,6 +38,7 @@ $VERSION = '3.1.1';
     deparse_binop_left
     deparse_binop_right
     dq_unop
+    ftst
     givwhen
     indirop
     listop
@@ -216,6 +217,28 @@ sub dq_unop
 	return info_from_list($op, $self, \@texts, '', 'dq', {});
     }
     Carp::confess("unhandled condition in dq_unop");
+}
+
+sub ftst
+{
+    my($self, $op, $cx, $name) = @_;
+    if (B::class($op) eq "UNOP") {
+	# Genuine '-X' filetests are exempt from the LLAFR, but not
+	# l?stat()
+	if ($name =~ /^-/) {
+	    (my $kid = $self->deparse($op->first, 16, $op)) =~ s/^\cS//;
+	    return info_from_list($op, $self, [$name, $kid->{text}], ' ',
+				  'ftst_unop_dash',
+				  {body => [$kid],
+				  maybe_parens => [$self, $cx, 16]});
+	}
+	return $self->maybe_parens_unop($name, $op->first, $cx, $op);
+    } elsif (class($op) =~ /^(SV|PAD)OP$/) {
+	my @list = $self->maybe_parens_func($name, $self->pp_gv($op, 1), $cx, 16);
+	return info_from_list($op, $self, \@list, ' ', 'ftst_list', {});
+    } else { # I don't think baseop filetests ever survive ck_ftst, but...
+	return info_from_text($op, $self, $name, 'unop', {});
+    }
 }
 
 sub givwhen

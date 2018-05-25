@@ -118,6 +118,7 @@ $VERSION = '1.0.0';
     pp_msgsnd
     pp_negate
     pp_nextstate
+    pp_not
     pp_oct
     pp_once
     pp_open_dir
@@ -213,6 +214,17 @@ sub pp_length { maybe_targmy(@_, \&unop, "length") }
 sub pp_link { maybe_targmy(@_, \&listop, "link") }
 sub pp_log { maybe_targmy(@_, \&unop, "log") }
 sub pp_mkdir { maybe_targmy(@_, \&listop, "mkdir") }
+
+sub pp_not
+{
+    my($self, $op, $cx) = @_;
+    if ($cx <= 4) {
+	$self->listop($op, $cx, "not", $op->first);
+    } else {
+	$self->pfixop($op, $cx, "!", 21);
+    }
+}
+
 sub pp_oct { maybe_targmy(@_, \&unop, "oct") }
 sub pp_open_dir { listop(@_, "opendir") }
 sub pp_ord { maybe_targmy(@_, \&unop, "ord") }
