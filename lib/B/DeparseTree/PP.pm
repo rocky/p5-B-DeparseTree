@@ -879,11 +879,27 @@ sub pp_entersub
 	$subname_info->{text} =~ s/^CORE::GLOBAL:://;
 	my $dproto = defined($proto) ? $proto : "undefined";
         if (!$declared) {
-	    $type = 'undeclared call';
+	    $type = 'call (no prior declaration)';
 	    @texts = dedup_parens_func($self, $subname_info, \@body);
-	    return B::DeparseTree::Node->new($op, $self, \@texts,
-					     '', $type,
-					     {other_ops => $other_ops});
+	    my $node = B::DeparseTree::Node->new($op, $self, \@texts,
+						 '', $type,
+						 {other_ops => $other_ops});
+
+	    # Take the subname_info portion of $node and use that as the
+	    # part of the parent, null, pushmark ops.
+	    if ($subname_info && $other_ops) {
+		my $str = $node->{text};
+		my $position = [0, length($subname_info->{text})];
+		my @new_ops = ();
+		foreach my $op (@$other_ops) {
+		    my $new_op = $self->info_from_string($op->name, $op, $str,
+							 {position => $position});
+		    push @new_ops, $new_op;
+		}
+		$node->{other_ops} = \@new_ops;
+	    }
+	    return $node;
+
 	} elsif ($dproto =~ /^\s*\z/) {
 	    $type = 'call no protype';
 	    @texts = ($subname_info);
@@ -908,9 +924,24 @@ sub pp_entersub
 					     {other_ops => $other_ops});
 	}
     }
-    return $self->info_from_template($type, $op,
-				     '%C', [[0, $#texts, '']], \@texts,
-				     {other_ops => $other_ops});
+    my $node = $self->info_from_template($type, $op,
+					 '%C', [[0, $#texts, '']], \@texts,
+					 {other_ops => $other_ops});
+
+    # Take the subname_info portion of $node and use that as the
+    # part of the parent, null, pushmark ops.
+    if ($subname_info && $other_ops) {
+	my $str = $node->{text};
+	my $position = [0, length($subname_info->{text})];
+	my @new_ops = ();
+	foreach my $op (@$other_ops) {
+	    my $new_op = $self->info_from_string($op->name, $op, $str,
+						 {position => $position});
+	    push @new_ops, $new_op;
+	}
+	$node->{other_ops} = \@new_ops;
+    }
+    return $node;
 }
 
 sub pp_flop

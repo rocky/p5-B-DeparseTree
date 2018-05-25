@@ -173,16 +173,90 @@ sub trim_line_pair($$$$) {
     return \@result;
 }
 
+# FIXME: this is a mess
+
+# return an ARRAY ref to strings that can be joined with "\n" to
+# give a position in the text. Here are some examples
+# after joining
+#
+#   my ($x, $y) = (1, 2)
+#                 ------
+#   my ($x, $y) = (1, 2)
+#                 ~~~~~
+#   my ($x, $y) = (1, 2)
+#                     -
+#  (1, 2)
+#
+#  if ($x) { ...
+#     my ($x, $y = (1, 2)
+#     -------------------
+#
+#  if ($x) { ...
+#     my ($x, $y = (1, 2)...
+#     -------------------
+
+# When we can, we text in the context of the surrounding
+# text which is obtained by going up levels of the tree
+# form the instruction. We might have to go a few levels
+# up the tree before we find a text that spans more than
+# a single line.  In the fourth case where we don't
+# have an underline but simply have "(1, 2)" that means
+# were unable to get the parent text.
+
+# We hope that in the normal case, using the place holders in the
+# format specifiers, we can know for sure where a child fits in as
+# that child's node is stored in the parent as some "texts"
+# entry. However this isn't always possible right now. So in the
+# second example where "~" was used instead of "-", to
+# indicate that the result was obtained the result by string matching
+# rather than by exact node matching inside the parent.
+#
+# The last two examples show how we do elision. The ...
+# in the parent text means that we have only given the first line
+# of the parent text along with the line that the child fits in.
+# if there is an elision in the child text it means that that
+# spans more than one line.
+
 sub extract_node_info($)
 {
     my ($info) = @_;
+
     my $child_text = $info->{text};
+    my $parent_text = undef;
+    my $candidate_pair = undef;
+
+    # Some opcodes like pushmark , padrange, and null,
+    # don't have an well-defined correspondence to a string in the
+    # source code, so we have made a somewhat arbitrary association fitting
+    # into the parent string. Examples of such artificial associations are
+    # the function name part of call, or an open brace of a scope.
+    # You can tell these nodes because they have a "position" field.
+    if (exists $info->{position}) {
+	my $found_pos = $info->{position};
+	$parent_text = $child_text;
+	$child_text = substr($parent_text,
+			     $found_pos->[0], $found_pos->[1]);
+	my $parent_underline = ' ' x $found_pos->[0];
+	$parent_underline .= '-' x $found_pos->[1];
+	$candidate_pair = trim_line_pair($parent_text, $child_text,
+					 $parent_underline,
+					 $found_pos->[0]);
+
+    }
+
     my $parent = $info->{parent} ? $info->{parent} : undef;
-    return [$child_text] unless $parent;
+    unless ($parent) {
+	return $candidate_pair ? $candidate_pair : [$child_text];
+    }
+
     my $child_addr = $info->{addr};
     my $deparsed = $info->{deparse};
     my $parent_info = $deparsed->{optree}{$parent};
-    return [$child_text] unless $parent_info;
+
+    unless ($parent_info) {
+	return $candidate_pair ? $candidate_pair : [$child_text];
+    }
+
     my $separator = exists $parent_info->{sep} ? $parent_info->{sep} : '';
     my @texts = exists $parent_info->{texts} ? @{$parent_info->{texts}} : ($parent_info->{text});
     my $parent_line = '';
@@ -194,7 +268,7 @@ sub extract_node_info($)
 	and eval{$texts[0]->isa("B::DeparseTree::Node")}) {
 	$parent_info = $texts[0];
     }
-    if (exists $parent_info->{fmt}) {
+    if (exists $parent_info->{fmt} || exists $parent_info->{position}) {
 	# If the child text is the same as the parent's, go up the parent
 	# chain until we find something different.
 	while ($parent_info->{text} eq $child_text
@@ -283,7 +357,7 @@ sub extract_node_info($)
     }
     # Can't find by node address info, so just try to find the string
     # inside of the parent.
-    my $parent_text = $parent_info->{text};
+    $parent_text = $parent_info->{text};
     my $start_index = index($parent_text, $child_text);
     if ($start_index >= 0) {
 	if (index($parent_text, $child_text, $start_index+1) < 0) {
