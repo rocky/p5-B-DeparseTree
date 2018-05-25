@@ -407,6 +407,7 @@ state($s3, $s4);
 #@z = ($s7, undef, $s8);
 ($s7, undef, $s8) = (1, 2, 3);
 ####
+# SKIP ?1
 # slices with padrange
 my($a, $b);
 my(@x, %y);

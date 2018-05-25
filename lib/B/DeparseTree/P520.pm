@@ -60,7 +60,7 @@ our(@EXPORT, @ISA);
 our $VERSION = '3.0.0';
 
 @ISA = qw(Exporter B::DeparseTree::Common);
-@EXPORT = qw(compile);
+@EXPORT = qw(is_pp_null_list);
 
 BEGIN {
     # List version-specific constants here.
@@ -362,6 +362,14 @@ sub cop_subs {
     return $self->seq_subs($seq);
 }
 
+sub is_pp_null_list($$) {
+    my ($self, $op) = @_;
+    return $op->name eq 'pushmark' or
+	($op->name eq 'null'
+	 && $op->targ == B::Deparse::OP_PUSHMARK
+	 && B::Deparse::_op_is_or_was($op, B::Deparse::OP_LIST));
+}
+
 my %feature_keywords = (
   # keyword => 'feature',
     state   => 'state',
@@ -386,11 +394,6 @@ my %strong_proto_keywords = map { $_ => 1 } qw(
 );
 
 { no strict 'refs'; *{"pp_r$_"} = *{"pp_$_"} for qw< keys each values >; }
-sub pp_boolkeys
-{
-    # no name because its an optimisation op that has no keyword
-    unop(@_,"");
-}
 
 sub pp_chdir { maybe_targmy(@_, \&unop, "chdir") }
 sub pp_chroot { maybe_targmy(@_, \&unop, "chroot") }
@@ -555,15 +558,6 @@ sub range {
     $right = $self->deparse($right, 9, $op);
     return info_from_list($op, $self, [$left, $type, $right], ' ', 'range',
 			  {maybe_parens => [$self, $cx, 9]});
-}
-
-sub pp_flop
-{
-    my $self = shift;
-    my($op, $cx) = @_;
-    my $flip = $op->first;
-    my $type = ($flip->flags & OPf_SPECIAL) ? "..." : "..";
-    return info_from_text($op, $self, $self->range($flip->first, $cx, $type), 'pp_flop', {});
 }
 
 sub logassignop
@@ -1064,6 +1058,13 @@ sub pp_lslice
     return info_from_list($op, $self, ['(', $list_info->{text}, ')', '[', $idx_info->{text}, ']'],
 	'', 'lslice', {body=>[$list_info, $idx_info]});
 }
+
+sub is_pp_null_list($op) {
+    my $op = shift;
+    return $op->name eq 'pushmark' or
+	($op->name eq 'null'
+	 && $kid->targ == B::Deparse::OP_PUSHMARK
+	 && B::Deparse::_op_is_or_was($op, B::Deparse::OP_LIST));
 
 sub _method
 {

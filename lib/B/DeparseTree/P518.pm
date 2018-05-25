@@ -58,7 +58,7 @@ our(@EXPORT, @ISA);
 our $VERSION = '3.0.0';
 
 @ISA = qw(Exporter B::DeparseTree::Common);
-@EXPORT = qw(compile);
+@EXPORT = qw(is_pp_null_list);
 
 BEGIN {
     # List version-specific constants here.
@@ -466,84 +466,12 @@ sub keyword {
     return $name;
 }
 
-# NOTE: we need our oun pp_nul since later versions add OP_PUSHMARK
-sub pp_null
-{
-    my($self, $op, $cx) = @_;
-    my $info;
-    if (class($op) eq "OP") {
-	if ($op->targ == B::Deparse::OP_CONST) {
-	    # The Perl source constant value can't be recovered.
-	    # We'll use the 'ex_const' value as a substitute
-	    return info_from_text($op, $self, $self->{'ex_const'}, 'constant unrecoverable', {})
-	} else {
-	    return info_from_text($op, $self, '', 'constant ""', {});
-	}
-    } elsif (class ($op) eq "COP") {
-	    return $self->pp_nextstate($op, $cx);
-    }
-    my $kid = $op->first;
-    if ($op->first->name eq 'pushmark') {
-	return $self->pp_list($op, $cx);
-    } elsif ($kid->name eq "enter") {
-	return $self->pp_leave($op, $cx);
-    } elsif ($kid->name eq "leave") {
-	return $self->pp_leave($kid, $cx);
-    } elsif ($kid->name eq "scope") {
-	return $self->pp_scope($kid, $cx);
-    } elsif ($op->targ == B::Deparse::OP_STRINGIFY) {
-	return $self->dquote($op, $cx);
-    } elsif ($op->targ == B::Deparse::OP_GLOB) {
-	my @other_ops = ($kid, $kid->first, $kid->first->first);
-	my $info = $self->pp_glob(
-	    $kid    # entersub
-	    ->first    # ex-list
-	    ->first    # pushmark
-	    ->sibling, # glob
-	    $cx
-	    );
-	push @{$info->{other_ops}}, @other_ops;
-	return $info;
-    } elsif (!null($kid->sibling) and
-    	     $kid->sibling->name eq "readline" and
-    	     $kid->sibling->flags & OPf_STACKED) {
-    	my $lhs = $self->deparse($kid, 7, $op);
-    	my $rhs = $self->deparse($kid->sibling, 7, $kid);
-    	return $self->bin_info_join_maybe_parens($op, $lhs, $rhs, '=', " ", $cx, 7,
-						 'readline');
-    } elsif (!null($kid->sibling) and
-    	     $kid->sibling->name eq "trans" and
-    	     $kid->sibling->flags & OPf_STACKED) {
-    	my $lhs = $self->deparse($kid, 20, $op);
-    	my $rhs = $self->deparse($kid->sibling, 20, $op);
-    	return $self->bin_info_join_maybe_parens($op, $lhs, $rhs, '=~', " ", $cx, 20,
-	                                         'trans');
-    } elsif ($op->flags & OPf_SPECIAL && $cx < 1 && !$op->targ) {
-    	my $kid_info = $self->deparse($kid, $cx, $op);
-	return info_from_list($op, $self, ['do', "{\n\t", $kid_info->{text},
-			       "\n\b};"], '', 'null_special',
-	    {body => [$kid_info]});
-    } elsif (!null($kid->sibling) and
-	     $kid->sibling->name eq "null" and
-	     class($kid->sibling) eq "UNOP" and
-	     $kid->sibling->first->flags & OPf_STACKED and
-	     $kid->sibling->first->name eq "rcatline") {
-	my $lhs = $self->deparse($kid, 18, $op);
-	my $rhs = $self->deparse($kid->sibling, 18, $op);
-	return $self->bin_info_join_maybe_parens($op, $lhs, $rhs, '=', " ", $cx, 20,
-						 'null_rcatline');
-    } else {
-	return $self->deparse($kid, $cx, $op);
-    }
-    Carp::confess("unhandled condition in null");
+sub is_pp_null_list($) {
+    my ($self, $op) = @_;
+    return ($op->name eq 'pushmark');
 }
 
 { no strict 'refs'; *{"pp_r$_"} = *{"pp_$_"} for qw< keys each values >; }
-sub pp_boolkeys
-{
-    # no name because its an optimisation op that has no keyword
-    unop(@_,"");
-}
 
 sub pp_chdir { maybe_targmy(@_, \&unop, "chdir") }
 sub pp_chroot { maybe_targmy(@_, \&unop, "chroot") }
@@ -708,15 +636,6 @@ sub range {
     $right = $self->deparse($right, 9, $op);
     return info_from_list($op, $self, [$left, $type, $right], ' ', 'range',
 			  {maybe_parens => [$self, $cx, 9]});
-}
-
-sub pp_flop
-{
-    my $self = shift;
-    my($op, $cx) = @_;
-    my $flip = $op->first;
-    my $type = ($flip->flags & OPf_SPECIAL) ? "..." : "..";
-    return info_from_text($op, $self, $self->range($flip->first, $cx, $type), 'pp_flop', {});
 }
 
 sub logassignop

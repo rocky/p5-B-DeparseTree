@@ -48,6 +48,7 @@ $VERSION = '3.1.1';
     mapop
     matchop
     pfixop
+    range
     unop
     );
 
@@ -966,6 +967,19 @@ sub pfixop
     return $self->info_from_template($type, $op, $fmt, [0, 1],
 				     \@nodes,
 				     {maybe_parens => [$self, $cx, $prec]}) ;
+}
+
+# Produce an node for a range (".." or "..." op)
+sub range {
+    my $self = shift;
+    my ($op, $cx, $type) = @_;
+    my $left = $op->first;
+    my $right = $left->sibling;
+    $left = $self->deparse($left, 9, $op);
+    $right = $self->deparse($right, 9, $op);
+    return $self->info_from_template("range $type", $op, "%c${type}%c",
+				     undef, [$left, $right],
+				     {maybe_parens => [$self, $cx, 9]});
 }
 
 # Demo code

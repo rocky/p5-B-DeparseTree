@@ -63,6 +63,7 @@ $VERSION = '1.0.0';
     pp_anonhash
     pp_anonlist
     pp_atan2
+    pp_boolkeys
     pp_chr
     pp_chmod
     pp_chomp
@@ -84,6 +85,7 @@ $VERSION = '1.0.0';
     pp_exists
     pp_exp
     pp_flock
+    pp_flop
     pp_getppid
     pp_getpriority
     pp_glob
@@ -195,6 +197,13 @@ sub pp_dbstate { pp_nextstate(@_) }
 
 sub pp_aassign { binop(@_, "=", 7, SWAP_CHILDREN | LIST_CONTEXT, 'array assign') }
 sub pp_abs   { maybe_targmy(@_, \&unop, "abs") }
+
+sub pp_boolkeys
+{
+    # no name because its an optimisation op that has no keyword
+    unop(@_,"");
+}
+
 sub pp_atan2 { maybe_targmy(@_, \&listop, "atan2") }
 sub pp_chmod { maybe_targmy(@_, \&listop, "chmod") }
 sub pp_chown { maybe_targmy(@_, \&listop, "chown") }
@@ -904,6 +913,16 @@ sub pp_entersub
 				     {other_ops => $other_ops});
 }
 
+sub pp_flop
+{
+    my $self = shift;
+    my($op, $cx) = @_;
+    my $flip = $op->first;
+    my $type = ($flip->flags & OPf_SPECIAL) ? "..." : "..";
+    my $node =$self->range($flip->first, $cx, $type);
+    return $self->info_from_template("pp_flop $type", $op, "%c", undef, [$node], {});
+}
+
 sub pp_gv
 {
     my($self, $op, $cx) = @_;
@@ -929,9 +948,7 @@ sub pp_null
 	    return $self->pp_nextstate($op, $cx);
     }
     my $kid = $op->first;
-    if ($kid->name eq 'pushmark' or $kid->name eq 'null'
-	&& $kid->targ == B::Deparse::OP_PUSHMARK
-	&& B::Deparse::_op_is_or_was($op, B::Deparse::OP_LIST)) {
+    if ($self->is_pp_null_list($kid)) {
 	my $node = $self->pp_list($op, $cx);
 	$node->update_other_ops($kid);
 	return $node;

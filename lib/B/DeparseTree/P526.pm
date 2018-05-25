@@ -90,7 +90,7 @@ our(@EXPORT, @ISA);
 our $VERSION = '3.0.0';
 
 @ISA = qw(Exporter B::DeparseTree::Common);
-@EXPORT = qw(compile);
+@EXPORT = qw(is_pp_null_list);
 
 BEGIN {
     # List version-specific constants here.
@@ -356,6 +356,14 @@ sub cop_subs {
     return $self->seq_subs($seq);
 }
 
+sub is_pp_null_list($$) {
+    my ($self, $op) = @_;
+    return $op->name eq 'pushmark' or
+	($op->name eq 'null'
+	 && $op->targ == B::Deparse::OP_PUSHMARK
+	 && B::Deparse::_op_is_or_was($op, B::Deparse::OP_LIST));
+}
+
 my %feature_keywords = (
   # keyword => 'feature',
     state   => 'state',
@@ -399,11 +407,6 @@ sub pp_chr { maybe_targmy(@_, \&unop, "chr") }
 sub pp_each { unop(@_, "each") }
 sub pp_values { unop(@_, "values") }
 { no strict 'refs'; *{"pp_r$_"} = *{"pp_$_"} for qw< keys each values >; }
-sub pp_boolkeys
-{
-    # no name because its an optimisation op that has no keyword
-    unop(@_,"");
-}
 
 # FIXME:
 # Different in 5.20. Go over differences to see if okay in 5.20.
@@ -635,26 +638,6 @@ sub real_concat {
 					     'real_concat');
 }
 
-sub range {
-    my $self = shift;
-    my ($op, $cx, $type) = @_;
-    my $left = $op->first;
-    my $right = $left->sibling;
-    $left = $self->deparse($left, 9, $op);
-    $right = $self->deparse($right, 9, $op);
-    return info_from_list($op, $self, [$left, $type, $right], ' ', 'range',
-			  {maybe_parens => [$self, $cx, 9]});
-}
-
-sub pp_flop
-{
-    my $self = shift;
-    my($op, $cx) = @_;
-    my $flip = $op->first;
-    my $type = ($flip->flags & OPf_SPECIAL) ? "..." : "..";
-    return info_from_text($op, $self, $self->range($flip->first, $cx, $type), 'pp_flop', {});
-}
-
 sub logassignop
 {
     my ($self, $op, $cx, $opname) = @_;
@@ -835,7 +818,7 @@ sub elem_or_slice_array_name
 
     if ($array->name eq $padname) {
 	return $self->padany($array);
-    } elsif (is_scope($array)) { # ${expr}[0]
+    } elsif (B::Deparse::is_scope($array)) { # ${expr}[0]
 	return "{" . $self->deparse($array, 0) . "}";
     } elsif ($array->name eq "gv") {
 	($array, my $quoted) =
@@ -1111,6 +1094,7 @@ sub slice
     $kid = $op->first->sibling; # skip pushmark
 
     if ($kid->name eq "list") {
+	# FIXME:
 	# skip list, pushmark
 	$kid = $kid->first->sibling;
 	for (; !null $kid; $kid = $kid->sibling) {
@@ -1119,18 +1103,22 @@ sub slice
     } else {
 	@elems = ($self->elem_or_slice_single_index($kid, $op));
     }
-    my $list = join(', ', map($_->{text}, @elems));
     my $lead = '@';
     $lead = '%' if $op->name =~ /^kv/i;
+    my ($fmt, $args_spec);
     my (@texts, $type);
     if ($array_info) {
-	@texts = ($lead, $array_info, $left, $list, $right);
-	$type='slice1';
+	unshift @elems, $array_info;
+	$fmt = "${lead}%c%$left%C$right";
+	$args_spec = [0, [1, $#elems, ', ']];
+	$type = "$lead<var>$left .. $right";
     } else {
-	@texts = ($lead, $left, $list, $right);
-	$type='slice';
+	$fmt = "${lead}$left%C$right";
+	$args_spec = [0, $#elems, ', '];
+	$type = "${lead}$left .. $right";
     }
-    return info_from_list($op, $self, \@texts, '', $type, {body => \@elems});
+    return $self->info_from_template($type, $op, $fmt, $args_spec,
+				     \@elems),
 }
 
 sub pp_aslice   { maybe_local(@_, slice(@_, "[", "]", "rv2av", "padav")) }
