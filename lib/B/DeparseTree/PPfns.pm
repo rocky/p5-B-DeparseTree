@@ -213,14 +213,16 @@ sub dq_unop
 	}
 	my $info = $self->maybe_parens_unop($name, $kid, $cx, $op);
 	if ($pushmark_op) {
-	    # TODO: set an attribute, the position in the parent string.
-	    ## For the pushmark opc we'll consider it the "name" portion
-	    ## of info. We examine that to get the text.
-	    # my @texts = split(/ /, $info->{fmt});
-	    # my $pushmark_info = $self->info_from_string("dq $name",
-	    # 						$op, $texts[0]);
-	    # $info->{other_ops} = [$pushmark_info];
-	    $info->{other_ops} = [$pushmark_op];
+	    # For the pushmark opc we'll consider it the "name" portion
+	    # of info. We examine that to get the text.
+	    my $text = $info->{text};
+	    my $word_end = index($text, ' ');
+	    $word_end = length($text) unless $word_end > 0;
+	    my $pushmark_info =
+		$self->info_from_string("dq $name", $op, $text,
+					{position => [0, $word_end]});
+	    $info->{other_ops} = [$pushmark_info];
+	    # $info->{other_ops} = [$pushmark_op];
 	}
 	return $info;
     } else {
@@ -245,7 +247,7 @@ sub filetest
 	}
 	return $self->maybe_parens_unop($name, $op->first, $cx, $op);
     } elsif (B::class($op) =~ /^(SV|PAD)OP$/) {
-	# FIXME redu after maybe_parens_func returns a string.
+	# FIXME redo after maybe_parens_func returns a string.
 	my @list = $self->maybe_parens_func($name, $self->pp_gv($op, 1), $cx, 16);
 	return info_from_list($op, $self, \@list, ' ', "filetest list $name", {});
     } else {

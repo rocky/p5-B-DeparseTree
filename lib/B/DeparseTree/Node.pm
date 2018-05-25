@@ -44,12 +44,12 @@ left-hand side, the string operation name and a I<body> right-hand
 side. Right now the type names are a little funky, but over time I
 hope these will less so.
 
-* item B<sep>
+* item B<sep> (optional)
 
-A string indicating how to separate the the strings derived from
-the body. To indicate statement separation, the separator is ';' and the
-B<indent_type> is '{'. The indent program can also use the type
-to help out with statement boundaries.
+A string indicating how to separate the the strings extracted from the
+C<texts> field. The field is subject to format expansion. In particular
+tt can have '%;' in it to indicate we are separating statements.
+the body.
 
 * item B<texts>
 
@@ -76,7 +76,8 @@ The keys is a hash ref hash reference
 
 =item B<context>
 
-A number passed from the parent indicating its precedence context
+A number passed from the parent indicating its precedence context that
+the expression is embedded it.
 
 =item B<precedence>
 
@@ -136,7 +137,7 @@ sub new($$$$$)
     }
 
     foreach my $optname (qw(other_ops parent_ops child_pos maybe_parens
-                            omit_next_semicolon)) {
+                            omit_next_semicolon position)) {
 	$self->{$optname} = $opts->{$optname} if $opts->{$optname};
     }
     if ($opts->{maybe_parens}) {
