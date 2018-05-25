@@ -353,6 +353,7 @@ sub maybe_local_str
     }
 }
 
+# FIXME: go back to default B::Deparse routine and return a string.
 sub maybe_parens_func($$$$$)
 {
     my($self, $func, $params, $cx, $prec) = @_;
@@ -1145,7 +1146,7 @@ my %PP_MAPFNS = (
     'db_open'    => 'listop',
     'dbmclose'   => 'unop',
     'dbmopen'    => 'listop',
-    'dbstate'    => 'nextstate',
+    # 'dbstate'    => 'nextstate',
     'defined'    => 'unop',
     'die'        => 'listop',
     'dump'       => ['loopex', "CORE::dump"],
@@ -1164,33 +1165,33 @@ my %PP_MAPFNS = (
     'fileno'     => 'unop',
     'fork'       => 'baseop',
     'formline'   => 'listop', # see also deparse_format
-    'ftatime'    => ['ftst', "-A"],
-    'ftbinary'   => ['ftst', "-B"],
-    'ftblk'      => ['ftst', "-b"],
-    'ftchr'      => ['ftst', "-c"],
-    'ftctime'    => ['ftst', "-C"],
-    'ftdir'      => ['ftst', "-d"],
-    'fteexec'    => ['ftst', "-x"],
-    'fteowned'   => ['ftst', "-O"],
-    'fteread'    => ['ftst', "-r"],
-    'ftewrite'   => ['ftst', "-w"],
-    'ftfile'     => ['ftst', "-f"],
-    'ftis'       => ['ftst', "-e"],
-    'ftlink'     => ['ftst', "-l"],
-    'ftmtime'    => ['ftst', "-M"],
-    'ftpipe'     => ['ftst', "-p"],
-    'ftrexec'    => ['ftst', "-X"],
-    'ftrowned'   => ['ftst', "-o"],
-    'ftrread'    => ['ftst', '-R'],
-    'ftrwrite'   => ['ftst', "-W"],
-    'ftsgid'     => ['ftst', "-g"],
-    'ftsize'     => ['ftst', "-s"],
-    'ftsock'     => ['ftst', "-S"],
-    'ftsuid'     => ['ftst', "-u"],
-    'ftsvtx'     => ['ftst', "-k"],
-    'fttext'     => ['ftst', "-T"],
-    'fttty'      => ['ftst', "-t"],
-    'ftzero'     => ['ftst', "-z"],
+    'ftatime'    => ['filetest', "-A"],
+    'ftbinary'   => ['filetest', "-B"],
+    'ftblk'      => ['filetest', "-b"],
+    'ftchr'      => ['filetest', "-c"],
+    'ftctime'    => ['filetest', "-C"],
+    'ftdir'      => ['filetest', "-d"],
+    'fteexec'    => ['filetest', "-x"],
+    'fteowned'   => ['filetest', "-O"],
+    'fteread'    => ['filetest', "-r"],
+    'ftewrite'   => ['filetest', "-w"],
+    'ftfile'     => ['filetest', "-f"],
+    'ftis'       => ['filetest', "-e"],
+    'ftlink'     => ['filetest', "-l"],
+    'ftmtime'    => ['filetest', "-M"],
+    'ftpipe'     => ['filetest', "-p"],
+    'ftrexec'    => ['filetest', "-X"],
+    'ftrowned'   => ['filetest', "-o"],
+    'ftrread'    => ['filetest', '-R'],
+    'ftrwrite'   => ['filetest', "-W"],
+    'ftsgid'     => ['filetest', "-g"],
+    'ftsize'     => ['filetest', "-s"],
+    'ftsock'     => ['filetest', "-S"],
+    'ftsuid'     => ['filetest', "-u"],
+    'ftsvtx'     => ['filetest', "-k"],
+    'fttext'     => ['filetest', "-T"],
+    'fttty'      => ['filetest', "-t"],
+    'ftzero'     => ['filetest', "-z"],
 
     'getc'       => 'unop',
     'getlogin'   => 'baseop',
@@ -1226,7 +1227,7 @@ my %PP_MAPFNS = (
     'listen'     => 'listop',
     'localtime'  => 'unop',
     'lock'       => 'unop',
-    'lstat'      => 'ftst',
+    'lstat'      => 'filetest',
 
     'msgctl'     => 'listop',
     'msgget'     => 'listop',
@@ -1280,7 +1281,7 @@ my %PP_MAPFNS = (
     'sselect'    => ['listop', "select"],
     'sservent'   => ['unop',   "setservent"],
     'ssockopt'   => ['listop', "setsockopt"],
-    'stat'       => 'ftst',
+    'stat'       => 'filetest',
     'study'      => 'unop',
     'syscall'    => 'listop',
     'sysopen'    => 'listop',
@@ -1381,6 +1382,7 @@ sub deparse
 		# "$other" has been set up to mark a particular portion
 		# of the info.
 		$self->{optree}{$other->{addr}} = $other;
+		$other->{parent} = $$op;
 	    } else {
 		# "$other" is just the OP. Have it mark everything
 		# or "info".

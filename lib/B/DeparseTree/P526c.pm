@@ -601,13 +601,12 @@ sub pp_null
 	    return $self->pp_nextstate($op, $cx);
     }
     my $kid = $op->first;
-    if ($op->first->name eq 'pushmark'
-             or $op->first->name eq 'null'
-                && $op->first->targ == B::Deparse::OP_PUSHMARK
+    if ($kid->name eq 'pushmark' or $kid->name eq 'null'
+	&& $kid->targ == B::Deparse::OP_PUSHMARK
 	&& B::Deparse::_op_is_or_was($op, B::Deparse::OP_LIST)) {
 	my $node = $self->pp_list($op, $cx);
-	return $self->info_from_template("null (pushmark)", $op->first,
-					 "%c", undef, [$node])
+	$node->update_other_ops($kid);
+	return $node;
     } elsif ($kid->name eq "enter") {
 	return $self->pp_leave($op, $cx);
     } elsif ($kid->name eq "leave") {

@@ -23,7 +23,12 @@ unless ($is_cperl) {
 
 our $VERSION = '1.0.0';
 our @ISA = qw(Exporter);
-our @EXPORT = qw(new($$$$ parens_test($$$)) %UNARY_PRECEDENCES);
+our @EXPORT = qw(
+    new($$$$)
+    parens_test($$$)
+    %UNARY_PRECEDENCES
+    update_other_ops($$)
+);
 
 =head2 Node structure
 
@@ -157,7 +162,6 @@ sub maybe_parens($$$$)
 	$info->{text} = $self->combine('', "(", $info->{text}, ")");
 	# In a unop, let parent reuse our parens; see maybe_parens_unop
 	if ($cx == 16) {
-	    $info->{text} = "\cS" . $info->{text};
 	    $info->{parens} = 'reuse';
 	}  else {
 	    $info->{parens} = 'true';
@@ -167,6 +171,16 @@ sub maybe_parens($$$$)
 	$info->{parens} = '';
 	return $info->{text};
     }
+}
+
+# Update $self->{other_ops} to add $info
+sub update_other_ops($$)
+{
+    my ($self, $info) = @_;
+    $self->{other_ops} ||= [];
+    my $other_ops = $self->{other_ops};
+    push @{$other_ops}, $info;
+    $self->{other_ops} = $other_ops;
 }
 
 # Demo code

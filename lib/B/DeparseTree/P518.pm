@@ -2034,7 +2034,7 @@ unless (caller) {
     import Data::Printer colored => 0;
     Data::Printer::p($info);
     print "\n", '=' x 30, "\n";
-    # print $deparse->indent($deparse->deparse_subname('fib')->{text});
+    # print $deparse->($deparse->deparse_subname('fib')->{text});
     # print "\n", '=' x 30, "\n";
     # print "\n", '-' x 30, "\n";
     while (my($key, $value) = each %{$deparse->{optree}}) {
@@ -2046,11 +2046,11 @@ unless (caller) {
 	if (eval{$value->{op}->name}) {
 	    printf("0x%x %s/%s of %s |\n%s",
 		   $key, $value->{op}->name, $value->{type},
-		   $parent_op_name, $deparse->indent($value->{text}));
+		   $parent_op_name, $deparse->{text});
 	} else {
-	    printf("0x%x %s of %s |\n%s",
+	    printf("0x%x %s of %s |\n",
 		   $key, $value->{type},
-		   $parent_op_name, $deparse->indent($value->{text}));
+		   $parent_op_name);
 	}
 	printf " ## line %s\n", $value->{cop} ? $value->{cop}->line : 'undef';
 	print '-' x 30, "\n";

@@ -38,7 +38,7 @@ $VERSION = '3.1.1';
     deparse_binop_left
     deparse_binop_right
     dq_unop
-    ftst
+    filetest
     givwhen
     indirop
     listop
@@ -96,6 +96,8 @@ sub binop
     my $lhs = $self->deparse_binop_left($op, $left, $prec);
     if ($flags & B::Deparse::LIST_CONTEXT
 	&& $lhs->{text} !~ /^(my|our|local|)[\@\(]/) {
+	$lhs->{maybe_parens} ||= {};
+	$lhs->{maybe_parens}{force} = 'true';
 	$lhs->{text} = "($lhs->{text})";
     }
 
@@ -195,48 +197,59 @@ sub deparse_binop_right {
     }
 }
 
-# Unary operators that can occur as pseudo-listops inside double quotes
+# Handle unary operators that can occur as pseudo-listops inside
+# double quotes
 sub dq_unop
 {
     my($self, $op, $cx, $name, $prec, $flags) = (@_, 0, 0);
     my $kid;
     if ($op->flags & B::OPf_KIDS) {
-	my $skipped_ops = undef;
+	my $pushmark_op = undef;
 	$kid = $op->first;
 	if (not B::Deparse::null $kid->sibling) {
 	    # If there's more than one kid, the first is an ex-pushmark.
-	    $skipped_ops = [$kid];
+	    $pushmark_op = $kid;
 	    $kid = $kid->sibling;
 	}
 	my $info = $self->maybe_parens_unop($name, $kid, $cx, $op);
-	$info->{other_ops} = $skipped_ops if $skipped_ops;
+	if ($pushmark_op) {
+	    # TODO: set an attribute, the position in the parent string.
+	    ## For the pushmark opc we'll consider it the "name" portion
+	    ## of info. We examine that to get the text.
+	    # my @texts = split(/ /, $info->{fmt});
+	    # my $pushmark_info = $self->info_from_string("dq $name",
+	    # 						$op, $texts[0]);
+	    # $info->{other_ops} = [$pushmark_info];
+	    $info->{other_ops} = [$pushmark_op];
+	}
 	return $info;
     } else {
-	my @texts = ($name);
-	push @texts, '(', ')' if $op->flags & B::OPf_SPECIAL;
-	return info_from_list($op, $self, \@texts, '', 'dq', {});
+	$name .= '()' if $op->flags & B::OPf_SPECIAL;
+	return $self->info_from_string("dq $name", $op, $name)
     }
     Carp::confess("unhandled condition in dq_unop");
 }
 
-sub ftst
+# Handle filetest operators -r, stat, etc.
+sub filetest
 {
     my($self, $op, $cx, $name) = @_;
     if (B::class($op) eq "UNOP") {
 	# Genuine '-X' filetests are exempt from the LLAFR, but not
 	# l?stat()
 	if ($name =~ /^-/) {
-	    (my $kid = $self->deparse($op->first, 16, $op)) =~ s/^\cS//;
-	    return info_from_list($op, $self, [$name, $kid->{text}], ' ',
-				  'ftst_unop_dash',
-				  {body => [$kid],
-				  maybe_parens => [$self, $cx, 16]});
+	    my $kid = $self->deparse($op->first, 16, $op);
+	    return $self->info_from_template("filetest $name", $op,
+					     "$name %c", undef, [$kid],
+					     {maybe_parens => [$self, $cx, 16]});
 	}
 	return $self->maybe_parens_unop($name, $op->first, $cx, $op);
-    } elsif (class($op) =~ /^(SV|PAD)OP$/) {
+    } elsif (B::class($op) =~ /^(SV|PAD)OP$/) {
+	# FIXME redu after maybe_parens_func returns a string.
 	my @list = $self->maybe_parens_func($name, $self->pp_gv($op, 1), $cx, 16);
-	return info_from_list($op, $self, \@list, ' ', 'ftst_list', {});
-    } else { # I don't think baseop filetests ever survive ck_ftst, but...
+	return info_from_list($op, $self, \@list, ' ', "filetest list $name", {});
+    } else {
+	# I don't think baseop filetests ever survive ck_filetest, but...
 	return info_from_text($op, $self, $name, 'unop', {});
     }
 }
@@ -269,8 +282,8 @@ sub givwhen
 				     \@nodes);
 }
 
-# Logical ops, if/until, &&, and
-# The one-line while/until is handled in pp_leave
+# This handle logical ops: "if"/"until", "&&", "and", ...
+# The one-line "while"/"until" is handled in pp_leave.
 sub logop
 {
     my ($self, $op, $cx, $lowop, $lowprec, $highop,
@@ -314,6 +327,7 @@ sub logop
 				     [0, 1], [$lhs, $rhs], $opts);
 }
 
+# This handle list ops: "open", "pack", "return" ...
 sub listop
 {
     my($self, $op, $cx, $name, $kid, $nollafr) = @_;
@@ -418,10 +432,21 @@ sub listop
 	$fmt = "$fullname %C";
 	$type = "listop $fullname";
     }
+    $opts->{synthesized_nodes} = \@new_nodes if @new_nodes;
+    if (@skipped_ops) {
+	# if we have skipped ops like pushmark, we will use $full name
+	# as the part it represents.
+	my @skipped_nodes;
+	for my $skipped_op (@skipped_ops) {
+	    push @skipped_nodes,
+		$self->info_from_string($skipped_op->name,
+					$skipped_op, $fullname);
+	}
+	$opts->{other_ops} = \@skipped_nodes;
+    }
     return $self->info_from_template($type, $op, $fmt,
 				     [[0, $#exprs, ', ']], \@exprs,
-				     {'synthesized_nodes' => \@new_nodes,
-				      'other_ops' => \@skipped_ops});
+				     $opts);
 }
 
 sub loop_common
@@ -641,7 +666,7 @@ sub loopex
     Carp::confess("unhandled condition in lopex");
 }
 
-# Handles the indirect operators, print, say, sort
+# Handles the indirect operators, print, say(), sort()
 sub indirop
 {
     my($self, $op, $cx, $name) = @_;
@@ -869,7 +894,8 @@ sub matchop
     return info_from_list($op, $self, \@texts, '', $type, $opts);
 }
 
-# This is the category of unary operators, e.g. alarm, caller, close..
+# This handles the category of unary operators, e.g. alarm(), caller(),
+# close()..
 sub unop
 {
     my($self, $op, $cx, $name, $nollafr) = @_;
@@ -891,26 +917,27 @@ sub unop
 
 	if ($nollafr) {
 	    $kid = $self->deparse($kid, 16, $op);
-	    ($kid->{text}) =~ s/^\cS//;
 	    my $opts = {
-		body => [$kid],
 		maybe_parens => [$self, $cx, 16],
 	    };
-	    return info_from_list($op, $self, [($self->keyword($name), $kid->{text})],
-				  ' ', 'unary operator noallafr', $opts);
+	    my $fullname = $self->keyword($name);
+	    return $self->info_from_template("unary operator $name noallafr", $op,
+					     "$fullname %c", undef, [$kid], $opts);
 	}
 	return $self->maybe_parens_unop($name, $kid, $cx, $op);
     } else {
 	my $opts = {maybe_parens => [$self, $cx, 16]};
-	my @texts = ($self->keyword($name));
-	push @texts, '()' if $op->flags & B::OPf_SPECIAL;
-	return info_from_list($op, $self, \@texts, '', 'unary operator', $opts);
+	my $fullname = ($self->keyword($name));
+	my $fmt = "$fullname";
+	$fmt .= '()' if $op->flags & B::OPf_SPECIAL;
+	return $self->info_from_template("unary operator $name", $op, $fmt,
+					 undef, [], $opts);
     }
 }
 
 sub POSTFIX () { 1 }
 
-# This is the category of symbolic prefix and postfix unary operators,
+# This handles category of symbolic prefix and postfix unary operators,
 # e.g $x++, -r, +$x.
 sub pfixop
 {

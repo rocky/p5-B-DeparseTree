@@ -76,6 +76,7 @@ $VERSION = '1.0.0';
     pp_cos
     pp_crypt
     pp_dbmopen
+    pp_dbstate
     pp_delete
     pp_dor
     pp_entersub
@@ -88,11 +89,7 @@ $VERSION = '1.0.0';
     pp_glob
     pp_gnbyaddr
     pp_gpbynumber
-    pp_gpwent pp_grepstart pp_gservent
     pp_grepwhile
-    pp_gsbyname
-    pp_gsbyport
-    pp_gsockopt
     pp_gv
     pp_hex
     pp_i_negate
@@ -192,6 +189,8 @@ sub LIST_CONTEXT () { 4 } # Assignment is in list context
 sub pp_sockpair { listop(@_, "socketpair") }
 sub pp_values { unop(@_, "values") }
 sub pp_avalues { unop(@_, "values") }
+sub pp_dbstate { pp_nextstate(@_) }
+
 
 sub pp_aassign { binop(@_, "=", 7, SWAP_CHILDREN | LIST_CONTEXT, 'array assign') }
 sub pp_abs   { maybe_targmy(@_, \&unop, "abs") }
@@ -389,12 +388,12 @@ sub pp_list
     my($self, $op, $cx) = @_;
     my($expr, @exprs);
 
-    my $other_op = $op->first;
-    my $kid = $op->first->sibling; # skip a pushmark
+    my $pushmark_op = $op->first;
+    my $kid = $pushmark_op->sibling; # skip a pushmark
 
     if (class($kid) eq 'NULL') {
 	return info_from_text($op, $self, '', 'list_null',
-			      {other_ops => [$other_op]});
+			      {other_ops => [$pushmark_op]});
     }
     my $lop;
     my $local = "either"; # could be local(...), my(...), state(...) or our(...)
@@ -442,8 +441,7 @@ sub pp_list
     $local = "" if $local eq "either"; # no point if it's all undefs
     if (B::Deparse::null $kid->sibling and not $local) {
 	my $info = $self->deparse($kid, $cx, $op);
-	my @other_ops = $info->{other_ops} ? @{$info->{other_ops}} : ();
-	$info->{other_ops} = \@other_ops;
+	$info->update_other_ops($pushmark_op);
 	return $info;
     }
 
@@ -466,13 +464,15 @@ sub pp_list
     if ($local) {
 	return $self->info_from_template("$local list", $op,
 					 "$local(%C)", [[0, $#exprs, ', ']],
-					 \@exprs);
+					 \@exprs,
+					 {other_ops => [$pushmark_op]});
 
     } else {
 	return $self->info_from_template("list", $op,
 					 "%C", [[0, $#exprs, ', ']],
 					 \@exprs,
-					 {maybe_parens => [$self, $cx, 6]});
+					 {maybe_parens => [$self, $cx, 6],
+					 other_ops => [$pushmark_op]});
     }
 }
 
