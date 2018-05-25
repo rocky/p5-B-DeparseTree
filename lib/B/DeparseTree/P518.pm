@@ -608,36 +608,6 @@ sub pp_lc { dq_unop(@_, "lc") }
 sub pp_quotemeta { maybe_targmy(@_, \&dq_unop, "quotemeta") }
 sub pp_fc { dq_unop(@_, "fc") }
 
-sub pp_lstat    { ftst(@_, "lstat") }
-sub pp_stat     { ftst(@_, "stat") }
-sub pp_ftrread  { ftst(@_, "-R") }
-sub pp_ftrwrite { ftst(@_, "-W") }
-sub pp_ftrexec  { ftst(@_, "-X") }
-sub pp_fteread  { ftst(@_, "-r") }
-sub pp_ftewrite { ftst(@_, "-w") }
-sub pp_fteexec  { ftst(@_, "-x") }
-sub pp_ftis     { ftst(@_, "-e") }
-sub pp_fteowned { ftst(@_, "-O") }
-sub pp_ftrowned { ftst(@_, "-o") }
-sub pp_ftzero   { ftst(@_, "-z") }
-sub pp_ftsize   { ftst(@_, "-s") }
-sub pp_ftmtime  { ftst(@_, "-M") }
-sub pp_ftatime  { ftst(@_, "-A") }
-sub pp_ftctime  { ftst(@_, "-C") }
-sub pp_ftsock   { ftst(@_, "-S") }
-sub pp_ftchr    { ftst(@_, "-c") }
-sub pp_ftblk    { ftst(@_, "-b") }
-sub pp_ftfile   { ftst(@_, "-f") }
-sub pp_ftdir    { ftst(@_, "-d") }
-sub pp_ftpipe   { ftst(@_, "-p") }
-sub pp_ftlink   { ftst(@_, "-l") }
-sub pp_ftsuid   { ftst(@_, "-u") }
-sub pp_ftsgid   { ftst(@_, "-g") }
-sub pp_ftsvtx   { ftst(@_, "-k") }
-sub pp_fttty    { ftst(@_, "-t") }
-sub pp_fttext   { ftst(@_, "-T") }
-sub pp_ftbinary { ftst(@_, "-B") }
-
 sub SWAP_CHILDREN () { 1 }
 sub ASSIGN () { 2 } # has OP= variant
 sub LIST_CONTEXT () { 4 } # Assignment is in list context
