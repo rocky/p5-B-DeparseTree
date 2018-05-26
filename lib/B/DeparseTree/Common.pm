@@ -150,7 +150,7 @@ sub new {
     # OP for that. FIXME: remove this
     $self->{optree} = {};
 
-    # Extra opcode information: prev_op, parent_op
+    # Extra opcode information: parent_op
     $self->{ops} = {};
 
     # For B::DeparseTree::Node's that are created and don't have real OPs associated
@@ -730,11 +730,10 @@ sub walk_lineseq
     my @kids = @$kids;
     my @body = (); # Accumulated node structures
     my $expr;
-    my $prev_op = undef;
     for (my $i = 0; $i < @kids; $i++) {
 	if (B::Deparse::is_state $kids[$i]) {
 	    $expr = ($self->deparse($kids[$i], 0, $op));
-	    $callback->(\@body, $i, $expr, $prev_op);
+	    $callback->(\@body, $i, $expr);
 	    $i++;
 	    if ($i > $#kids) {
 		last;
@@ -751,8 +750,7 @@ sub walk_lineseq
 
 	# Perform semantic action on $expr accumulating the result
 	# in @body. $op is the parent, and $i is the child position
-	$callback->(\@body, $i, $expr, $op, $prev_op);
-	$prev_op = $op;
+	$callback->(\@body, $i, $expr, $op);
     }
 
     # Add semicolons between statements. Don't null statements
@@ -787,10 +785,9 @@ sub lineseq {
     local $self->{'limit_seq'} = $limit_seq;
 
     my $fn = sub {
-	my ($exprs, $i, $info, $parent, $prev_op) = @_;
+	my ($exprs, $i, $info, $parent) = @_;
 	my $op = $ops[$i];
 	$info->{type} = $op->name unless $info->{type};
-	$info->{prev_op} = $prev_op;
 	$info->{child_pos} = $i;
 	$info->{op} = $op;
 	if ($parent) {
@@ -798,7 +795,7 @@ sub lineseq {
 	    $info->{parent} = $$parent ;
 	}
 
-	# FIXME: remove optree
+	# FIXME: remove optree?
 	$self->{optree}{$$op} = $info;
 	$self->{ops}{$$op}{info} = $info;
 
@@ -865,9 +862,9 @@ sub _pessimise_walk {
     my ($self, $startop) = @_;
 
     return unless $$startop;
-    my ($op, $prevop, $parent_op);
+    my ($op, $parent_op);
 
-    for ($op = $startop; $$op; $prevop = $op, $op = $op->sibling) {
+    for ($op = $startop; $$op; $op = $op->sibling) {
 	my $ppname = $op->name;
 
 	$self->{ops}{$$op} ||= {};
@@ -924,14 +921,13 @@ sub _pessimise_walk_exe {
 
     return unless $$startop;
     return if $visited->{$$startop};
-    my ($op, $prevop);
-    for ($op = $startop; $$op; $prevop = $op, $op = $op->next) {
+    my $op;
+    for ($op = $startop; $$op; $op = $op->next) {
 	last if $visited->{$$op};
 	$visited->{$$op} = 1;
 
 	$self->{ops}{$$op} ||= {};
 	$self->{ops}{$$op}{op} = $op;
-	$self->{ops}{$$op}{prev_op} = $prevop;
 
 	my $ppname = $op->name;
 	if ($ppname =~
@@ -1106,7 +1102,7 @@ sub compile {
         while (scalar(@{$self->{'subs_todo'}})) {
 	    push @text, $self->next_todo->{text};
 	}
-	print $self->indent(join("", @text)), "\n" if @text;
+	print join("", @text), "\n" if @text;
 
 	# Print __DATA__ section, if necessary
 	no strict 'refs';
@@ -1332,7 +1328,7 @@ sub deparse
 	unless $op->can('name');
 
     my $name = $op->name;
-    # print "YYY $name\n";  # uncomment to see what op we're working on.
+    print "YYY $name\n" if $ENV{'DEBUG_DEPARSETREE'};
     my ($info, $meth);
 
     if (exists($PP_MAPFNS{$name})) {

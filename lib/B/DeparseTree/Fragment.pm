@@ -9,7 +9,7 @@ use vars qw(@ISA @EXPORT);
              extract_node_info
              get_addr_info
              get_parent_addr_info get_parent_op
-             get_prev_addr_info   get_prev_op
+             get_prev_addr_info
              trim_line_pair
              underline_parent
     );
@@ -62,42 +62,29 @@ sub get_parent_addr_info($)
     return $deparse->{optree}{$parent_addr};
 }
 
-sub get_prev_op($);
-sub get_prev_op($)
+sub get_prev_info($);
+sub get_prev_info($)
 {
     my ($op_info) = @_;
     return undef unless $op_info;
-    # Have $op_info, so now see if there is
-    # a direct prev pointer
-    my $deparse = $op_info->{deparse};
-    use Data::Printer; p $op_info;
-    my $ref = $deparse->{optree}{$op_info->{addr}};
-    return $ref->{prev_op} if exists $ref->{prev_op};
-    return undef unless $ref->{parent};
-
-    # No prev pointer but we have a parent, so now try the prev of the
-    # parent.
-    return get_prev_op($deparse->{ops}{$ref->{parent}});
+    return $op_info->{prev_expr}
 }
 
-# FIXME
+sub get_prev_addr_info($);
 sub get_prev_addr_info($)
 {
     my ($op_info) = @_;
-    my $deparse = $op_info->{deparse};
-    my $prev_op = get_prev_op($op_info);
-    return undef unless $prev_op;
-    if (ref($prev_op) eq 'HASH' and exists $prev_op->{op}) {
-	# FIXME:
-	# use Data::Printer; p $prev_op;
-	my $prev_addr = ${$prev_op->{op}};
-	return $deparse->{optree}{$prev_addr};
+    return undef unless $op_info;
+    use Data::Printer; p $op_info;
+    if (!exists $op_info->{prev_expr}) {
+	my $parent_info = get_parent_addr_info($op_info);
+	if ($parent_info) {
+	    return get_prev_addr_info($parent_info);
+	} else {
+	    return undef;
+	}
     }
-    if (!eval{$$prev_op}) {
-	use Data::Printer; p $prev_op;
-	return undef;
-    }
-    return $deparse->{optree}{$$prev_op};
+    return $op_info->{prev_expr}
 }
 
 sub underline_parent($$$) {

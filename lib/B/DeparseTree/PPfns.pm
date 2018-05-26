@@ -103,12 +103,20 @@ sub binop
     }
 
     my $rhs = $self->deparse_binop_right($op, $right, $prec);
-    my @texts = ($lhs, $rhs);
+    if ($flags & B::Deparse::SWAP_CHILDREN) {
+	# Not sure why this is right
+	$lhs->{prev_expr} = $rhs;
+    } else {
+	$rhs->{prev_expr} = $lhs;
+    }
 
     $type = $type || 'binary_operator';
     $type .= " $opname$eq";
-    return $self->info_from_template($type, $op, "%c $opname$eq %c", undef, \@texts,
-				     {maybe_parens => [$self, $cx, $prec]});
+    my $node = $self->info_from_template($type, $op, "%c $opname$eq %c",
+					 undef, [$lhs, $rhs],
+					 {maybe_parens => [$self, $cx, $prec]});
+    $node->{prev_expr} = $rhs;
+    return $node;
 }
 
 my(%left, %right);
@@ -388,9 +396,16 @@ sub listop
 	push @exprs, $first;
 	$kid = $kid->sibling;
     }
+
+    # FIXME: turn into a function;
+    my $prev_expr = $exprs[-1];
     for ( ; !null($kid); $kid = $kid->sibling) {
 	my $expr = $self->deparse($kid, 6, $op);
-	push @exprs, $expr;
+	if (defined $expr) {
+	    $expr->{prev_expr} = $prev_expr;
+	    $prev_expr = $expr;
+	    push @exprs, $expr;
+	}
     }
 
     if ($name eq "reverse" && ($op->private & B::OPpREVERSE_INPLACE)) {
@@ -720,12 +735,18 @@ sub indirop
 	$fmt = '{$b cmp $a} ';
     }
 
+    # FIXME: turn into a function;
+    my $prev_expr = $exprs[-1];
     for (; !null($kid); $kid = $kid->sibling) {
 	my $high_prec = (!$fmt && $kid == $firstkid
 			 && $name eq "sort"
 			 && $firstkid->name =~ /^enter(xs)?sub/);
 	$expr = $self->deparse($kid, $high_prec ? 16 : 6);
-	push @exprs, $expr;
+	if (defined $expr) {
+	    $expr->{prev_expr} = $prev_expr;
+	    $prev_expr = $expr;
+	    push @exprs, $expr;
+	}
     }
 
     # Extend $name possibly by adding "reverse".
@@ -832,10 +853,18 @@ sub mapop
     push @skipped_ops, $kid;
     $kid = $kid->sibling;
     my($expr, @exprs);
+
+    # FIXME: turn into a function;
+    my $prev_expr = $exprs[-1];
     for (; !null($kid); $kid = $kid->sibling) {
 	$expr = $self->deparse($kid, 6, $op);
-	push @exprs, $expr if defined $expr;
+	if (defined $expr) {
+	    $expr->{prev_expr} = $prev_expr;
+	    $prev_expr = $expr ;
+	    push @exprs, $expr
+	}
     }
+
     push @body, @exprs;
     push @exprs_texts, map $_->{text}, @exprs;
     my $opts = {
