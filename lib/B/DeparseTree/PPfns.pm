@@ -30,7 +30,6 @@ use B::Deparse;
 # Copy unchanged functions from B::Deparse
 *rv2gv_or_string = *B::Deparse::rv2gv_or_string;
 
-
 use B::DeparseTree::Common;
 use B::DeparseTree::SyntaxTree;
 

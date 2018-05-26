@@ -106,7 +106,7 @@ use warnings ();
 require feature;
 use types;
 
-our $VERSION = '3.1.0c';
+our $VERSION = '3.1.1';
 
 our @ISA = qw(Exporter B::DeparseTree::Common);
 our @EXPORT = qw(cop_subs is_pp_null_list);

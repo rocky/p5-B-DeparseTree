@@ -70,8 +70,8 @@ $VERSION = '3.1.1';
     declare_hints
     declare_warnings
     dedup_parens_func
-    deparse_sub
-    deparse_subname
+    deparse_sub($$$$)
+    deparse_subname($$)
     dquote
     hint_pragmas
     map_texts
