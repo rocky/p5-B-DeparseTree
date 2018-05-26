@@ -33,6 +33,7 @@ $test /= 2 if ++$test;
 -((1, 2) x 2);
 ####
 ####
+# SKIP ?1
 # lexical and package scalars
 my $x;
 print $main::x;
@@ -75,16 +76,19 @@ while (1) { my $k; }
 # constants as method names without ()
 'Foo'->bar;
 ####
+# SKIP ?1
 # SKIP ?$] < 5.010 && "say not implemented on this Perl version"
 # CONTEXT use feature ':5.10';
 # say
 say 'foo';
 ####
+# SKIP ?1
 # SKIP ?$] < 5.010 && "say not implemented on this Perl version"
 # CONTEXT use 5.10.0;
 # say in the context of use 5.10.0
 say 'foo';
 ####
+# SKIP ?1
 # SKIP ?$] < 5.010 && "say not implemented on this Perl version"
 # say with use 5.10.0
 use 5.10.0;
@@ -94,6 +98,7 @@ no feature ':all';
 use feature ':5.10';
 say 'foo';
 ####
+# SKIP ?1
 # SKIP ?$] < 5.010 && "say not implemented on this Perl version"
 # say with use feature ':5.10';
 use feature ':5.10';
@@ -102,6 +107,7 @@ say 'foo';
 use feature 'say', 'state', 'switch';
 say 'foo';
 ####
+# SKIP ?1
 # SKIP ?$] < 5.010 && "say not implemented on this Perl version"
 # CONTEXT use feature ':5.10';
 # say with use 5.10.0 in the context of use feature
@@ -112,10 +118,11 @@ no feature ':all';
 use feature ':5.10';
 say 'foo';
 ####
+# SKIP ?1
 # SKIP ?$] < 5.010 && "say not implemented on this Perl version"
 # CONTEXT use 5.10.0;
 # say with use feature ':5.10' in the context of use 5.10.0
-use feature ':5.10';
+puse feature ':5.10';
 say 'foo';
 >>>>
 say 'foo';
@@ -272,6 +279,7 @@ pop @_;
 # # The fix for [perl #20444] broke this.
 # 'foo' =~ do { () };
 ####
+# SKIP ?1
 # [perl #81424] match against aelemfast_lex
 my @s;
 print /$s[1]/;
@@ -322,6 +330,7 @@ my(@a) = ()[()];
 # sort(foo(bar)) is interpreted as sort &foo(bar)
 # sort foo(bar) is interpreted as sort foo bar
 # parentheses are not optional in this case
+# SKIP ?1
 print sort(foo('bar'));
 >>>>
 print sort(foo('bar'));
@@ -409,6 +418,7 @@ state($s3, $s4);
 #@z = ($s7, undef, $s8);
 ($s7, undef, $s8) = (1, 2, 3);
 ####
+# SKIP ?1
 # slices with padrange
 my($a, $b);
 my(@x, %y);
