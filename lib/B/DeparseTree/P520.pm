@@ -47,6 +47,7 @@ use B::Deparse;
 *padname_sv = *B::Deparse::padname_sv;
 *padval = *B::Deparse::padval;
 *re_flags = *B::Deparse::re_flags;
+*rv2gv_or_string = *B::Deparse::rv2gv_or_string;
 *stash_variable = *B::Deparse::stash_variable;
 *stash_variable_name = *B::Deparse::stash_variable_name;
 *tr_chr = *B::Deparse::tr_chr;
@@ -1799,13 +1800,6 @@ sub re_flags
     }
     $flags;
 }
-
-# osmic acid -- see osmium tetroxide
-
-my %matchwords;
-map($matchwords{join "", sort split //, $_} = $_, 'cig', 'cog', 'cos', 'cogs',
-    'cox', 'go', 'is', 'ism', 'iso', 'mig', 'mix', 'osmic', 'ox', 'sic',
-    'sig', 'six', 'smog', 'so', 'soc', 'sog', 'xi');
 
 sub pp_match { matchop(@_, "m", "/") }
 sub pp_pushre { matchop(@_, "m", "/") }

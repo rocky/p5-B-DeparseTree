@@ -38,13 +38,14 @@ use B qw(class
 use Carp;
 use B::Deparse;
 use B::DeparseTree::Node;   # FIXME: we shouldn't need this
-# use B::DeparseTree::OP;   # FIXME: we should use this
+use B::DeparseTree::PP_OPtable;
 use B::DeparseTree::SyntaxTree;
 
 # Copy unchanged functions from B::Deparse
 *find_scope_en = *B::Deparse::find_scope_en;
 *find_scope_st = *B::Deparse::find_scope_st;
 *gv_name = *B::Deparse::gv_name;
+*rv2gv_or_string = *B::Deparse::rv2gv_or_string;
 *stash_subs = *B::Deparse::stash_subs;
 *stash_variable = *B::Deparse::stash_variable;
 
@@ -69,7 +70,7 @@ $VERSION = '3.1.1';
     deparse_subname
     dquote
     hint_pragmas
-    is_miniwhile is_lexical_subs %strict_bits
+    %strict_bits
     map_texts
     maybe_local
     maybe_local_str
@@ -84,7 +85,6 @@ $VERSION = '3.1.1';
     pragmata
     print_protos
     rv2x
-    rv2gv_or_string
     scopeop
     seq_subs
     single_delim
@@ -286,13 +286,6 @@ sub maybe_my {
 	return $self->info_from_string('maybe my avoid local', $op, $text);
     }
 }
-
-# osmic acid -- see osmium tetroxide
-
-my %matchwords;
-map($matchwords{join "", sort split //, $_} = $_, 'cig', 'cog', 'cos', 'cogs',
-    'cox', 'go', 'is', 'ism', 'iso', 'mig', 'mix', 'osmic', 'ox', 'sic',
-    'sig', 'six', 'smog', 'so', 'soc', 'sog', 'xi');
 
 # FIXME: This is weird. Regularize var_info
 sub maybe_local {
@@ -1117,188 +1110,6 @@ sub compile {
     }
 }
 
-my %PP_MAPFNS = (
-     # 'avalues'    => ['unop', 'value'],
-     # 'values'     => 'unop', # FIXME
-     # 'sselect'    => 'listop',  FIXME: is used in PPfns
-     # 'sockpair'   => 'listop', ""
-
-    'accept'     => 'listop',
-    'aeach'      => ['unop', 'each'],
-    'akeys'      => ['unop', 'keys'],
-    'alarm'      => 'unop',
-
-    'bind'       => 'listop',
-    'binmode'    => 'listop',
-    'bless'      => 'listop',
-    'break'      => 'unop',
-
-    'caller'     => 'unop',
-    'close'      => 'unop',
-    'closedir'   => 'unop',
-    'connect'    => 'listop',
-    'continue'   => 'unop',
-
-    'db_open'    => 'listop',
-    'dbmclose'   => 'unop',
-    'dbmopen'    => 'listop',
-    # 'dbstate'    => 'nextstate',
-    'defined'    => 'unop',
-    'die'        => 'listop',
-    'dump'       => ['loopex', "CORE::dump"],
-
-    'each'       => 'unop',
-    'egrent'     => ['baseop', 'endgrent'],
-    'ehostent'   => ['baseop', "endhostent"],
-    'enetent'    => ['baseop', "endnetent"],
-    'eof'        => 'unop',
-    'eprotoent'  => ['baseop', "endprotoent"],
-    'epwent'     => ['baseop', "endpwent"],
-    'eservent'   => ['baseop', "endservent"],
-    'exit'       => 'unop',
-
-    'fcntl'      => 'listop',
-    'fileno'     => 'unop',
-    'fork'       => 'baseop',
-    'formline'   => 'listop', # see also deparse_format
-    'ftatime'    => ['filetest', "-A"],
-    'ftbinary'   => ['filetest', "-B"],
-    'ftblk'      => ['filetest', "-b"],
-    'ftchr'      => ['filetest', "-c"],
-    'ftctime'    => ['filetest', "-C"],
-    'ftdir'      => ['filetest', "-d"],
-    'fteexec'    => ['filetest', "-x"],
-    'fteowned'   => ['filetest', "-O"],
-    'fteread'    => ['filetest', "-r"],
-    'ftewrite'   => ['filetest', "-w"],
-    'ftfile'     => ['filetest', "-f"],
-    'ftis'       => ['filetest', "-e"],
-    'ftlink'     => ['filetest', "-l"],
-    'ftmtime'    => ['filetest', "-M"],
-    'ftpipe'     => ['filetest', "-p"],
-    'ftrexec'    => ['filetest', "-X"],
-    'ftrowned'   => ['filetest', "-o"],
-    'ftrread'    => ['filetest', '-R'],
-    'ftrwrite'   => ['filetest', "-W"],
-    'ftsgid'     => ['filetest', "-g"],
-    'ftsize'     => ['filetest', "-s"],
-    'ftsock'     => ['filetest', "-S"],
-    'ftsuid'     => ['filetest', "-u"],
-    'ftsvtx'     => ['filetest', "-k"],
-    'fttext'     => ['filetest', "-T"],
-    'fttty'      => ['filetest', "-t"],
-    'ftzero'     => ['filetest', "-z"],
-
-    'getc'       => 'unop',
-    'getlogin'   => 'baseop',
-    'getpeername' => 'unop',
-    'getsockname' => 'unop',
-    'ggrent'     => ['baseop', "getgrent"],
-    'ggrgid'     => ['unop',   "getgrgid"],
-    'ggrnam'     => ['unop',   "getgrnam"],
-    'ghbyaddr'   => ['listop', 'gethostbyaddr'],
-    'ghbyname'   => ['unop',   "gethostbyname"],
-    'ghostent'   => ['baseop', "gethostent"],
-    'gmtime'     => 'unop',
-    'gnbyaddr'   => ['listop', "getnetbyaddr"],
-    'gnbyname'   => ['unop',   "getnetbyname"],
-    'gnetent'    => ['baseop', "getnetent"],
-    'goto'       => ['loopex', "goto"],
-    'gpbyname'   => ['unop',   "getprotobyname"],
-    'gpbynumber' => ['listop', 'getprotobynumber'],
-    'gprotoent'  => ['baseop', "getprotoent"],
-    'gpwent'     => ['baseop', "getpwent"],
-    'gpwnam'     => ['unop',   "getpwnam"],
-    'gpwuid'     => ['unop',   "getpwuid"],
-    'grepstart'  => ['baseop', "grep"],
-    'gsbyname'   => ['listop', 'getservbyname'],
-    'gsbyport'   => ['listop', 'getservbyport'],
-    'gservent'   => ['baseop', "getservent"],
-    'gsockopt'   => ['listop', 'getsockopt'],
-
-    'ioctl'      => 'listop',
-    'keys'       => 'unop',
-
-    'last'       => 'loopex',
-    'listen'     => 'listop',
-    'localtime'  => 'unop',
-    'lock'       => 'unop',
-    'lstat'      => 'filetest',
-
-    'msgctl'     => 'listop',
-    'msgget'     => 'listop',
-    'msgrcv'     => 'listop',
-    'msgsnd'     => 'listop',
-
-    'next'       => 'loopex',
-    'open'       => 'listop',
-
-    'pack'       => 'listop',
-    'pipe_op'    => ['listop', 'pipe'],
-    'pop'        => 'unop',
-    'prototype'  => 'unop',
-
-    'read'       => 'listop',
-    'readdir'    => 'unop',
-    'readlink'   => 'unop',
-    'recv'       => 'listop',
-    'redo'       => 'loopex',
-    'ref'        => 'unop',
-    'reset'      => 'unop',
-    'return'     => 'listop',
-    'reverse'    => 'listop',
-    'rewinddir'  => 'unop',
-
-    'say'        => 'indirop',
-    'seek'       => 'listop',
-    'seekdir'    => 'listop',
-    'select'     => 'listop',
-    'semctl'     => 'listop',
-    'semget'     => 'listop',
-    'semop'      => 'listop',
-    'send'       => 'listop',
-    'setstate'   => 'nextstate',
-    'sgrent'     => ['baseop', "setgrent"],
-    'shift'      => 'unop',
-    'shmctl'     => 'listop',
-    'shmget'     => 'listop',
-    'shmread'    => 'listop',
-    'shmwrite'   => 'listop',
-    'shostent'   => ['unop',   "sethostent"],
-    'shutdown'   => 'listop',
-    'snetent'    => ['unop',   "setnetent"],
-    'socket'     => 'listop',
-    'sort'       => "indirop",
-    'splice'     => 'listop',
-    'sprotoent'  => ['unop',   "setprotoent"],
-    'spwent'     => ['baseop', "setpwent"],
-    'srand'      => 'unop',
-    'srefgen'    => 'refgen',
-    'sselect'    => ['listop', "select"],
-    'sservent'   => ['unop',   "setservent"],
-    'ssockopt'   => ['listop', "setsockopt"],
-    'stat'       => 'filetest',
-    'study'      => 'unop',
-    'syscall'    => 'listop',
-    'sysopen'    => 'listop',
-    'sysread'    => 'listop',
-    'sysseek'    => 'listop',
-    'syswrite'   => 'listop',
-
-    'tell'       => 'unop',
-    'telldir'    => 'unop',
-    'tie'        => 'listop',
-    'tied'       => 'unop',
-    'tms'        => ['baseop', 'times'],
-
-    'umask'      => 'unop',
-    'undef'      => 'unop',
-    'unpack'     => 'listop',
-    'untie'      => 'unop',
-
-    'warn'       => 'listop',
-    );
-
 # "deparse()" is the main function to call to produces a depare tree
 # for a give B::OP. This method is the inner loop.
 
@@ -1531,38 +1342,6 @@ sub deparse_subname($$)
 				 [0], [$info]);
 }
 
-sub is_lexical_subs {
-    my (@ops) = shift;
-    for my $op (@ops) {
-        return 0 if $op->name !~ /\A(?:introcv|clonecv)\z/;
-    }
-    return 1;
-}
-
-sub is_miniwhile { # check for one-line loop ('foo() while $y--')
-    my $op = shift;
-    return (!null($op) and null($op->sibling)
-	    and $op->name eq "null" and class($op) eq "UNOP"
-	    and (($op->first->name =~ /^(and|or)$/
-		  and $op->first->first->sibling->name eq "lineseq")
-		 or ($op->first->name eq "lineseq"
-		     and not null $op->first->first->sibling
-		     and $op->first->first->sibling->name eq "unstack")
-		 ));
-}
-
-sub rv2gv_or_string {
-    my($self, $op, $parent) = @_;
-    if ($op->name eq "gv") { # could be open("open") or open("###")
-	my($name, $quoted) =
-	    $self->stash_variable_name("", $self->gv_or_padgv($op));
-	return info_from_text($op, $self, $quoted ? $name : "*$name", 'r2gv_or_string', {});
-    }
-    else {
-	return $self->deparse($op, 6, $parent);
-    }
-}
-
 sub scopeop
 {
     my($real_block, $self, $op, $cx) = @_;
@@ -1573,7 +1352,7 @@ sub scopeop
 		= @$self{qw'curstash warnings hints hinthash'} if $real_block;
     if ($real_block) {
 	$kid = $op->first->sibling; # skip enter
-	if (is_miniwhile($kid)) {
+	if (B::Deparse::is_miniwhile($kid)) {
 	    my $top = $kid->first;
 	    my $name = $top->name;
 	    if ($name eq "and") {
@@ -1605,7 +1384,7 @@ sub scopeop
 	# inside an expression, (a do {} while for lineseq)
 	my $body = $self->lineseq($op, 0, @kids);
 	my $text;
-	if (is_lexical_subs(@kids)) {
+	if (B::Deparse::is_lexical_subs(@kids)) {
 	    return $self->info_from_template("scoped do", $op,
 					     'do {\n%+%c\n%-}',
 					     [0], [$body]);
