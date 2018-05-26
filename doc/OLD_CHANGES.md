@@ -1,7 +1,7 @@
 # Ancient history
 
 In the good old days before revision control systems were in place (and even after they were),
-people note a list of high-level changes inside the code, instead or in addition to
+people noted a list of high-level changes inside the code, instead of, or in addition to
 version-control commit messages. I have removed them from the code.
 
 
@@ -15,8 +15,8 @@ version-control commit messages. I have removed them from the code.
 * various minor cleanups
 * moved globals into an object
 * added `-u` options, like `B::C`
-* package declarations using cop_stash
-* subs, formats and code sorted by cop_seq
+* package declarations using `cop_stash()`
+* `sub`'s, `format`'s and code sorted by `cop_seq()`
 
 # Changes between 0.51 and 0.52:
 
