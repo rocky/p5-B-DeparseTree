@@ -1045,13 +1045,6 @@ sub pp_lslice
 	'', 'lslice', {body=>[$list_info, $idx_info]});
 }
 
-sub is_pp_null_list($op) {
-    my $op = shift;
-    return $op->name eq 'pushmark' or
-	($op->name eq 'null'
-	 && $kid->targ == B::Deparse::OP_PUSHMARK
-	 && B::Deparse::_op_is_or_was($op, B::Deparse::OP_LIST));
-
 sub _method
 {
     my($self, $op, $cx) = @_;
