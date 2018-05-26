@@ -183,3 +183,35 @@ case. It is clearer and simpler just to change table entries than it
 is to muck with OO lookup or doing subroutine assignments.
 
 # Format-spec driven fragment creation
+
+Conceptially what B::Deparse does is conceptually simple: it walks the
+optree building and combining string fragments at a parent node from
+its children. When you get to finish at the top node after walking the
+entire string you have the final resulting program.
+
+However understanding what goes on inside a given node, is very
+haphazard. So if you have a bug somewhere, figuring out where there
+was a problem and why is difficult.
+
+This kind of thing you may have already encountered in a different
+guise, and a good solution to that problem applies here. Imagine you
+are trying to create a nicely formated report with lots of data
+values. You can try combining strings together interspersed with calls
+to conversion routines to different data items.
+
+But instead what most people do is use some sort of format specifiers
+so that in a template you get a sense of what's going on, and then
+just fill in the values. And that's a good solution here.
+
+[Show how we can simply using format specifiers]
+
+loopop? indirop? if/else?
+
+Currently `B::Deparse` embeds control characters into the string
+`\cS`, `\cK`, and so on.
+
+I have not found a situation where you can break things by adding these characters inside
+a valid Perl program, but it still seems brittle.
+
+Separating formatting the string is also helful to understanding how a
+node got its way, and paves the way for more complex formatting descisions.
