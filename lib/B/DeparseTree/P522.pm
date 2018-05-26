@@ -1,4 +1,4 @@
-rl# B::DeparseTree::P522.pm
+# B::DeparseTree::P522.pm
 # Copyright (c) 1998-2000, 2002, 2003, 2004, 2005, 2006 Stephen McCamant.
 # Copyright (c) 2015, 2018 Rocky Bernstein
 # All rights reserved.
@@ -431,10 +431,6 @@ sub keyword {
 }
 
 { no strict 'refs'; *{"pp_r$_"} = *{"pp_$_"} for qw< keys each values >; }
-
-sub pp_rmdir { maybe_targmy(@_, \&unop, "rmdir") }
-sub pp_getpgrp { maybe_targmy(@_, \&unop, "getpgrp") }
-sub pp_sleep { maybe_targmy(@_, \&unop, "sleep") }
 
 sub pp_dofile
 {

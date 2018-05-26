@@ -381,11 +381,6 @@ my %strong_proto_keywords = map { $_ => 1 } qw(
 
 { no strict 'refs'; *{"pp_r$_"} = *{"pp_$_"} for qw< keys each values >; }
 
-sub pp_chdir { maybe_targmy(@_, \&unop, "chdir") }
-sub pp_rmdir { maybe_targmy(@_, \&unop, "rmdir") }
-sub pp_getpgrp { maybe_targmy(@_, \&unop, "getpgrp") }
-sub pp_sleep { maybe_targmy(@_, \&unop, "sleep") }
-
 sub pp_dofile
 {
     my $code = unop(@_, "do", 1); # llafr does not apply

@@ -54,6 +54,7 @@ use vars qw(%PP_MAPFNS);
     'break'      => 'unop',
 
     'caller'     => 'unop',
+    'chdir'      => ['maybe_targmy', 'unop'],
     'chr'        => ['maybe_targmy', 'unop'],
     'chroot'     => ['maybe_targmy', 'unop'],
     'close'      => 'unop',
@@ -114,6 +115,7 @@ use vars qw(%PP_MAPFNS);
     'getc'       => 'unop',
     'getlogin'   => 'baseop',
     'getpeername' => 'unop',
+    'getpgrp'    => ['maybe_targmy', 'unop'],
     'getsockname' => 'unop',
     'ggrent'     => ['baseop', "getgrent"],
     'ggrgid'     => ['unop',   "getgrgid"],
@@ -172,6 +174,7 @@ use vars qw(%PP_MAPFNS);
     'return'     => 'listop',
     'reverse'    => 'listop',
     'rewinddir'  => 'unop',
+    'rmdir'      => ['maybe_targmy', 'unop'],
 
     'say'        => 'indirop',
     'seek'       => 'listop',
@@ -190,6 +193,7 @@ use vars qw(%PP_MAPFNS);
     'shmwrite'   => 'listop',
     'shostent'   => ['unop',   "sethostent"],
     'shutdown'   => 'listop',
+    'sleep'      => ['maybe_targmy', 'unop'],
     'snetent'    => ['unop',   "setnetent"],
     'socket'     => 'listop',
     'sort'       => "indirop",
@@ -222,6 +226,13 @@ use vars qw(%PP_MAPFNS);
 
     'warn'       => 'listop',
     );
+
+use Config;
+my $is_cperl = $Config::Config{usecperl};
+if (!$is_cperl) {
+    # FIXME reconcile differences in cperl. Maybe cperl is right?
+    delete $PP_MAPFNS{'chdir'};
+}
 
 @EXPORT = qw(%PP_MAPFNS);
 

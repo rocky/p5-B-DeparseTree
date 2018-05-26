@@ -412,9 +412,6 @@ sub pp_entereval {
     )
 }
 
-sub pp_getpgrp { maybe_targmy(@_, \&unop, "getpgrp") }
-sub pp_rmdir { maybe_targmy(@_, \&unop, "rmdir") }
-sub pp_sleep { maybe_targmy(@_, \&unop, "sleep") }
 sub pp_telldir { unop(@_, "telldir") }
 
 sub pp_dofile
