@@ -45,6 +45,7 @@ use B::DeparseTree::SyntaxTree;
 *balanced_delim = *B::Deparse::balanced_delim;
 *find_scope_en = *B::Deparse::find_scope_en;
 *find_scope_st = *B::Deparse::find_scope_st;
+*lex_in_scope = *B::Deparse::lex_in_scope;
 *gv_name = *B::Deparse::gv_name;
 *rv2gv_or_string = *B::Deparse::rv2gv_or_string;
 *stash_subs = *B::Deparse::stash_subs;

@@ -35,6 +35,7 @@ use B::DeparseTree::Node;
 use B::Deparse;
 
 # Copy unchanged functions from B::Deparse
+*lex_in_scope = *B::Deparse::lex_in_scope;
 *real_negate = *B::Deparse::real_negate;
 *pp_anonhash = *B::Deparse::pp_anonhash;
 *pp_anonlist = *B::Deparse::pp_anonlist;

@@ -326,21 +326,6 @@ my %globalnames;
 BEGIN { map($globalnames{$_}++, "SIG", "STDIN", "STDOUT", "STDERR", "INC",
 	    "ENV", "ARGV", "ARGVOUT", "_"); }
 
-sub lex_in_scope {
-    my ($self, $name, $our) = @_;
-    substr $name, 0, 0, = $our ? 'o' : 'm'; # our/my
-    $self->populate_curcvlex() if !defined $self->{'curcvlex'};
-
-    return 0 if !defined($self->{'curcop'});
-    my $seq = $self->{'curcop'}->cop_seq;
-    return 0 if !exists $self->{'curcvlex'}{$name};
-    for my $a (@{$self->{'curcvlex'}{$name}}) {
-	my ($st, $en) = @$a;
-	return 1 if $seq > $st && $seq <= $en;
-    }
-    return 0;
-}
-
 sub populate_curcvlex {
     my $self = shift;
     for (my $cv = $self->{'curcv'}; class($cv) eq "CV"; $cv = $cv->OUTSIDE) {
