@@ -229,7 +229,7 @@ use vars qw(%PP_MAPFNS);
 
 use Config;
 my $is_cperl = $Config::Config{usecperl};
-if (!$is_cperl) {
+if ($is_cperl) {
     # FIXME reconcile differences in cperl. Maybe cperl is right?
     delete $PP_MAPFNS{'chdir'};
 }
