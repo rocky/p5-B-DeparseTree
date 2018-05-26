@@ -1371,8 +1371,8 @@ sub double_delim {
     my($succeed, $delim);
     if ($from !~ m[/] and $to !~ m[/]) {
 	return "/$from/$to/";
-    } elsif (($succeed, $from) = balanced_delim($from) and $succeed) {
-	if (($succeed, $to) = balanced_delim($to) and $succeed) {
+    } elsif (($succeed, $from) = B::Deparse::balanced_delim($from) and $succeed) {
+	if (($succeed, $to) = B::Deparse::balanced_delim($to) and $succeed) {
 	    return "$from$to";
 	} else {
 	    for $delim ('/', '"', '#') { # note no "'" -- s''' is special

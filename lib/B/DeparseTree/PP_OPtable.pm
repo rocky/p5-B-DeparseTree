@@ -12,6 +12,31 @@ $VERSION = '3.1.1';
 @ISA = qw(Exporter);
 
 use vars qw(%PP_MAPFNS);
+
+
+# In the HASH below, the key is the operation name with the leading pp_ stripped.
+# so "die" refers to function "pp_die". The value can be several things.
+#
+# If the table value is a string, then that function is called with a standard
+# set of parameters. For example, consider:
+#   'die' => 'listop'.
+#
+# The above indicates that for the pp_die operation we should call listop
+# with standard parameters $self, $op, and the key value, e.g
+# "die". This replaces B::Deparse equivalent:
+#    sub pp_die { $self->listop($op, $cx, "die"); }
+#
+# If the table value is not a string, it will be an array reference, and here
+# the entries may be subject to interpretation based on the function name.
+#
+# For the most part, when there are two entries, it is similar to the string case,
+# but instead of passing the key name as a parameter, the string second parameter
+# is used. For example:
+#    'ghostent'   => ['baseop', "gethostent"],
+# replaces the B::Deparse equivalent:
+#    sub pp_ghostent { $self->listop($op, $cx, "gethostent"); }
+
+
 %PP_MAPFNS = (
      # 'avalues'    => ['unop', 'value'],
      # 'values'     => 'unop', # FIXME

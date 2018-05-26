@@ -42,6 +42,7 @@ use B::DeparseTree::PP_OPtable;
 use B::DeparseTree::SyntaxTree;
 
 # Copy unchanged functions from B::Deparse
+*balanced_delim = *B::Deparse::balanced_delim;
 *find_scope_en = *B::Deparse::find_scope_en;
 *find_scope_st = *B::Deparse::find_scope_st;
 *gv_name = *B::Deparse::gv_name;
@@ -56,12 +57,14 @@ $VERSION = '3.1.1';
     %globalnames
     %ignored_hints
     %rev_feature
-    _features_from_bundle ambiant_pragmas maybe_qualify
+    %strict_bits
+    WARN_MASK
+    _features_from_bundle
+    ambiant_pragmas
     anon_hash_or_list
-    balanced_delim
-    const
     coderef2info
     coderef2text
+    const
     declare_hinthash
     declare_hints
     declare_warnings
@@ -70,7 +73,6 @@ $VERSION = '3.1.1';
     deparse_subname
     dquote
     hint_pragmas
-    %strict_bits
     map_texts
     maybe_local
     maybe_local_str
@@ -78,8 +80,9 @@ $VERSION = '3.1.1';
     maybe_parens
     maybe_parens_func
     maybe_qualify
+    maybe_qualify
     maybe_targmy
-    new WARN_MASK
+    new
     next_todo
     null
     pragmata
@@ -1396,35 +1399,6 @@ sub scopeop
     } else {
 	return $self->lineseq($op, $cx, @kids);
     }
-}
-
-sub balanced_delim
-{
-    my($str) = @_;
-    my @str = split //, $str;
-    my($ar, $open, $close, $fail, $c, $cnt, $last_bs);
-    for $ar (['[',']'], ['(',')'], ['<','>'], ['{','}']) {
-	($open, $close) = @$ar;
-	$fail = 0; $cnt = 0; $last_bs = 0;
-	for $c (@str) {
-	    if ($c eq $open) {
-		$fail = 1 if $last_bs;
-		$cnt++;
-	    } elsif ($c eq $close) {
-		$fail = 1 if $last_bs;
-		$cnt--;
-		if ($cnt < 0) {
-		    # qq()() isn't ")("
-		    $fail = 1;
-		    last;
-		}
-	    }
-	    $last_bs = $c eq '\\';
-	}
-	$fail = 1 if $cnt != 0;
-	return ($open, "$open$str$close") if not $fail;
-    }
-    return ("", $str);
 }
 
 sub hint_pragmas {
