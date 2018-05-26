@@ -450,9 +450,6 @@ sub pp_keys { unop(@_, "keys") }
 
 # Note: maybe_local things can't be moved to PP yet.
 sub pp_pos { maybe_local(@_, unop(@_, "pos")) }
-sub pp_length { maybe_targmy(@_, \&unop, "length") }
-sub pp_ord { maybe_targmy(@_, \&unop, "ord") }
-sub pp_chr { maybe_targmy(@_, \&unop, "chr") }
 
 { no strict 'refs'; *{"pp_r$_"} = *{"pp_$_"} for qw< keys each values >; }
 
@@ -470,8 +467,6 @@ sub pp_chdir {
 	maybe_targmy(@_, \&unop, "chdir")
     }
 }
-
-sub pp_chroot { maybe_targmy(@_, \&unop, "chroot") }
 
 sub pp_entereval {
     unop(

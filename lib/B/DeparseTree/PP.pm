@@ -65,7 +65,6 @@ $VERSION = '1.0.0';
     pp_anonlist
     pp_atan2
     pp_boolkeys
-    pp_chr
     pp_chmod
     pp_chomp
     pp_chop
@@ -105,7 +104,6 @@ $VERSION = '1.0.0';
     pp_join
     pp_kill
     pp_leave
-    pp_length
     pp_leaveloop
     pp_leavetry
     pp_lineseq
@@ -124,7 +122,6 @@ $VERSION = '1.0.0';
     pp_once
     pp_open_dir
     pp_or
-    pp_ord
     pp_pos
     pp_padcv
     pp_pos
@@ -208,7 +205,6 @@ sub pp_boolkeys
 sub pp_atan2 { maybe_targmy(@_, \&listop, "atan2") }
 sub pp_chmod { maybe_targmy(@_, \&listop, "chmod") }
 sub pp_chown { maybe_targmy(@_, \&listop, "chown") }
-sub pp_chr   { maybe_targmy(@_, \&unop, "chr") }
 sub pp_cos { maybe_targmy(@_, \&unop, "cos") }
 sub pp_crypt { maybe_targmy(@_, \&listop, "crypt") }
 sub pp_exec { maybe_targmy(@_, \&listop, "exec") }
@@ -220,7 +216,6 @@ sub pp_index { maybe_targmy(@_, \&listop, "index") }
 sub pp_int { maybe_targmy(@_, \&unop, "int") }
 sub pp_join { maybe_targmy(@_, \&listop, "join") }
 sub pp_kill { maybe_targmy(@_, \&listop, "kill") }
-sub pp_length { maybe_targmy(@_, \&unop, "length") }
 sub pp_link { maybe_targmy(@_, \&listop, "link") }
 sub pp_log { maybe_targmy(@_, \&unop, "log") }
 sub pp_mkdir { maybe_targmy(@_, \&listop, "mkdir") }
@@ -237,7 +232,6 @@ sub pp_not
 
 sub pp_oct { maybe_targmy(@_, \&unop, "oct") }
 sub pp_open_dir { listop(@_, "opendir") }
-sub pp_ord { maybe_targmy(@_, \&unop, "ord") }
 sub pp_pos { maybe_local(@_, unop(@_, "pos")) }
 sub pp_push { maybe_targmy(@_, \&listop, "push") }
 sub pp_rename { maybe_targmy(@_, \&listop, "rename") }

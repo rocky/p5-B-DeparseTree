@@ -814,7 +814,7 @@ sub maybe_targmy
 					 [$var, $val],
 					 {maybe_parens => [$self, $cx, 7]});
     } else {
-	return $func->($self, $op, $cx, @args);
+	return $self->$func($op, $cx, @args);
     }
 }
 
@@ -1151,7 +1151,24 @@ sub deparse
 	if (ref($PP_MAPFNS{$name}) eq 'ARRAY') {
 	    my @args = @{$PP_MAPFNS{$name}};
 	    $meth = shift @args;
-	    $info = $self->$meth($op, $cx, $args[0]);
+	    if ($meth eq 'maybe_targmy') {
+		# FIXME: This is an inline version of targmy.
+		# Can we dedup it? do we want to?
+		$meth = shift @args;
+		if ($op->private & OPpTARGET_MY) {
+		    my $var = $self->padname($op->targ);
+		    my $val = $self->$meth->($op, 7);
+		    my @texts = ($var, '=', $val);
+		    $info = $self->info_from_template("my", $op,
+						      "%c = %c", [0, 1],
+						      [$var, $val],
+						      {maybe_parens => [$self, $cx, 7]});
+		} else {
+		    $info = $self->$meth($op, $cx, $name);
+		}
+	    } else {
+		$info = $self->$meth($op, $cx, $args[0]);
+	    }
 	} else {
 	    # Simple case: one simple call of the
 	    # the method in the table. Call this

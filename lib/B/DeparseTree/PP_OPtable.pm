@@ -54,6 +54,8 @@ use vars qw(%PP_MAPFNS);
     'break'      => 'unop',
 
     'caller'     => 'unop',
+    'chr'        => ['maybe_targmy', 'unop'],
+    'chroot'     => ['maybe_targmy', 'unop'],
     'close'      => 'unop',
     'closedir'   => 'unop',
     'connect'    => 'listop',
@@ -140,6 +142,7 @@ use vars qw(%PP_MAPFNS);
     'keys'       => 'unop',
 
     'last'       => 'loopex',
+    'length'     => ['maybe_targmy', 'unop'],
     'listen'     => 'listop',
     'localtime'  => 'unop',
     'lock'       => 'unop',
@@ -149,6 +152,7 @@ use vars qw(%PP_MAPFNS);
     'msgget'     => 'listop',
     'msgrcv'     => 'listop',
     'msgsnd'     => 'listop',
+    'ord'         => ['maybe_targmy', 'unop'],
 
     'next'       => 'loopex',
     'open'       => 'listop',

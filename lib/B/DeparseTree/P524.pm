@@ -438,7 +438,6 @@ sub keyword {
 # Note: maybe_local things can't be moved to PP yet.
 { no strict 'refs'; *{"pp_r$_"} = *{"pp_$_"} for qw< keys each values >; }
 
-sub pp_chroot { maybe_targmy(@_, \&unop, "chroot") }
 sub pp_rmdir { maybe_targmy(@_, \&unop, "rmdir") }
 sub pp_getpgrp { maybe_targmy(@_, \&unop, "getpgrp") }
 sub pp_sleep { maybe_targmy(@_, \&unop, "sleep") }
