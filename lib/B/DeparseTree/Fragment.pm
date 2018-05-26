@@ -71,7 +71,7 @@ sub get_prev_op($)
     # a direct prev pointer
     my $deparse = $op_info->{deparse};
     use Data::Printer; p $op_info;
-    my $ref = $deparse->{ops}{$op_info->{addr}};
+    my $ref = $deparse->{optree}{$op_info->{addr}};
     return $ref->{prev_op} if exists $ref->{prev_op};
     return undef unless $ref->{parent};
 

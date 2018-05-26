@@ -426,6 +426,7 @@ sub listop
 
     $fmt = "%c %C";
     if ($parens && $nollafr) {
+	# FIXME: do with parens mechanism
 	$fmt = "($fullname %C)";
 	$type = "listop ($fullname)";
     } elsif ($parens) {
@@ -436,20 +437,25 @@ sub listop
 	$type = "listop $fullname";
     }
     $opts->{synthesized_nodes} = \@new_nodes if @new_nodes;
+    my $node = $self->info_from_template($type, $op, $fmt,
+					 [[0, $#exprs, ', ']], \@exprs,
+					 $opts);
     if (@skipped_ops) {
 	# if we have skipped ops like pushmark, we will use $full name
 	# as the part it represents.
+	## FIXME
+	my @new_ops;
+	my $position = [0, length($fullname)];
+	my $str = $node->{text};
 	my @skipped_nodes;
 	for my $skipped_op (@skipped_ops) {
-	    push @skipped_nodes,
-		$self->info_from_string($skipped_op->name,
-					$skipped_op, $fullname);
+	    my $new_op = $self->info_from_string($op->name, $skipped_op, $str,
+						 {position => $position});
+	    push @new_ops, $new_op;
 	}
-	$opts->{other_ops} = \@skipped_nodes;
+	$node->{other_ops} = \@new_ops;
     }
-    return $self->info_from_template($type, $op, $fmt,
-				     [[0, $#exprs, ', ']], \@exprs,
-				     $opts);
+    return $node;
 }
 
 sub loop_common
@@ -676,103 +682,128 @@ sub indirop
     my($expr, @exprs);
     my $firstkid = my $kid = $op->first->sibling;
     my $indir_info;
-    my @body = ();
     my $type = $name;
     my $first_op = $op->first;
     my @skipped_ops = ($first_op);
     my @indir = ();
+    my @args_spec = ();
+    my $fmt = '';
 
     if ($op->flags & OPf_STACKED) {
 	push @skipped_ops, $kid;
 	my $indir_op = $kid->first; # skip rv2gv
-	if (is_scope($indir_op)) {
+	if (B::Deparse::is_scope($indir_op)) {
 	    $indir_info = $self->deparse($indir_op, 0, $op);
-	    @indir = $indir_info->{text} eq '' ?
-		("{", ';', "}") : ("{", $self->info2str($indir_info), "}");
-
+	    if ($indir_info->{text} eq '') {
+		$fmt = '{;}';
+	    } else {
+		$fmt = '{%c}';
+		push @args_spec, $indir_info;
+	    }
 	} elsif ($indir_op->name eq "const" && $indir_op->private & OPpCONST_BARE) {
-	    @indir = ($self->const_sv($indir_op)->PV);
+	    $fmt = $self->const_sv($indir_op)->PV;
 	} else {
 	    $indir_info = $self->deparse($indir_op, 24, $op);
-	    @indir = exists $indir_info->{texts} ?
-		@{$indir_info->{texts}} : ();
+	    $fmt = '%c';
+	    push @args_spec, $indir_info;
 	}
-	push @body, $indir_info if $indir_info;
+	$fmt .= ' ';
 	$kid = $kid->sibling;
     }
+
     if ($name eq "sort" && $op->private & (OPpSORT_NUMERIC | OPpSORT_INTEGER)) {
-	$type = 'sort_num_int';
-	@indir = ($op->private & OPpSORT_DESCEND) ?
-	    ('{', '$b', ' <=> ', '$a', '}' ) : ('{', '$a', ' <=> ', '$b', '}' );
-    }
-    elsif ($name eq "sort" && $op->private & OPpSORT_DESCEND) {
+	$type = 'sort numeric or integer';
+	$fmt = ($op->private & OPpSORT_DESCEND)
+	    ? '{$b <=> $a} ': '{$a <=> $b} ';
+    } elsif ($name eq "sort" && $op->private & OPpSORT_DESCEND) {
 	$type = 'sort_descend';
-	@indir =  ('{', '$b', ' cmp ', '$a', '}' );
+	$fmt = '{$b cmp $a} ';
     }
 
     for (; !null($kid); $kid = $kid->sibling) {
-	my $cx = (!scalar(@indir) &&
-		  $kid == $firstkid && $name eq "sort" &&
-		  $firstkid->name eq "entersub")
-	    ? 16 : 6;
-	$expr = $self->deparse($kid, $cx, $op);
+	my $high_prec = (!$fmt && $kid == $firstkid
+			 && $name eq "sort"
+			 && $firstkid->name =~ /^enter(xs)?sub/);
+	$expr = $self->deparse($kid, $high_prec ? 16 : 6);
 	push @exprs, $expr;
     }
 
-    push @body, @exprs;
-    my $opts = {
-	body => \@body,
-	other_ops => \@skipped_ops
-    };
-
+    # Extend $name possibly by adding "reverse".
     my $name2;
     if ($name eq "sort" && $op->private & OPpSORT_REVERSE) {
-	$type = 'sort_reverse';
 	$name2 = $self->keyword('reverse') . ' ' . $self->keyword('sort');
-    }  else {
-	$name2 = $self->keyword($name);
-    }
-    my $indir = scalar @indir ? (join('', @indir) . ' ') : '';
-    if ($name eq "sort" && ($op->private & OPpSORT_INPLACE)) {
-	my @texts = ($exprs[0], '=', $name2, $indir, $exprs[0]);
-	return info_from_list $op, $self, \@texts, '', 'sort_inplace', $opts;
+    } else {
+	$name2 = $self->keyword($name)
     }
 
-    my @texts;
-    my $args = $indir . join(', ', map($_->{text},  @exprs));
-    if ($indir ne "" && $name eq "sort") {
+    if ($name eq "sort" && ($op->private & OPpSORT_INPLACE)) {
+	$fmt = "%c = $name2 $fmt %c";
+	return $self->info_from_template($name2, $op,
+					     [0, 0], \@exprs, {other_ops => \@skipped_ops});
+    }
+
+
+    my $node;
+    if ($fmt ne "" && $name eq "sort") {
 	# We don't want to say "sort(f 1, 2, 3)", since perl -w will
 	# give bareword warnings in that case. Therefore if context
 	# requires, we'll put parens around the outside "(sort f 1, 2,
 	# 3)". Unfortunately, we'll currently think the parens are
 	# necessary more often that they really are, because we don't
 	# distinguish which side of an assignment we're on.
-	if ($cx >= 5) {
-	    @texts = ('(', $name2, $args, ')');
-	} else {
-	    @texts = ($name2, $args);
-	}
-	$type='sort1';
-    } elsif (!$indir && $name eq "sort"
+	$node = $self->info_from_template($name2, $op,
+					  "$name2 %C",
+					  [[0, $#exprs, ', ']],
+					  \@exprs,
+					 {
+					     other_ops => \@skipped_ops,
+					     maybe_parens => {
+						 context => $cx,
+						 precedence => 5}});
+
+    } elsif (!$fmt && $name eq "sort"
 	     && !null($op->first->sibling)
 	     && $op->first->sibling->name eq 'entersub' ) {
 	# We cannot say sort foo(bar), as foo will be interpreted as a
 	# comparison routine.  We have to say sort(...) in that case.
-	@texts = ($name2, '(', $args, ')');
-	$type='sort2';
+	$node = $self->info_from_template("$name2()", $op,
+					  "$name2(%C)",
+					  [[0, $#exprs, ', ']],
+					  \@exprs,
+					  {other_ops => \@skipped_ops});
+
     } else {
 	# indir
-	if (length $args) {
-	    $type='indirop';
-	    @texts = ($self->maybe_parens_func($name2, $args, $cx, 5))
+	if (@exprs) {
+	    # FIXME: figure out how to put back in %maybe_parens_func.
+	    # possibly with a format specifier?
+	    # @texts = ($self->maybe_parens_func($name2, $args, $cx, 5));
+	    $node = $self->info_from_template($name2, $first_op,
+					      "$name2(%C)",
+					      [[0, $#exprs, ', ']],
+					      \@exprs,
+					      {other_ops => \@skipped_ops,
+					       maybe_parens => [$self, $cx, 5]});
+
 	} else {
-	    $type='indirop_noargs';
-	    @texts = ($name2);
-	    push(@texts, '()') if (7 < $cx);
+	    $type="indirect $name2";
+	    $type .= '()' if (7 < $cx);  # FIXME - do with format specifier
+	    $node = $self->info_from_string($first_op, $name2,
+					    {other_ops => \@skipped_ops})
 	}
     }
-    return info_from_list($first_op, $self, \@texts, '', "$type", $opts);
-}
+
+    my @new_ops;
+    my $position = [0, length($name2)];
+    my $str = $node->{text};
+    foreach my $skipped_op (@skipped_ops) {
+	my $new_op = $self->info_from_string($op->name, $skipped_op, $str,
+					     {position => $position});
+	push @new_ops, $new_op;
+    }
+    $node->{other_ops} = \@new_ops;
+    return $node;
+    }
 
 sub mapop
 {
@@ -788,7 +819,7 @@ sub mapop
 
     my @block_texts = ();
     my @exprs_texts = ();
-    if (is_scope $code) {
+    if (B::Deparse::is_scope $code) {
 	$code_info = $self->deparse($code, 0, $op);
 	(my $text = $code_info->{text})=~ s/^\n//;  # remove first \n in block.
 	@block_texts = ('{', $text, '}');

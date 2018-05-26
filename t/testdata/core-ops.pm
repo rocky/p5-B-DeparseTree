@@ -150,8 +150,8 @@ pack             123   p
 pipe             2     p
 pop              0     1 # also tested specially
 pos              01    $+
-print            @     p$+
-printf           @     p$+
+# print            @     p$+
+# printf           @     p$+
 prototype        1     +
 # push handled specially
 quotemeta        01    $
@@ -205,7 +205,7 @@ sin              01    $
 sleep            01    -
 socket           4     p
 socketpair       5     p
-sort             @     p1+
+# sort             @     p1+
 # split handled specially
 # splice handled specially
 sprintf          123   p

@@ -203,7 +203,7 @@ testit readline => 'CORE::readline $a . $b;';
 
 testit readpipe => 'CORE::readpipe $a + $b;';
 
-testit reverse  => 'CORE::reverse sort(@foo);';
+# testit reverse  => 'CORE::reverse sort(@foo);';
 
 testit shift    => 'CORE::shift @foo;';
 

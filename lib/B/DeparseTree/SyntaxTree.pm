@@ -373,6 +373,12 @@ sub template_engine($$$$)
 		}
 		$result .= $str;
 	    }
+	} elsif ($spec eq "%f") {
+	    # Run maybe_parens_func
+	    my $fn_name = shift @args;
+	    my ($cx, $prec) = @{$indexes->[$i++]};
+	    my $params = $self->template_engine("%C", [[0, $#args], ', ']);
+	    $result .= B::Deparse::maybe_parens_func($self, $fn_name, $params, $cx, $prec);
 	} elsif ($spec eq "%F") {
 	    # Run a transformation function
 	    if ($i >= scalar@$indexes) {

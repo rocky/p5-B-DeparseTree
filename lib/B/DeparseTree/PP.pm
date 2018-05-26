@@ -891,8 +891,8 @@ sub pp_entersub
 		my $str = $node->{text};
 		my $position = [0, length($subname_info->{text})];
 		my @new_ops = ();
-		foreach my $op (@$other_ops) {
-		    my $new_op = $self->info_from_string($op->name, $op, $str,
+		foreach my $skipped_op (@$other_ops) {
+		    my $new_op = $self->info_from_string($op->name, $skipped_op, $str,
 							 {position => $position});
 		    push @new_ops, $new_op;
 		}
@@ -934,8 +934,8 @@ sub pp_entersub
 	my $str = $node->{text};
 	my $position = [0, length($subname_info->{text})];
 	my @new_ops = ();
-	foreach my $op (@$other_ops) {
-	    my $new_op = $self->info_from_string($op->name, $op, $str,
+	foreach my $skipped_op (@$other_ops) {
+	    my $new_op = $self->info_from_string($op->name, $skipped_op, $str,
 						 {position => $position});
 	    push @new_ops, $new_op;
 	}
