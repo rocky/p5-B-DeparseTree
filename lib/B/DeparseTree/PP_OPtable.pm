@@ -13,6 +13,8 @@ $VERSION = '3.1.1';
 
 use vars qw(%PP_MAPFNS);
 
+use constant ASSIGN => 2; # operation OP has a =OP variant
+
 
 # In the HASH below, the key is the operation name with the leading pp_ stripped.
 # so "die" refers to function "pp_die". The value can be several things.
@@ -36,6 +38,39 @@ use vars qw(%PP_MAPFNS);
 # replaces the B::Deparse equivalent:
 #    sub pp_ghostent { $self->listop($op, $cx, "gethostent"); }
 
+# Precedences in binop are given by the following table
+
+# Precedences:
+# 26             [TODO] inside interpolation context ("")
+# 25 left        terms and list operators (leftward)
+# 24 left        ->
+# 23 nonassoc    ++ --
+# 22 right       **
+# 21 right       ! ~ \ and unary + and -
+# 20 left        =~ !~
+# 19 left        * / % x
+# 18 left        + - .
+# 17 left        << >>
+# 16 nonassoc    named unary operators
+# 15 nonassoc    < > <= >= lt gt le ge
+# 14 nonassoc    == != <=> eq ne cmp
+# 13 left        &
+# 12 left        | ^
+# 11 left        &&
+# 10 left        ||
+#  9 nonassoc    ..  ...
+#  8 right       ?:
+#  7 right       = += -= *= etc.
+#  6 left        , =>
+#  5 nonassoc    list operators (rightward)
+#  4 right       not
+#  3 left        and
+#  2 left        or xor
+#  1             statement modifiers
+#  0.5           statements, but still print scopes as do { ... }
+#  0             statement level
+# -1             format body
+
 
 %PP_MAPFNS = (
      # 'avalues'    => ['unop', 'value'],
@@ -44,6 +79,7 @@ use vars qw(%PP_MAPFNS);
      # 'sockpair'   => 'listop', ""
 
     'accept'      => 'listop',
+    'add'         => ['maybe_targmy', 'binop', '+', 18, ASSIGN],
     'aeach'       => ['unop', 'each'],
     'akeys'       => ['unop', 'keys'],
     'alarm'       => 'unop',
@@ -52,6 +88,9 @@ use vars qw(%PP_MAPFNS);
 
     'bind'        => 'listop',
     'binmode'     => 'listop',
+    'bit_and'     => ['maybe_targmy', 'binop', "&", 13, ASSIGN],
+    'bit_or'      => ['maybe_targmy', 'binop', "|", 12, ASSIGN],
+    'bit_xor'     => ['maybe_targmy', 'binop', "^", 12, ASSIGN],
     'bless'       => 'listop',
     'break'       => 'unop',
 
@@ -71,6 +110,7 @@ use vars qw(%PP_MAPFNS);
     # 'dbstate'    => 'nextstate',
     'defined'     => 'unop',
     'die'         => 'listop',
+    'divide'      => ['maybe_targmy', 'binop', "/", 19, ASSIGN],
     'dorassign'   => ['logassignop', '//='],
     'dump'        => ['loopex', "CORE::dump"],
 
@@ -145,25 +185,37 @@ use vars qw(%PP_MAPFNS);
     'gservent'    => ['baseop', "getservent"],
     'gsockopt'    => ['listop', 'getsockopt'],
 
+    'i_add'       => ['maybe_targmy', 'binop', "+", 18, ASSIGN],
+    'i_divide'    => ['maybe_targmy', 'binop', "/", 19, ASSIGN],
+    'i_modulo'    => ['maybe_targmy', 'binop', "%", 19, ASSIGN],
+    'i_multiply'  => ['maybe_targmy', 'binop', "*", 19, ASSIGN],
+    'i_subtract'  => ['maybe_targmy', 'binop', "-", 18, ASSIGN],
     'ioctl'       => 'listop',
     'keys'        => 'unop',
 
     'last'        => 'loopex',
     'lc'          => 'dq_unop',
     'lcfirst'     => 'dq_unop',
+    'left_shift'  => ['maybe_targmy', 'binop', "<<", 17, ASSIGN],
     'length'      => ['maybe_targmy', 'unop'],
     'listen'      => 'listop',
     'localtime'   => 'unop',
     'lock'        => 'unop',
     'lstat'       => 'filetest',
 
+    'modulo'      => ['maybe_targmy', 'binop', "%", 19, ASSIGN],
     'msgctl'      => 'listop',
     'msgget'      => 'listop',
     'msgrcv'      => 'listop',
     'msgsnd'      => 'listop',
-    'ord'         => ['maybe_targmy', 'unop'],
+    'multiply'    => ['maybe_targmy', 'binop', '*', 19, ASSIGN],
 
+    'nbit_and'    => ['maybe_targmy', 'binop', "&", 13, ASSIGN],
+    'nbit_or'     => ['maybe_targmy', 'binop', "|", 12, ASSIGN],
+    'nbit_xor'    => ['maybe_targmy', 'binop', "^", 12, ASSIGN],
     'next'        => 'loopex',
+
+    'ord'         => ['maybe_targmy', 'unop'],
     'open'        => 'listop',
     'orassign'    => ['logassignop', '||='],
 
@@ -172,9 +224,11 @@ use vars qw(%PP_MAPFNS);
     'pack'        => 'listop',
     'pipe_op'     => ['listop', 'pipe'],
     'pop'         => 'unop',
+    'pow'         => ['maybe_targmy', 'binop', "**", 22, ASSIGN],
     'prototype'   => 'unop',
 
     'quotemeta'   => ['maybe_targmy', 'dq_unop'],
+
     'read'        => 'listop',
     'readdir'     => 'unop',
     'readlink'    => 'unop',
@@ -186,6 +240,7 @@ use vars qw(%PP_MAPFNS);
     'return'      => 'listop',
     'reverse'     => 'listop',
     'rewinddir'   => 'unop',
+    'right_shift' => ['maybe_targmy', 'binop', ">>", 17, ASSIGN],
     'rmdir'       => ['maybe_targmy', 'unop'],
 
     'say'         => 'indirop',
@@ -218,6 +273,7 @@ use vars qw(%PP_MAPFNS);
     'ssockopt'    => ['listop', "setsockopt"],
     'stat'        => 'filetest',
     'study'       => 'unop',
+    'subtract'    => ['maybe_targmy', 'binop', "-", 18, ASSIGN],
     'syscall'     => 'listop',
     'sysopen'     => 'listop',
     'sysread'     => 'listop',

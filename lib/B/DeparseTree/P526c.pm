@@ -582,30 +582,6 @@ sub SWAP_CHILDREN () { 1 }
 sub ASSIGN () { 2 } # has OP= variant
 sub LIST_CONTEXT () { 4 } # Assignment is in list context
 
-sub pp_add { maybe_targmy(@_, \&binop, "+", 18, ASSIGN) }
-sub pp_multiply { maybe_targmy(@_, \&binop, "*", 19, ASSIGN) }
-sub pp_subtract { maybe_targmy(@_, \&binop, "-",18,  ASSIGN) }
-sub pp_divide { maybe_targmy(@_, \&binop, "/", 19, ASSIGN) }
-sub pp_modulo { maybe_targmy(@_, \&binop, "%", 19, ASSIGN) }
-sub pp_i_add { maybe_targmy(@_, \&binop, "+", 18, ASSIGN) }
-sub pp_i_multiply { maybe_targmy(@_, \&binop, "*", 19, ASSIGN) }
-sub pp_i_subtract { maybe_targmy(@_, \&binop, "-", 18, ASSIGN) }
-sub pp_i_divide { maybe_targmy(@_, \&binop, "/", 19, ASSIGN) }
-sub pp_i_modulo { maybe_targmy(@_, \&binop, "%", 19, ASSIGN) }
-sub pp_pow { maybe_targmy(@_, \&binop, "**", 22, ASSIGN) }
-
-sub pp_left_shift { maybe_targmy(@_, \&binop, "<<", 17, ASSIGN) }
-sub pp_right_shift { maybe_targmy(@_, \&binop, ">>", 17, ASSIGN) }
-sub pp_bit_and { maybe_targmy(@_, \&binop, "&", 13, ASSIGN) }
-sub pp_bit_or { maybe_targmy(@_, \&binop, "|", 12, ASSIGN) }
-sub pp_bit_xor { maybe_targmy(@_, \&binop, "^", 12, ASSIGN) }
-*pp_nbit_and = *pp_bit_and;
-*pp_nbit_or  = *pp_bit_or;
-*pp_nbit_xor = *pp_bit_xor;
-sub pp_sbit_and { maybe_targmy(@_, \&binop, "&.", 13, ASSIGN) }
-sub pp_sbit_or { maybe_targmy(@_, \&binop, "|.", 12, ASSIGN) }
-sub pp_sbit_xor { maybe_targmy(@_, \&binop, "^.", 12, ASSIGN) }
-
 sub pp_eq { binop(@_, "==", 14) }
 sub pp_ne { binop(@_, "!=", 14) }
 sub pp_lt { binop(@_, "<", 15) }

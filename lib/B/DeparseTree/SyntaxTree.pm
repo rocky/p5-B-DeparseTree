@@ -444,6 +444,9 @@ sub template_engine($$$$)
 	} elsif ($spec eq "\cS") {
 	    # FIXME: not handled yet
 	    ;
+	} else {
+	    # We have % with a non-special symbol. Just preserve those.
+	    $result .= $spec;
 	}
     }
     $result .= $fmt if $fmt;

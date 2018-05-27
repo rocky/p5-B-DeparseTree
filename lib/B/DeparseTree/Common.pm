@@ -1162,16 +1162,17 @@ sub deparse
 		# FIXME: This is an inline version of targmy.
 		# Can we dedup it? do we want to?
 		$meth = shift @args;
+		unshift @args, $name unless @args;
 		if ($op->private & OPpTARGET_MY) {
 		    my $var = $self->padname($op->targ);
-		    my $val = $self->$meth->($op, 7);
+		    my $val = $self->$meth($op, 7, @args);
 		    my @texts = ($var, '=', $val);
 		    $info = $self->info_from_template("my", $op,
 						      "%c = %c", [0, 1],
 						      [$var, $val],
 						      {maybe_parens => [$self, $cx, 7]});
 		} else {
-		    $info = $self->$meth($op, $cx, $name);
+		    $info = $self->$meth($op, $cx, @args);
 		}
 	    } else {
 		$info = $self->$meth($op, $cx, $args[0]);
