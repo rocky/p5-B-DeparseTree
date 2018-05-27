@@ -80,6 +80,7 @@ use vars qw(%PP_MAPFNS);
     'eservent'   => ['baseop', "endservent"],
     'exit'       => 'unop',
 
+    'fc'         => 'unop',
     'fcntl'      => 'listop',
     'fileno'     => 'unop',
     'fork'       => 'baseop',
@@ -144,6 +145,8 @@ use vars qw(%PP_MAPFNS);
     'keys'       => 'unop',
 
     'last'       => 'loopex',
+    'lc'         => 'dq_unop',
+    'lcfirst'    => 'dq_unop',
     'length'     => ['maybe_targmy', 'unop'],
     'listen'     => 'listop',
     'localtime'  => 'unop',
@@ -164,6 +167,7 @@ use vars qw(%PP_MAPFNS);
     'pop'        => 'unop',
     'prototype'  => 'unop',
 
+    'quotemeta'  => ['maybe_targmy', 'dq_unop'],
     'read'       => 'listop',
     'readdir'    => 'unop',
     'readlink'   => 'unop',
@@ -219,6 +223,8 @@ use vars qw(%PP_MAPFNS);
     'tied'       => 'unop',
     'tms'        => ['baseop', 'times'],
 
+    'uc'          => 'dq_unop',
+    'ucfirst'    => 'dq_unop',
     'umask'      => 'unop',
     'undef'      => 'unop',
     'unpack'     => 'listop',

@@ -431,13 +431,6 @@ sub pp_rcatline {
 			  '', 'rcatline', {});
 }
 
-sub pp_ucfirst { dq_unop(@_, "ucfirst") }
-sub pp_lcfirst { dq_unop(@_, "lcfirst") }
-sub pp_uc { dq_unop(@_, "uc") }
-sub pp_lc { dq_unop(@_, "lc") }
-sub pp_quotemeta { maybe_targmy(@_, \&dq_unop, "quotemeta") }
-sub pp_fc { dq_unop(@_, "fc") }
-
 sub SWAP_CHILDREN () { 1 }
 sub ASSIGN () { 2 } # has OP= variant
 sub LIST_CONTEXT () { 4 } # Assignment is in list context
