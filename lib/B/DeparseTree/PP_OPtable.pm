@@ -47,6 +47,8 @@ use vars qw(%PP_MAPFNS);
     'aeach'       => ['unop', 'each'],
     'akeys'       => ['unop', 'keys'],
     'alarm'       => 'unop',
+    'andassign'   => ['logassignop', '&&='],
+    'atan2'       => ['maybe_targmy', 'listop'],
 
     'bind'        => 'listop',
     'binmode'     => 'listop',
@@ -69,6 +71,7 @@ use vars qw(%PP_MAPFNS);
     # 'dbstate'    => 'nextstate',
     'defined'     => 'unop',
     'die'         => 'listop',
+    'dorassign'   => ['logassignop', '//='],
     'dump'        => ['loopex', "CORE::dump"],
 
     'each'        => 'unop',
@@ -162,6 +165,7 @@ use vars qw(%PP_MAPFNS);
 
     'next'        => 'loopex',
     'open'        => 'listop',
+    'orassign'    => ['logassignop', '||='],
 
     'padav'       => 'pp_padsv',
     'padhv'       => 'pp_padsv',

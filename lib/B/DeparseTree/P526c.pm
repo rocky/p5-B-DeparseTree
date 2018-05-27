@@ -686,25 +686,6 @@ sub range {
 			  {maybe_parens => [$self, $cx, 9]});
 }
 
-sub logassignop
-{
-    my ($self, $op, $cx, $opname) = @_;
-    my $left = $op->first;
-
-    my $right = $op->first->sibling->first; # skip sassign
-    $left = $self->deparse($left, 7, $op);
-    $right = $self->deparse($right, 7, $op);
-    return info_from_list($op, $self, [$left->{text}, $opname, $right->{text}], ' ',
-			  'logassignop',
-			  {other_ops => [$op->first->sibling],
-			   body => [$left, $right],
-			   maybe_parens => [$self, $cx, 7]});
-}
-
-sub pp_andassign { logassignop(@_, "&&=") }
-sub pp_orassign  { logassignop(@_, "||=") }
-sub pp_dorassign { logassignop(@_, "//=") }
-
 sub for_loop {
     my $self = shift;
     my($op, $cx, $parent) = @_;

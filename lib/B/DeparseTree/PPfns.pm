@@ -51,6 +51,7 @@ $VERSION = '3.1.1';
     indirop
     listop
     logop
+    logassignop
     loop_common
     loopex
     mapop
@@ -870,6 +871,32 @@ sub indirop
     $node->{other_ops} = \@new_ops;
     return $node;
     }
+
+# Logical assignment operations, e.g. ||= &&=, //=
+sub logassignop
+{
+    my ($self, $op, $cx, $opname) = @_;
+    my $left_op = $op->first;
+
+    my $sassign_op = $left_op->sibling;
+    my $right_op = $sassign_op->first; # skip sassign
+    my $left_node = $self->deparse($left_op, 7, $op);
+    my $right_node = $self->deparse($right_op, 7, $op);
+    my $node = $self->info_from_template(
+	"logical assign $opname", $op,
+	"%c $opname %c", undef, [$left_node, $right_node],
+	{other_ops => [$op->first->sibling],
+	 maybe_parens => [$self, $cx, 7]});
+
+    # Handle skipped sassign
+    my $str = $node->{text};
+    my $position = [length($left_node->{text})+1, length($opname)];
+    my $new_op = $self->info_from_string($sassign_op->name, $sassign_op, $str,
+					 {position => $position});
+    $node->{other_ops} = [$new_op];
+    return $node;
+
+}
 
 sub mapop
 {

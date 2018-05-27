@@ -204,7 +204,6 @@ sub pp_boolkeys
     unop(@_,"");
 }
 
-sub pp_atan2 { maybe_targmy(@_, \&listop, "atan2") }
 sub pp_chmod { maybe_targmy(@_, \&listop, "chmod") }
 sub pp_chown { maybe_targmy(@_, \&listop, "chown") }
 sub pp_cos { maybe_targmy(@_, \&unop, "cos") }
