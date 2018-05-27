@@ -162,6 +162,8 @@ use vars qw(%PP_MAPFNS);
     'next'        => 'loopex',
     'open'        => 'listop',
 
+    'padav'       => 'pp_padsv',
+    'padhv'       => 'pp_padsv',
     'pack'        => 'listop',
     'pipe_op'     => ['listop', 'pipe'],
     'pop'         => 'unop',

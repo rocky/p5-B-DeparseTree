@@ -784,9 +784,6 @@ sub pp_padsv {
 			   $forbid_parens);
 }
 
-sub pp_padav { pp_padsv(@_) }
-sub pp_padhv { pp_padsv(@_) }
-
 my @threadsv_names = B::threadsv_names;
 sub pp_threadsv {
     my $self = shift;
