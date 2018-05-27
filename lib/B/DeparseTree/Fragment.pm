@@ -75,7 +75,6 @@ sub get_prev_addr_info($)
 {
     my ($op_info) = @_;
     return undef unless $op_info;
-    use Data::Printer; p $op_info;
     if (!exists $op_info->{prev_expr}) {
 	my $parent_info = get_parent_addr_info($op_info);
 	if ($parent_info) {

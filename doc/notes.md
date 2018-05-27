@@ -215,3 +215,13 @@ a valid Perl program, but it still seems brittle.
 
 Separating formatting the string is also helful to understanding how a
 node got its way, and paves the way for more complex formatting descisions.
+
+
+# Swapping out Node and Syntax tree for String-oriented routines.
+
+The focus of code right now has been for handling this new feature. However I believe it would be a good
+replacement for `B::Deparse` because of its modularity, and ease with which you can see what's going on.
+The template specifiers assists separation in traversing code from building string.
+
+Although we produce a full program right now, we can speed thing up by not storing the additional tree information.
+For that you would use the OO aspect and replace SyntaxTree and Node with suitable stripped down replacements.

@@ -301,11 +301,13 @@ use constant ASSIGN => 2; # operation OP has a =OP variant
 use Config;
 my $is_cperl = $Config::Config{usecperl};
 
+if ($] >= 5.015000) {
+    # FIXME is it starting in cperl 5.26+ which add this?
+    $PP_MAPFNS{'srefgen'} = 'pp_refgen';
+}
 if ($is_cperl) {
     # FIXME reconcile differences in cperl. Maybe cperl is right?
     delete $PP_MAPFNS{'chdir'};
-    # FIXME is it starting in cperl 5.26+ which add this?
-    $PP_MAPFNS{'srefgen'} = 'refgen';
 }
 
 if ($] < 5.012000) {
