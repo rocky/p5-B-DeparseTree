@@ -885,6 +885,7 @@ sub mapop
     my @nodes;
     my ($fmt, $first_arg_fmt);
     my $is_block;
+    my $type = "map $name";
 
     if (B::Deparse::is_scope $code_block) {
 	$code_block_node = $self->deparse($code_block, 0, $op);
@@ -893,11 +894,13 @@ sub mapop
 	# };
 	# $first_arg_fmt = '{ %F }';
 	$first_arg_fmt = '{ %c }';
+	$type .= " block";
 	$is_block = 1;
 
     } else {
 	$code_block_node = $self->deparse($code_block, 24, $op);
 	$first_arg_fmt = '%c';
+	$type .= " expr";
 	$is_block = 0;
     }
     push @nodes, $code_block_node;
@@ -912,7 +915,7 @@ sub mapop
     } else {
 	$fmt = "$name $first_arg_fmt %C";
     }
-    my $node = $self->info_from_template("map $name", $op, $fmt,
+    my $node = $self->info_from_template($type, $op, $fmt,
 					 [0, [1, $#nodes, ', ']],
 					 \@nodes, {other_ops => \@skipped_ops});
 
