@@ -1047,44 +1047,6 @@ sub pp_prtf { indirop(@_, "printf") }
 
 sub pp_rand { maybe_targmy(@_, \&unop, "rand") }
 
-# 'x' is weird when the left arg is a list
-sub pp_repeat {
-    my $self = shift;
-    my($op, $cx) = @_;
-    my $left = $op->first;
-    my $right = $op->last;
-    my $eq = "";
-    my $prec = 19;
-    my $other_ops = undef;
-    if ($op->flags & OPf_STACKED) {
-	$eq = "=";
-	$prec = 7;
-    }
-    my @exprs = ();
-    my ($left_info, @body);
-    if (null($right)) {
-	# list repeat; count is inside left-side ex-list
-	$other_ops = [$left->first];
-	my $kid = $left->first->sibling; # skip pushmark
-	for (my $i=0; !null($kid->sibling); $kid = $kid->sibling) {
-	    my $expr = $self->deparse($kid, 6, $op);
-	    push @exprs, $expr;
-	}
-	$right = $kid;
-	@body = @exprs;
-	$left_info = info_from_list($op, $self,
-				    ["(", @exprs, ")"], '', 'repeat_left', {});
-    } else {
-	$left_info = $self->deparse_binop_left($op, $left, $prec);
-    }
-    my $right_info  = $self->deparse_binop_right($op, $right, $prec);
-    my $texts = [$left_info, "x$eq", $right_info];
-    my $info = info_from_list($op, $self, $texts, ' ', 'repeat',
-			      {maybe_parens => [$self, $cx, $prec]});
-    $info->{other_ops} = $other_ops if $other_ops;
-    return $info
-}
-
 sub pp_or  { logop(@_, "or",  2, "||", 10, "unless") }
 sub pp_dor { logop(@_, "//", 10) }
 

@@ -17,12 +17,13 @@ use strict; use warnings;
 package B::DeparseTree::PPfns;
 use Carp;
 use B qw(
-         OPf_STACKED
-         OPpCONST_BARE
-         OPpLVAL_INTRO
-         OPpSORT_INTEGER
-         OPpSORT_NUMERIC
-         OPpSORT_REVERSE
+    OPf_STACKED
+    OPpCONST_BARE
+    OPpLVAL_INTRO
+    OPpREPEAT_DOLIST
+    OPpSORT_INTEGER
+    OPpSORT_NUMERIC
+    OPpSORT_REVERSE
     );
 
 use B::Deparse;
@@ -40,6 +41,7 @@ $VERSION = '3.1.1';
     POSTFIX
     baseop
     binop
+    concat
     deparse_binop_left
     deparse_binop_right
     dq_unop
@@ -54,6 +56,7 @@ $VERSION = '3.1.1';
     matchop
     pfixop
     range
+    repeat
     unop
     );
 
@@ -164,6 +167,29 @@ BEGIN {
 	     'and' => 3,
 	     'or' => 2, 'xor' => 2,
 	    );
+}
+
+# Concatenation or '.' is special because concats-of-concats are
+# optimized to save copying by making all but the first concat
+# stacked. The effect is as if the programmer had written:
+#   ($a . $b) .= $c'
+# but the above is illegal.
+
+sub concat {
+    my $self = shift;
+    my($op, $cx) = @_;
+    my $left = $op->first;
+    my $right = $op->last;
+    my $eq = "";
+    my $prec = 18;
+    if ($op->flags & OPf_STACKED and $op->first->name ne "concat") {
+	$eq = "=";
+	$prec = 7;
+    }
+    my $lhs = $self->deparse_binop_left($op, $left, $prec);
+    my $rhs  = $self->deparse_binop_right($op, $right, $prec);
+    return $self->bin_info_join_maybe_parens($op, $lhs, $rhs, ".$eq", " ", $cx, $prec,
+					     'real_concat');
 }
 
 sub deparse_binop_left {
@@ -960,6 +986,59 @@ sub matchop
 	$type = 'matchop_unnop';
     }
     return info_from_list($op, $self, \@texts, '', $type, $opts);
+}
+
+# This is the 5.26 version. It is different from earlier versions.
+# Is it compatable/
+#
+# 'x' is weird when the left arg is a list
+sub repeat {
+    my $self = shift;
+    my($op, $cx) = @_;
+    my $left = $op->first;
+    my $right = $op->last;
+    my $eq = "";
+    my $prec = 19;
+    my @other_ops = ();
+    my $left_fmt;
+    my $type = "repeat";
+    my @args_spec = ();
+    my @exprs = ();
+    if ($op->flags & OPf_STACKED) {
+	$eq = "=";
+	$prec = 7;
+    }
+
+    if (null($right)) {
+	# This branch occurs in 5.21.5 and earlier.
+	# A list repeat; count is inside left-side ex-list
+	$type = 'list repeat';
+	push @other_ops, $left->first;
+	my $kid = $left->first->sibling; # skip pushmark
+	for (; !null($kid->sibling); $kid = $kid->sibling) {
+	    push @exprs, $self->deparse($kid, 6, $op);
+	}
+	push @other_ops, $kid;
+	$left_fmt = '(%C)';
+	@args_spec = ([0, $#exprs, ', '], scalar(@exprs));
+    } else {
+	$type = 'repeat';
+	my $dolist = $op->private & OPpREPEAT_DOLIST;
+	push @exprs, $self->deparse_binop_left($op, $left, $dolist ? 1 : $prec);
+	$left_fmt = '%c';
+	if ($dolist) {
+	    $left_fmt = "(%c)";
+	}
+	@args_spec = (0, 1);
+    }
+    push @exprs, $self->deparse_binop_right($op, $right, $prec);
+    my $opname = "x$eq";
+    return $self->info_from_template("$type $opname",
+				     $op, "$left_fmt $opname %c",
+				     \@args_spec,
+				     \@exprs,
+				     {maybe_parens => [$self, $cx, $prec],
+				     other_ops => \@other_ops});
 }
 
 # This handles the category of unary operators, e.g. alarm(), caller(),

@@ -54,12 +54,13 @@ use vars qw(%PP_MAPFNS);
     'break'       => 'unop',
 
     'caller'      => 'unop',
-    'chdir'       => ['maybe_targmy', 'unop'],
+    'chdir'       => ['maybe_targmy', 'unop'], # modified below
     'chr'         => ['maybe_targmy', 'unop'],
     'chroot'      => ['maybe_targmy', 'unop'],
     'close'       => 'unop',
     'closedir'    => 'unop',
     'connect'     => 'listop',
+    'concat'      => ['maybe_targmy', 'concat'],
     'continue'    => 'unop',
 
     'db_open'     => 'listop',
@@ -176,6 +177,7 @@ use vars qw(%PP_MAPFNS);
     'recv'        => 'listop',
     'redo'        => 'loopex',
     'ref'         => 'unop',
+    'repeat'      => ['maybe_targmy', 'repeat'], # modified below
     'reset'       => 'unop',
     'return'      => 'listop',
     'reverse'     => 'listop',
@@ -207,7 +209,6 @@ use vars qw(%PP_MAPFNS);
     'sprotoent'   => ['unop',   "setprotoent"],
     'spwent'      => ['baseop', "setpwent"],
     'srand'       => 'unop',
-    'srefgen'     => 'refgen',
     'sselect'     => ['listop', "select"],
     'sservent'    => ['unop',   "setservent"],
     'ssockopt'    => ['listop', "setsockopt"],
@@ -235,11 +236,21 @@ use vars qw(%PP_MAPFNS);
     'warn'        => 'listop',
     );
 
+
+# Version specific modification are next...
 use Config;
 my $is_cperl = $Config::Config{usecperl};
+
 if ($is_cperl) {
     # FIXME reconcile differences in cperl. Maybe cperl is right?
     delete $PP_MAPFNS{'chdir'};
+    # FIXME is it starting in cperl 5.26+ which add this?
+    $PP_MAPFNS{'srefgen'} = 'refgen';
+}
+
+if ($] < 5.012000) {
+    # Earlier than 5.12 doesn't use "targmy"?
+    $PP_MAPFNS{'repeat'} = 'repeat';
 }
 
 @EXPORT = qw(%PP_MAPFNS);

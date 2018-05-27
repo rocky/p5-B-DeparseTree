@@ -22,7 +22,7 @@ use Carp;
 use B qw(class main_root main_start main_cv svref_2object opnumber perlstring
 	 OPf_KIDS OPf_REF OPf_STACKED OPf_SPECIAL OPf_MOD OPf_PARENS
 	 OPf_WANT OPf_WANT_VOID OPf_WANT_SCALAR OPf_WANT_LIST
-	 OPpEXISTS_SUB OPpSORT_NUMERIC OPpSORT_INTEGER OPpREPEAT_DOLIST
+	 OPpEXISTS_SUB OPpSORT_NUMERIC OPpSORT_INTEGER
 	 OPpLVAL_INTRO OPpOUR_INTRO OPpENTERSUB_AMPER OPpSLICE OPpCONST_BARE
 	 OPpSORT_REVERSE OPpMULTIDEREF_EXISTS OPpMULTIDEREF_DELETE
 	 OPpTRANS_SQUASH OPpTRANS_DELETE OPpTRANS_COMPLEMENT OPpTARGET_MY
@@ -414,67 +414,11 @@ sub pp_entereval {
     )
 }
 
-sub pp_telldir { unop(@_, "telldir") }
-
 sub pp_dofile
 {
     my $code = unop(@_, "do", 1); # llafr does not apply
     if ($code =~ s/^((?:CORE::)?do) \{/$1({/) { $code .= ')' }
     $code;
-}
-# Different from earlier versions. The beakuut though
-# may be before 5.26
-sub pp_repeat { maybe_targmy(@_, \&repeat) }
-
-# Different in 5.26 from earlier versions
-# 'x' is weird when the left arg is a list
-sub repeat {
-    my $self = shift;
-    my($op, $cx) = @_;
-    my $left = $op->first;
-    my $right = $op->last;
-    my $eq = "";
-    my $prec = 19;
-    my @other_ops = ();
-    my $left_fmt;
-    my $type = "repeat";
-    my @args_spec = ();
-    my @exprs = ();
-    if ($op->flags & OPf_STACKED) {
-	$eq = "=";
-	$prec = 7;
-    }
-
-    if (null($right)) {
-	# list repeat; count is inside left-side ex-list
-	# in 5.21.5 and earlier
-	$type = 'list repeat';
-	push @other_ops, $left->first;
-	my $kid = $left->first->sibling; # skip pushmark
-	for (; !null($kid->sibling); $kid = $kid->sibling) {
-	    push @exprs, $self->deparse($kid, 6);
-	}
-	push @other_ops, $kid;
-	$left_fmt = '(%C)';
-	@args_spec = ([0, $#exprs, ', '], scalar(@exprs));
-    } else {
-	$type = 'repeat';
-	my $dolist = $op->private & OPpREPEAT_DOLIST;
-	push @exprs, $self->deparse_binop_left($op, $left, $dolist ? 1 : $prec);
-	$left_fmt = '%c';
-	if ($dolist) {
-	    $left_fmt = "(%c)";
-	}
-	@args_spec = (0, 1);
-    }
-    push @exprs, $self->deparse_binop_right($op, $right, $prec);
-    my $opname = "x$eq";
-    return $self->info_from_template("$type $opname",
-				     $op, "$left_fmt $opname %c",
-				     \@args_spec,
-				     \@exprs,
-				     {maybe_parens => [$self, $cx, $prec],
-				     other_ops => \@other_ops});
 }
 
 sub pp_leavegiven { givwhen(@_, $_[0]->keyword("given")); }
@@ -587,27 +531,6 @@ sub bin_info_join_maybe_parens($$$$$$$$$) {
     my $info = bin_info_join($self, $op, $lhs, $rhs, $mid, $sep, $type);
     $info->{text} = $self->maybe_parens($info->{text}, $cx, $prec);
     return $info;
-}
-
-# '.' is special because concats-of-concats are optimized to save copying
-# by making all but the first concat stacked. The effect is as if the
-# programmer had written '($a . $b) .= $c', except legal.
-sub pp_concat { maybe_targmy(@_, \&real_concat) }
-sub real_concat {
-    my $self = shift;
-    my($op, $cx) = @_;
-    my $left = $op->first;
-    my $right = $op->last;
-    my $eq = "";
-    my $prec = 18;
-    if ($op->flags & OPf_STACKED and $op->first->name ne "concat") {
-	$eq = "=";
-	$prec = 7;
-    }
-    my $lhs = $self->deparse_binop_left($op, $left, $prec);
-    my $rhs  = $self->deparse_binop_right($op, $right, $prec);
-    return $self->bin_info_join_maybe_parens($op, $lhs, $rhs, ".$eq", " ", $cx, $prec,
-					     'real_concat');
 }
 
 sub logassignop
