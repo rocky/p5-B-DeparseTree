@@ -74,6 +74,8 @@ use B::Deparse;
 *meth_pad_subs = *B::Deparse::pad_subs;
 *meth_rclass_sv = *B::Deparse::meth_rclass_sv;
 *meth_sv = *B::Deparse::meth_sv;
+*padany = *B::Deparse::padany;
+*padname = *B::Deparse::padname;
 *padname_sv = *B::Deparse::padname_sv;
 *padval = *B::Deparse::padval;
 *re_flags = *B::Deparse::re_flags;
@@ -634,18 +636,6 @@ sub for_loop {
     my $s = $op->sibling;
     my $ll = $s->name eq "unstack" ? $s->sibling : $s->first->sibling;
     return $self->loop_common($ll, $cx, $init);
-}
-
-sub padname {
-    my $self = shift;
-    my $targ = shift;
-    return $self->padname_sv($targ)->PVX;
-}
-
-sub padany {
-    my $self = shift;
-    my $op = shift;
-    return substr($self->padname($op->targ), 1); # skip $/@/%
 }
 
 sub pp_padsv {

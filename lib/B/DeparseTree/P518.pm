@@ -41,6 +41,8 @@ use B::Deparse;
 *begin_is_use = *B::Deparse::begin_is_use;
 *const_sv = *B::Deparse::const_sv;
 *find_scope_en = *B::Deparse::find_scope_en;
+*padany = *B::Deparse::padany;
+*padname = *B::Deparse::padname;
 *gv_name = *B::Deparse::gv_name;
 *padname_sv = *B::Deparse::padname_sv;
 *padval = *B::Deparse::padval;
@@ -745,18 +747,6 @@ sub for_loop {
     my $s = $op->sibling;
     my $ll = $s->name eq "unstack" ? $s->sibling : $s->first->sibling;
     return $self->loop_common($ll, $cx, $init);
-}
-
-sub padname {
-    my $self = shift;
-    my $targ = shift;
-    return $self->padname_sv($targ)->PVX;
-}
-
-sub padany {
-    my $self = shift;
-    my $op = shift;
-    return substr($self->padname($op->targ), 1); # skip $/@/%
 }
 
 sub pp_padsv {

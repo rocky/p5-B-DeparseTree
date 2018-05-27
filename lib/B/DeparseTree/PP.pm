@@ -36,11 +36,13 @@ use B::Deparse;
 
 # Copy unchanged functions from B::Deparse
 *lex_in_scope = *B::Deparse::lex_in_scope;
-*real_negate = *B::Deparse::real_negate;
+*padany = *B::Deparse::padany;
+*padname = *B::Deparse::padname;
 *pp_anonhash = *B::Deparse::pp_anonhash;
 *pp_anonlist = *B::Deparse::pp_anonlist;
-*pp_negate = *B::Deparse::pp_negate;
 *pp_i_negate = *B::Deparse::pp_i_negate;
+*pp_negate = *B::Deparse::pp_negate;
+*real_negate = *B::Deparse::real_negate;
 
 use B qw(
     class
