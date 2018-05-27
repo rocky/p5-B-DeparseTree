@@ -344,7 +344,8 @@ sub template_engine($$$$)
 	    }
 	    my $index = $indexes->[$i++];
 	    if ($index >= scalar @args) {
-		Carp::confess("$index in $start_fmt for %c is too large; should be less than @args");
+		Carp::confess("$index in $start_fmt for %c is too large; should be less " .
+			      "than scalar(@args)");
 	    }
 	    my $str;
 	    my ($info, $str) = $self->get_info_and_str($index, $args);

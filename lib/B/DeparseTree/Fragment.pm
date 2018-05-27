@@ -219,6 +219,7 @@ sub extract_node_info($)
     my $child_text = $info->{text};
     my $parent_text = undef;
     my $candidate_pair = undef;
+    my $marked_position = undef;
 
     # Some opcodes like pushmark , padrange, and null,
     # don't have an well-defined correspondence to a string in the
@@ -228,6 +229,7 @@ sub extract_node_info($)
     # You can tell these nodes because they have a "position" field.
     if (exists $info->{position}) {
 	my $found_pos = $info->{position};
+	$marked_position = $found_pos;
 	$parent_text = $child_text;
 	$child_text = substr($parent_text,
 			     $found_pos->[0], $found_pos->[1]);
@@ -304,8 +306,14 @@ sub extract_node_info($)
 	}
 
 	if (defined($found_pos)) {
-	    my $parent_underline = ' ' x $found_pos->[0];
-	    $parent_underline .= '-' x $found_pos->[1];
+	    my $parent_underline;
+	    if ($marked_position) {
+		$parent_underline = ' ' x ($found_pos->[0] + $marked_position->[0]);
+		$parent_underline .= '-' x $marked_position->[1];
+	    } else {
+		$parent_underline = ' ' x $found_pos->[0];
+		$parent_underline .= '-' x $found_pos->[1];
+	    }
 	    return trim_line_pair($str, $child_text, $parent_underline, $found_pos->[0]);
 	}
 	$result = $str;

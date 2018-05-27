@@ -351,6 +351,12 @@ sub maybe_local_str
     }
 }
 
+sub func_needs_parens($$$$$)
+{
+    my($self, $first_param, $cx, $prec) = @_;
+    return ($prec <= $cx or substr($first_param->{text}, 0, 1) eq "(" or $self->{'parens'});
+}
+
 # FIXME: go back to default B::Deparse routine and return a string.
 sub maybe_parens_func($$$$$)
 {

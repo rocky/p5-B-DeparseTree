@@ -44,6 +44,7 @@ $VERSION = '3.1.1';
     concat
     deparse_binop_left
     deparse_binop_right
+    deparse_op_siblings
     dq_unop
     filetest
     givwhen
@@ -74,6 +75,26 @@ BEGIN {
 	*{$_} = sub () {0} unless *{$_}{CODE};
     }
 }
+
+# Iterate via sibling links a list of OP nodes starting with
+# $first. Each OP is deparsed, with $op and $precedence each to get a
+# node. Then the "prev" field in the node is set, and finally it is
+# pushed onto the end of the $exprs reference ARRAY.
+sub deparse_op_siblings($$$$$)
+{
+    my ($self, $exprs, $kid, $op, $precedence) = @_;
+    my $prev_expr = undef;
+    $prev_expr = $exprs->[-1] if scalar @{$exprs};
+    for ( ; !null($kid); $kid = $kid->sibling) {
+	my $expr = $self->deparse($kid, $precedence, $op);
+	if (defined $expr) {
+	    $expr->{prev_expr} = $prev_expr;
+	    $prev_expr = $expr;
+	    push @$exprs, $expr;
+	}
+    }
+}
+
 
 # routines implementing classes of ops
 
@@ -428,16 +449,7 @@ sub listop
 	$kid = $kid->sibling;
     }
 
-    # FIXME: turn into a function;
-    my $prev_expr = $exprs[-1];
-    for ( ; !null($kid); $kid = $kid->sibling) {
-	my $expr = $self->deparse($kid, 6, $op);
-	if (defined $expr) {
-	    $expr->{prev_expr} = $prev_expr;
-	    $prev_expr = $expr;
-	    push @exprs, $expr;
-	}
-    }
+    $self->deparse_op_siblings(\@exprs, $kid, $op, 6);
 
     if ($name eq "reverse" && ($op->private & B::OPpREVERSE_INPLACE)) {
 	my $texts =  [$exprs[0->{text}], '=',
@@ -769,10 +781,11 @@ sub indirop
     # FIXME: turn into a function;
     my $prev_expr = $exprs[-1];
     for (; !null($kid); $kid = $kid->sibling) {
+	# This prevents us from using deparse_op_siblings
 	my $high_prec = (!$fmt && $kid == $firstkid
 			 && $name eq "sort"
 			 && $firstkid->name =~ /^enter(xs)?sub/);
-	$expr = $self->deparse($kid, $high_prec ? 16 : 6);
+	$expr = $self->deparse($kid, $high_prec ? 16 : 6, $op);
 	if (defined $expr) {
 	    $expr->{prev_expr} = $prev_expr;
 	    $prev_expr = $expr;
@@ -845,6 +858,7 @@ sub indirop
 	}
     }
 
+    # Handle skipped ops
     my @new_ops;
     my $position = [0, length($name2)];
     my $str = $node->{text};
@@ -865,48 +879,64 @@ sub mapop
     my @skipped_ops = ($kid, $kid->first);
     $kid = $kid->first->sibling; # skip a pushmark
 
-    my $code = $kid->first; # skip a null
+    my $code_block = $kid->first; # skip a null
 
-    my $code_info;
+    my $code_block_node;
+    my @nodes;
+    my ($fmt, $first_arg_fmt);
+    my $is_block;
 
-    my @block_texts = ();
-    my @exprs_texts = ();
-    if (B::Deparse::is_scope $code) {
-	$code_info = $self->deparse($code, 0, $op);
-	(my $text = $code_info->{text})=~ s/^\n//;  # remove first \n in block.
-	@block_texts = ('{', $text, '}');
+    if (B::Deparse::is_scope $code_block) {
+	$code_block_node = $self->deparse($code_block, 0, $op);
+	# my $transform_fn = sub {
+	#     ($_[0]->{text})=~ s/^\n//;  # remove first \n in block.
+	# };
+	# $first_arg_fmt = '{ %F }';
+	$first_arg_fmt = '{ %c }';
+	$is_block = 1;
+
     } else {
-	$code_info = $self->deparse($code, 24, $op);
-	@exprs_texts = ($code_info->{text});
+	$code_block_node = $self->deparse($code_block, 24, $op);
+	$first_arg_fmt = '%c';
+	$is_block = 0;
     }
-    my @body = ($code_info);
+    push @nodes, $code_block_node;
+
 
     push @skipped_ops, $kid;
     $kid = $kid->sibling;
-    my($expr, @exprs);
+    $self->deparse_op_siblings(\@nodes, $kid, $op, 6);
 
-    # FIXME: turn into a function;
-    my $prev_expr = $exprs[-1];
-    for (; !null($kid); $kid = $kid->sibling) {
-	$expr = $self->deparse($kid, 6, $op);
-	if (defined $expr) {
-	    $expr->{prev_expr} = $prev_expr;
-	    $prev_expr = $expr ;
-	    push @exprs, $expr
-	}
+    if ($self->func_needs_parens($name, $nodes[1], $cx, 5)) {
+	$fmt = "$name $first_arg_fmt (%C)";
+    } else {
+	$fmt = "$name $first_arg_fmt %C";
     }
+    my $node = $self->info_from_template("map $name", $op, $fmt,
+					 [0, [1, $#nodes, ', ']],
+					 \@nodes, {other_ops => \@skipped_ops});
 
-    push @body, @exprs;
-    push @exprs_texts, map $_->{text}, @exprs;
-    my $opts = {
-	body => \@body,
-	other_ops => \@skipped_ops,
-    };
-    my $params = join(', ', @exprs_texts);
-    $params = join(" ", @block_texts) . ' ' . $params if @block_texts;
-    my @texts = $self->maybe_parens_func($name, $params, $cx, 5);
-    return info_from_list $op, $self, \@texts, '', 'mapop', $opts;
+    # Handle skipped ops
+    my @new_ops;
+    my $str = $node->{text};
+    my $position;
+    if ($is_block) {
+	# Make the position be the position of the "{".
+	$position = [length($name)+1, 1];
+    } else {
+	# Make the position be the name portion
+	$position = [0, length($name)];
+    }
+    my @skipped_nodes;
+    for my $skipped_op (@skipped_ops) {
+	my $new_op = $self->info_from_string($op->name, $skipped_op, $str,
+					     {position => $position});
+	push @new_ops, $new_op;
+    }
+    $node->{other_ops} = \@new_ops;
+    return $node;
 }
+
 
 # osmic acid -- see osmium tetroxide
 
@@ -999,7 +1029,7 @@ sub repeat {
     my $right = $op->last;
     my $eq = "";
     my $prec = 19;
-    my @other_ops = ();
+    my @skipped_ops = ();
     my $left_fmt;
     my $type = "repeat";
     my @args_spec = ();
@@ -1013,12 +1043,10 @@ sub repeat {
 	# This branch occurs in 5.21.5 and earlier.
 	# A list repeat; count is inside left-side ex-list
 	$type = 'list repeat';
-	push @other_ops, $left->first;
+
 	my $kid = $left->first->sibling; # skip pushmark
-	for (; !null($kid->sibling); $kid = $kid->sibling) {
-	    push @exprs, $self->deparse($kid, 6, $op);
-	}
-	push @other_ops, $kid;
+	push @skipped_ops, $left->first, $kid;
+	$self->deparse_op_siblings(\@exprs, $kid, $op, 6);
 	$left_fmt = '(%C)';
 	@args_spec = ([0, $#exprs, ', '], scalar(@exprs));
     } else {
@@ -1033,12 +1061,36 @@ sub repeat {
     }
     push @exprs, $self->deparse_binop_right($op, $right, $prec);
     my $opname = "x$eq";
-    return $self->info_from_template("$type $opname",
-				     $op, "$left_fmt $opname %c",
-				     \@args_spec,
-				     \@exprs,
-				     {maybe_parens => [$self, $cx, $prec],
-				     other_ops => \@other_ops});
+    my $node = $self->info_from_template("$type $opname",
+					 $op, "$left_fmt $opname %c",
+					 \@args_spec,
+					 \@exprs,
+					 {maybe_parens => [$self, $cx, $prec],
+					  other_ops => \@skipped_ops});
+
+    if (@skipped_ops) {
+	# if we have skipped ops like pushmark, we will use the position
+	# of the "x" as the part it represents.
+	my @new_ops;
+	my $str = $node->{text};
+	my $right_text = "$opname " . $exprs[-1]->{text};
+	my $start = rindex($str, $right_text);
+	my $position;
+	if ($start >= 0) {
+	    $position = [$start, length($opname)];
+	} else {
+	    $position = [0, length($str)];
+	}
+	my @skipped_nodes;
+	for my $skipped_op (@skipped_ops) {
+	    my $new_op = $self->info_from_string($op->name, $skipped_op, $str,
+						 {position => $position});
+	    push @new_ops, $new_op;
+	}
+	$node->{other_ops} = \@new_ops;
+    }
+
+    return $node;
 }
 
 # This handles the category of unary operators, e.g. alarm(), caller(),

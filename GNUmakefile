@@ -123,6 +123,9 @@ check-cautious: test-unit
 	   break; \
 	fi; done)
 
+#: Same as check-roundtrip
+test-roundtrip: check-roundtrip
+
 #: Run Perl's own tests (after decompilation)
 check-roundtrip:
 	cd t/roundtrip && perl runtests.pl
