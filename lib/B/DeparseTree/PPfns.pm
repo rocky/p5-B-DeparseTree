@@ -105,6 +105,7 @@ sub baseop
     return $self->info_from_string("baseop $name", $op, $self->keyword($name));
 }
 
+# Handle binary operators like +, and assignment
 sub binop
 {
 
@@ -140,7 +141,7 @@ sub binop
 	$rhs->{prev_expr} = $lhs;
     }
 
-    $type = $type || 'binary_operator';
+    $type = $type || 'binary operator';
     $type .= " $opname$eq";
     my $node = $self->info_from_template($type, $op, "%c $opname$eq %c",
 					 undef, [$lhs, $rhs],
@@ -976,6 +977,118 @@ map($matchwords{join "", sort split //, $_} = $_, 'cig', 'cog', 'cos', 'cogs',
     'sig', 'six', 'smog', 'so', 'soc', 'sog', 'xi');
 
 sub matchop
+{
+    $] < 5.022 ? matchop_older(@_) : matchop_newer(@_);
+}
+
+# matchop for Perl 5.22 and later
+sub matchop_newer
+{
+    my($self, $op, $cx, $name, $delim) = @_;
+    my $kid = $op->first;
+    my $info = {};
+    my @body = ();
+    my ($binop, $var_str, $re_str) = ("", "", "");
+    my $var_node;
+    my $re;
+    if ($op->flags & B::OPf_STACKED) {
+	$binop = 1;
+	$var_node = $self->deparse($kid, 20, $op);
+	$var_str = $var_node->{text};
+	push @body, $var_node;
+	$kid = $kid->sibling;
+    }
+    # not $name; $name will be 'm' for both match and split
+    elsif ($op->name eq 'match' and my $targ = $op->targ) {
+	$binop = 1;
+	$var_str = $self->padname($targ);
+    }
+    my $quote = 1;
+    my $pmflags = $op->pmflags;
+    my $rhs_bound_to_defsv;
+    my ($cv, $bregexp);
+    my $have_kid = !null $kid;
+    # Check for code blocks first
+    if (not B::Deparse::null my $code_list = $op->code_list) {
+	$re = $self->code_list($code_list,
+			       $op->name eq 'qr'
+				   ? $self->padval(
+				         $kid->first   # ex-list
+					     ->first   #   pushmark
+					     ->sibling #   entersub
+					     ->first   #     ex-list
+					     ->first   #       pushmark
+					     ->sibling #       srefgen
+					     ->first   #         ex-list
+					     ->first   #           anoncode
+					     ->targ
+				     )
+				   : undef);
+    } elsif (${$bregexp = $op->pmregexp} && ${$cv = $bregexp->qr_anoncv}) {
+	my $patop = $cv->ROOT      # leavesub
+		       ->first     #   qr
+		       ->code_list;#     list
+	$re = $self->code_list($patop, $cv);
+    } elsif (!$have_kid) {
+	$re_str = B::Deparse::re_uninterp(B::Deparse::escape_str(B::Deparse::re_unback($op->precomp)));
+    } elsif ($kid->name ne 'regcomp') {
+        if ($op->name eq 'split') {
+            # split has other kids, not just regcomp
+            $re = re_uninterp(escape_re(re_unback($op->precomp)));
+        } else {
+	    carp("found ".$kid->name." where regcomp expected");
+	}
+    } else {
+	($re, $quote) = $self->regcomp($kid, 21);
+	push @body, $re;
+	$re_str = $re->{text};
+	my $matchop = $kid->first;
+	if ($matchop->name eq 'regcrest') {
+	    $matchop = $matchop->first;
+	}
+	if ($matchop->name =~ /^(?:match|transr?|subst)\z/
+	   && $matchop->flags & B::OPf_SPECIAL) {
+	    $rhs_bound_to_defsv = 1;
+	}
+    }
+    my $flags = '';
+    $flags .= "c" if $pmflags & B::PMf_CONTINUE;
+    $flags .= $self->re_flags($op);
+    $flags = join '', sort split //, $flags;
+    $flags = $matchwords{$flags} if $matchwords{$flags};
+
+    if ($pmflags & B::PMf_ONCE) {
+	# only one kind of delimiter works here
+	$re_str =~ s/\?/\\?/g;
+	# explicit 'm' is required
+	$re_str = $self->keyword("m") . "?$re_str?";
+    } elsif ($quote) {
+	my $re = $self->single_delim($kid, $name, $delim, $re_str);
+	push @body, $re;
+	$re_str = $re->{text};
+    }
+    my $opts = {body => \@body};
+    my @texts;
+    $re_str .= $flags if $quote;
+    my $type;
+    if ($binop) {
+	# FIXME: use template string
+	if ($rhs_bound_to_defsv) {
+	    @texts = ($var_str, ' =~ ($_ =~ ', $re_str, ')');
+	} else {
+	    @texts = ($var_str, ' =~ ', $re_str);
+	}
+	$opts->{maybe_parens} = [$self, $cx, 20];
+	$type = 'binary match ~=';
+    } else {
+	@texts = ($re_str);
+	$type = 'unary ($_) match';
+    }
+    return info_from_list($op, $self, \@texts, '', $type, $opts);
+}
+
+# matchop for Perl before 5.22
+sub matchop_older
 {
     my($self, $op, $cx, $name, $delim) = @_;
     my $kid = $op->first;

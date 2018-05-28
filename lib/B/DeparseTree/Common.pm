@@ -1685,24 +1685,32 @@ sub single_delim($$$$$) {
 				     "$default%c$default", [0],
 				     [$str])
 	if $default and index($str, $default) == -1;
+    my $coreq = $self->keyword($q); # maybe CORE::q
     if ($q ne 'qr') {
 	(my $succeed, $str) = balanced_delim($str);
-	return info_from_list($op, $self, [$q, $str], '', "string $q .. $q", {}) if $succeed;
+	return $self->info_from_string("string $q", $op, "$coreq$str")
+	    if $succeed;
     }
     for my $delim ('/', '"', '#') {
-	$self->info_from_template("string qr$delim .. $delim",
-				  $op, "qr$delim%c$delim", [0], [$str])
+	$self->info_from_string("string $q $delim$delim", $op, "qr$delim$str$delim")
 	    if index($str, $delim) == -1;
     }
     if ($default) {
-	my $transform_fn = sub {s/$_[0]/\\$_[0]/g};
-	return $self->info_from_template("string \\-escape $default",
+	my $transform_fn = sub {
+	    s/$_[0]/\\$_[0]/g;
+	    return $_[0];
+	};
+
+	return $self->info_from_template("string $q $default$default",
 					 $op, "$default%F$default",
 					 [[0, $transform_fn]], [$str]);
     } else {
-	my $transform_fn = sub {$_[0] =~ s[/][\\/]g};
-	return $self->info_from_template("string q // escape",
-					 $op, "$default%F$default",
+	my $transform_fn = sub {
+	    $_[0] =~ s[/][\\/]g;
+	    return $_[0];
+	};
+	return $self->info_from_template("string $q //",
+					 $op, "$coreq/%F/",
 					 [[0, $transform_fn]], [$str]);
     }
 }
