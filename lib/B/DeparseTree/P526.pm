@@ -1831,13 +1831,15 @@ sub pp_subst
     my $repl_text = $repl_info->{text};
     my $opts->{other_ops} = \@other_ops if @other_ops;
     my $find_replace_re = double_delim($re, $repl_text);
-    my $args = [$var, $find_replace_re];
+    my $args;
     my $args_spec = [0, 1];
     if ($binop) {
+	$args = [$var, $find_replace_re];
 	my $fmt = "%c =~ $core_s%c$flags";
 	return $self->info_from_template("=~ s///", $op, $fmt, $args_spec, $args,
 					 {maybe_parens => [$self, $cx, 20]});
     } else {
+	$args = [$find_replace_re];
 	my $fmt = "$core_s%c$flags";
 	return $self->info_from_template("s///", $op, $fmt, $args_spec, $args, {});
     }

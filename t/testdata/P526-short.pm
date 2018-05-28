@@ -468,5 +468,4 @@ tr/X//s;
 tr/X//r;
 ####
 use feature 'unicode_strings';
-# SKIP ?1
 s/X//d;

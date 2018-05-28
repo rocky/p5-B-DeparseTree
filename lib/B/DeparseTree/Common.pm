@@ -1175,7 +1175,7 @@ sub deparse
 		    $info = $self->$meth($op, $cx, @args);
 		}
 	    } else {
-		$info = $self->$meth($op, $cx, $args[0]);
+		$info = $self->$meth($op, $cx, @args);
 	    }
 	} else {
 	    # Simple case: one simple call of the
