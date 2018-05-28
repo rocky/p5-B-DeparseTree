@@ -29,6 +29,8 @@ use B qw(
 use B::Deparse;
 
 # Copy unchanged functions from B::Deparse
+*double_delim = *B::Deparse::double_delim;
+*escape_re = *B::Deparse::escape_re;
 *rv2gv_or_string = *B::Deparse::rv2gv_or_string;
 
 use B::DeparseTree::Common;
@@ -59,6 +61,8 @@ $VERSION = '3.1.1';
     pfixop
     range
     repeat
+    subst_newer
+    subst_older
     unop
     );
 
@@ -68,7 +72,7 @@ BEGIN {
     # be to fake up a dummy constant that will never actually be true.
     foreach (qw(OPpSORT_INPLACE OPpSORT_DESCEND OPpITER_REVERSED
                 OPpCONST_NOVER OPpPAD_STATE PMf_SKIPWHITE RXf_SKIPWHITE
-		RXf_PMf_CHARSET RXf_PMf_KEEPCOPY
+		RXf_PMf_CHARSET RXf_PMf_KEEPCOPY PMf_EVAL PMf_EXTENDED
 		CVf_LOCKED OPpREVERSE_INPLACE OPpSUBSTR_REPL_FIRST
 		PMf_NONDESTRUCT OPpCONST_ARYBASE OPpEVAL_BYTES)) {
 	eval { import B $_ };
@@ -1067,7 +1071,7 @@ sub matchop_newer
 	push @body, $re;
 	$re_str = $re->{text};
     }
-    my $opts = {body => \@body};
+    my $opts = {};
     my @texts;
     $re_str .= $flags if $quote;
     my $type;
@@ -1234,6 +1238,163 @@ sub repeat {
     }
 
     return $node;
+}
+
+# Kind of silly, but we prefer, subst regexp flags joined together to
+# make words. For example: s/a/b/xo => s/a/b/ox
+
+# oxime -- any of various compounds obtained chiefly by the action of
+# hydroxylamine on aldehydes and ketones and characterized by the
+# bivalent grouping C=NOH [Webster's Tenth]
+
+my %substwords;
+map($substwords{join "", sort split //, $_} = $_, 'ego', 'egoism', 'em',
+    'es', 'ex', 'exes', 'gee', 'go', 'goes', 'ie', 'ism', 'iso', 'me',
+    'meese', 'meso', 'mig', 'mix', 'os', 'ox', 'oxime', 'see', 'seem',
+    'seg', 'sex', 'sig', 'six', 'smog', 'sog', 'some', 'xi', 'rogue',
+    'sir', 'rise', 'smore', 'more', 'seer', 'rome', 'gore', 'grim', 'grime',
+    'or', 'rose', 'rosie');
+
+# FIXME 522 and 526 could probably be combined or common parts pulled out.
+sub subst_older
+{
+    my($self, $op, $cx) = @_;
+    my $kid = $op->first;
+    my($binop, $var, $re, @other_ops) = ("", "", "", ());
+    my ($repl, $repl_info);
+
+    if ($op->flags & OPf_STACKED) {
+	$binop = 1;
+	$var = $self->deparse($kid, 20, $op);
+	$kid = $kid->sibling;
+    }
+    my $flags = "";
+    my $pmflags = $op->pmflags;
+    if (null($op->pmreplroot)) {
+	$repl = $kid;
+	$kid = $kid->sibling;
+    } else {
+	push @other_ops, $op->pmreplroot;
+	$repl = $op->pmreplroot->first; # skip substcont
+    }
+    while ($repl->name eq "entereval") {
+	push @other_ops, $repl;
+	$repl = $repl->first;
+	    $flags .= "e";
+    }
+    {
+	local $self->{in_subst_repl} = 1;
+	if ($pmflags & PMf_EVAL) {
+	    $repl_info = $self->deparse($repl->first, 0, $repl);
+	} else {
+	    $repl_info = $self->dq($repl);
+	}
+    }
+    my $extended = ($pmflags & PMf_EXTENDED);
+    if (null $kid) {
+	my $unbacked = B::Deparse::re_unback($op->precomp);
+	if ($extended) {
+	    $re = B::Deparse::re_uninterp_extended(escape_extended_re($unbacked));
+	}
+	else {
+	    $re = B::Deparse::re_uninterp(B::Deparse::escape_str($unbacked));
+	}
+    } else {
+	my ($re_info, $junk) = $self->regcomp($kid, 1, $extended);
+	$re = $re_info->{text};
+    }
+    $flags .= "r" if $pmflags & PMf_NONDESTRUCT;
+    $flags .= "e" if $pmflags & PMf_EVAL;
+    $flags .= $self->re_flags($op);
+    $flags = join '', sort split //, $flags;
+    $flags = $substwords{$flags} if $substwords{$flags};
+    my $core_s = $self->keyword("s"); # maybe CORE::s
+
+    # FIXME: we need to attach the $repl_info someplace.
+    my $repl_text = $repl_info->{text};
+    my $find_replace_re = double_delim($re, $repl_text);
+    my $opts = {};
+    $opts->{other_ops} = \@other_ops if @other_ops;
+    if ($binop) {
+	return $self->info_from_template("=~ s///", $op,
+					 "%c =~ ${core_s}%c$flags",
+					 undef,
+					 [$var, $find_replace_re],
+					 {maybe_parens => [$self, $cx, 20]});
+    } else {
+	return $self->info_from_string("s///", $op, "${core_s}${find_replace_re}$flags");
+    }
+    Carp::confess("unhandled condition in pp_subst");
+}
+
+sub subst_newer
+{
+    my($self, $op, $cx) = @_;
+    my $kid = $op->first;
+    my($binop, $var, $re, @other_ops) = ("", "", "", ());
+    my ($repl, $repl_info);
+
+    if ($op->flags & OPf_STACKED) {
+	$binop = 1;
+	$var = $self->deparse($kid, 20, $op);
+	$kid = $kid->sibling;
+    }
+    elsif (my $targ = $op->targ) {
+	$binop = 1;
+	$var = $self->padname($targ);
+    }
+    my $flags = "";
+    my $pmflags = $op->pmflags;
+    if (null($op->pmreplroot)) {
+	$repl = $kid;
+	$kid = $kid->sibling;
+    } else {
+	push @other_ops, $op->pmreplroot;
+	$repl = $op->pmreplroot->first; # skip substcont
+    }
+    while ($repl->name eq "entereval") {
+	push @other_ops, $repl;
+	$repl = $repl->first;
+	    $flags .= "e";
+    }
+    {
+	local $self->{in_subst_repl} = 1;
+	if ($pmflags & PMf_EVAL) {
+	    $repl_info = $self->deparse($repl->first, 0, $repl);
+	} else {
+	    $repl_info = $self->dq($repl);
+	}
+    }
+    if (not null my $code_list = $op->code_list) {
+	$re = $self->code_list($code_list);
+    } elsif (null $kid) {
+	$re = B::Deparse::re_uninterp(escape_re(B::Deparse::re_unback($op->precomp)));
+    } else {
+	my ($re_info, $junk) = $self->regcomp($kid, 1);
+	$re = $re_info->{text};
+    }
+    $flags .= "r" if $pmflags & PMf_NONDESTRUCT;
+    $flags .= "e" if $pmflags & PMf_EVAL;
+    $flags .= $self->re_flags($op);
+    $flags = join '', sort split //, $flags;
+    $flags = $substwords{$flags} if $substwords{$flags};
+    my $core_s = $self->keyword("s"); # maybe CORE::s
+
+    # FIXME: we need to attach the $repl_info someplace.
+    my $repl_text = $repl_info->{text};
+    my $opts->{other_ops} = \@other_ops if @other_ops;
+    my $find_replace_re = double_delim($re, $repl_text);
+
+    if ($binop) {
+	return $self->info_from_template("=~ s///", $op,
+					 "%c =~ ${core_s}%c$flags",
+					 undef,
+					 [$var, $find_replace_re],
+					 {maybe_parens => [$self, $cx, 20]});
+    } else {
+	return $self->info_from_string("s///", $op, "${core_s}${find_replace_re}$flags");
+    }
+    Carp::confess("unhandled condition in pp_subst");
 }
 
 # This handles the category of unary operators, e.g. alarm(), caller(),

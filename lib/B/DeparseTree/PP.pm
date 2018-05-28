@@ -153,6 +153,7 @@ $VERSION = '1.0.0';
     pp_sselect
     pp_ssockopt
     pp_stub
+    pp_subst
     pp_substr
     pp_symlink
     pp_sysread
@@ -1062,6 +1063,12 @@ sub pp_preinc { pfixop(@_, "++", 23) }
 sub pp_predec { pfixop(@_, "--", 23) }
 sub pp_i_preinc { pfixop(@_, "++", 23) }
 sub pp_i_predec { pfixop(@_, "--", 23) }
+
+sub pp_subst {
+{
+    $] < 5.024 ? subst_older(@_) : subst_newer(@_);
+}
+}
 
 sub pp_substr {
     my ($self,$op,$cx) = @_;

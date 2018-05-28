@@ -1417,35 +1417,6 @@ sub pp_stringify {
     return $info;
 }
 
-
-# tr/// and s/// (and tr[][], tr[]//, tr###, etc)
-# note that tr(from)/to/ is OK, but not tr/from/(to)
-sub double_delim {
-    my($from, $to) = @_;
-    my($succeed, $delim);
-    if ($from !~ m[/] and $to !~ m[/]) {
-	return "/$from/$to/";
-    } elsif (($succeed, $from) = B::Deparse::balanced_delim($from) and $succeed) {
-	if (($succeed, $to) = B::Deparse::balanced_delim($to) and $succeed) {
-	    return "$from$to";
-	} else {
-	    for $delim ('/', '"', '#') { # note no "'" -- s''' is special
-		return "$from$delim$to$delim" if index($to, $delim) == -1;
-	    }
-	    $to =~ s[/][\\/]g;
-	    return "$from/$to/";
-	}
-    } else {
-	for $delim ('/', '"', '#') { # note no '
-	    return "$delim$from$delim$to$delim"
-		if index($to . $from, $delim) == -1;
-	}
-	$from =~ s[/][\\/]g;
-	$to =~ s[/][\\/]g;
-	return "/$from/$to/";
-    }
-}
-
 # Only used by tr///, so backslashes hyphens
 sub pchr { # ASCII
     my($n) = @_;
