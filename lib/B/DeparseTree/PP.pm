@@ -193,7 +193,7 @@ sub LIST_CONTEXT () { 4 } # Assignment is in list context
 sub pp_sockpair { listop(@_, "socketpair") }
 sub pp_values { unop(@_, "values") }
 sub pp_avalues { unop(@_, "values") }
-sub pp_dbstate { pp_nextstate(@_) }
+sub pp_dbstate { pp_nextstate(@_, 'dbstate') }
 
 
 sub pp_aassign { binop(@_, "=", 7, SWAP_CHILDREN | LIST_CONTEXT, 'array assign') }
@@ -556,8 +556,7 @@ my $count = 0;
 # also $[ assignments and pragmas.
 sub pp_nextstate
 {
-    my $self = shift;
-    my($op, $cx) = @_;
+    my ($self, $op, $cx, $name) = @_;
     $self->{'curcop'} = $op;
     my @texts;
     my $opts = {};
@@ -672,7 +671,7 @@ sub pp_nextstate
 	push @texts, $op->label . ": " ;
     }
 
-    return $self->info_from_template("nextstate", $op, $fmt,
+    return $self->info_from_template($name, $op, $fmt,
 				     \@args_spec, \@texts, $opts);
 }
 

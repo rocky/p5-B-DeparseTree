@@ -1251,7 +1251,7 @@ sub null_older
 	    return $self->info_from_string('constant ""', $op, '');
 	}
     } elsif (B::class ($op) eq "COP") {
-	    return $self->pp_nextstate($op, $cx);
+	    return $self->pp_nextstate($op, $cx, $op->name);
     }
     my $kid = $op->first;
     if ($self->is_list_older($kid)) {
@@ -1328,7 +1328,7 @@ sub null_newer
 	    if $op->targ == B::Deparse::OP_CONST;
 	return $self->dquote($op, $cx) if $op->targ == B::Deparse::OP_STRINGIFY;
     } elsif (B::class($op) eq "COP") {
-	return $self->pp_nextstate($op, $cx);
+	return $self->pp_nextstate($op, $cx, $op->name);
     } else  {
 	# All of these use $kid
 	my $kid = $op->first;
