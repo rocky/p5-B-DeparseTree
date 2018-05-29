@@ -92,7 +92,6 @@ our(@EXPORT, @ISA);
 our $VERSION = '3.0.0';
 
 @ISA = qw(Exporter B::DeparseTree::Common);
-@EXPORT = qw(null_op_list_newer);
 
 BEGIN {
     # List version-specific constants here.
@@ -343,18 +342,6 @@ sub cop_subs {
     $seq = $out_seq if defined($out_seq) && $out_seq < $seq;
     return $self->seq_subs($seq);
 }
-
-# The version of null_op_list after 5.20
-# Note: this uses "op" not "kid"
-sub null_op_list_newer($$) {
-    my ($self, $op) = @_;
-    my $kid = $op->first;
-    return $kid->name eq 'pushmark' or
-	($kid->name eq 'null'
-	 && $kid->targ == B::Deparse::OP_PUSHMARK
-	 && B::Deparse::_op_is_or_was($op, B::Deparse::OP_LIST));
-}
-
 
 my %feature_keywords = (
   # keyword => 'feature',

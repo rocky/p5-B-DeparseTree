@@ -25,6 +25,7 @@ use B qw(
     OPpSORT_INTEGER
     OPpSORT_NUMERIC
     OPpSORT_REVERSE
+    opnumber
     );
 
 use B::Deparse;
@@ -63,7 +64,8 @@ $VERSION = '3.1.1';
     matchop
     null_newer
     null_older
-    null_op_is_list_older
+    is_list_newer
+    is_list_older
     pfixop
     range
     repeat
@@ -86,6 +88,10 @@ BEGIN {
 	*{$_} = sub () {0} unless *{$_}{CODE};
     }
 }
+
+BEGIN { for (qw[ pushmark ]) {
+    eval "sub OP_\U$_ () { " . opnumber($_) . "}"
+}}
 
 # Iterate via sibling links a list of OP nodes starting with
 # $first. Each OP is deparsed, with $op and $precedence each to get a
@@ -1212,12 +1218,24 @@ sub matchop_older
 
 # The version of null_op_list before 5.20
 # Note: this uses "kid", not "op"
-sub null_op_is_list_older($) {
+sub is_list_older($) {
     my ($self, $kid) = @_;
     # Something may be funky where without the convesion we are getting ""
     # as a return
     return ($kid->name eq 'pushmark') ? 1 : 0;
 }
+
+# The version of null_op_list after 5.20
+# Note: this uses "op" not "kid"
+sub is_list_newer($$) {
+    my ($self, $op) = @_;
+    my $kid = $op->first;
+    return 1 if $kid->name eq 'pushmark';
+    return ($kid->name eq 'null'
+	    && $kid->targ == OP_PUSHMARK
+	    && B::Deparse::_op_is_or_was($op, B::Deparse::OP_LIST));
+}
+
 
 sub null_older
 {
@@ -1236,7 +1254,7 @@ sub null_older
 	    return $self->pp_nextstate($op, $cx);
     }
     my $kid = $op->first;
-    if ($self->null_op_is_list_older($kid)) {
+    if ($self->is_list_older($kid)) {
 	my $node = $self->pp_list($op, $cx);
 	$node->update_other_ops($kid);
 	return $node;
@@ -1314,7 +1332,7 @@ sub null_newer
     } else  {
 	# All of these use $kid
 	my $kid = $op->first;
-	if ($self->null_op_list_newer($op)) {
+	if ($self->is_list_newer($op)) {
 	    my $node = $self->pp_list($op, $cx);
 	    $node->update_other_ops($kid);
 	    return $node;
