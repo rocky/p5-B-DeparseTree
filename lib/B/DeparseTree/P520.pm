@@ -39,6 +39,7 @@ use B::Deparse;
 # Copy unchanged functions from B::Deparse
 *begin_is_use = *B::Deparse::begin_is_use;
 *const_sv = *B::Deparse::const_sv;
+*escape_extended_re = *B::Deparse::escape_extended_re;
 *find_scope_st = *B::Deparse::find_scope_st;
 *gv_name = *B::Deparse::gv_name;
 *keyword = *B::Deparse::keyword;
@@ -1167,17 +1168,6 @@ sub check_proto {
 }
 
 sub pp_enterwrite { unop(@_, "write") }
-
-# For regexes with the /x modifier.
-# Leave whitespace unmangled.
-sub escape_extended_re {
-    my($str) = @_;
-    $str =~ s/(.)/ord($1) > 255 ? sprintf("\\x{%x}", ord($1)) : $1/eg;
-    $str =~ s/([[:^print:]])/
-	($1 =~ y! \t\n!!) ? $1 : sprintf("\\%03o", ord($1))/ge;
-    $str =~ s/\n/\n\f/g;
-    return $str;
-}
 
 my $max_prec;
 BEGIN { $max_prec = int(0.999 + 8*length(pack("F", 42))*log(2)/log(10)); }

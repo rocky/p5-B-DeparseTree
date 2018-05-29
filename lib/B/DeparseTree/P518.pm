@@ -40,6 +40,7 @@ use B::Deparse;
 # Copy unchanged functions from B::Deparse
 *begin_is_use = *B::Deparse::begin_is_use;
 *const_sv = *B::Deparse::const_sv;
+*escape_extended_re = *B::Deparse::escape_extended_re;
 *find_scope_en = *B::Deparse::find_scope_en;
 *padany = *B::Deparse::padany;
 *padname = *B::Deparse::padname;

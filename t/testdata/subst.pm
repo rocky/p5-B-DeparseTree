@@ -17,7 +17,10 @@ s/X//o;
 s/X//u;
 s/X//a;
 s/X//l;
-s/X//n;
 s/X//g;
 s/X/''/e;
 s/X//r;
+####
+# subst n modifier
+# SKIP ?$] < 5.024 && "n modifier not in this Perl version"
+s/X//n;
