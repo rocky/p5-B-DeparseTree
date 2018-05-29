@@ -61,12 +61,10 @@ glob $foo;
 glob $foo;
 ####
 # block
-# SKIP ?1
-{ my $x; }
+{ my $x }
 ####
-# SKIP ?1
 # while 1
-while (1) { my $k; }
+while (1) { my $k }
 ####
 # constants as method names
 'Foo'->bar('orz');
@@ -78,7 +76,7 @@ while (1) { my $k; }
 # SKIP ?$] < 5.010 && "say not implemented on this Perl version"
 # CONTEXT use feature ':5.10';
 # say
-say 'foo';
+say 'foo'
 ####
 # SKIP ?1
 # SKIP ?$] < 5.010 && "say not implemented on this Perl version"
@@ -90,7 +88,7 @@ say 'foo';
 # SKIP ?$] < 5.010 && "say not implemented on this Perl version"
 # say with use 5.10.0
 use 5.10.0;
-say 'foo';
+say 'foo'
 >>>>
 no feature ':all';
 use feature ':5.10';
@@ -110,20 +108,19 @@ say 'foo';
 # CONTEXT use feature ':5.10';
 # say with use 5.10.0 in the context of use feature
 use 5.10.0;
-say 'foo';
+say 'foo'
 >>>>
 no feature ':all';
 use feature ':5.10';
-say 'foo';
+say 'foo'
 ####
 # SKIP ?1
-# SKIP ?$] < 5.010 && "say not implemented on this Perl version"
-# CONTEXT use 5.10.0;
+CONTEXT use 5.10.0;
 # say with use feature ':5.10' in the context of use 5.10.0
-puse feature ':5.10';
+use feature ':5.10';
 say 'foo';
 >>>>
-say 'foo';
+say 'foo'
 ####
 # SKIP ?$] < 5.015 && "__SUB__ not implemented on this Perl version"
 # CONTEXT use feature ':5.15';
