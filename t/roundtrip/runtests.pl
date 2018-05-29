@@ -15,7 +15,8 @@ chomp($base_dir = `pwd`);
 rmtree("tmp");
 mkdir("tmp");
 
-my $libdir = File::Spec->catfile('..', '..', 'lib');
+use Cwd 'abs_path';
+my $libdir = abs_path(File::Spec->catfile('..', '..', 'lib'));
 my @subdirs = ();
 foreach my $dir (glob '*') {
     next if $dir eq 'tmp';
