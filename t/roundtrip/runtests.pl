@@ -2,6 +2,7 @@
 use strict; use warnings;
 
 use File::Basename 'dirname';
+use File::Path 'rmtree';
 use File::Spec;
 use English;
 
@@ -11,12 +12,16 @@ my $pt = 'DeparseTree';
 my $base_dir = dirname(__FILE__);
 chdir  $base_dir || die "can't cd to ${base_dir}: $!";
 chomp($base_dir = `pwd`);
+rmtree("tmp");
+mkdir("tmp");
+
 my $libdir = File::Spec->catfile('..', 'lib');
 my @subdirs = ();
 foreach my $dir (glob '*') {
     next if $dir eq 'tmp';
     next unless -d $dir;
 
+    mkdir "tmp/$dir";
     # Test programs need to be run from the directory they reside in
     chdir  "$base_dir/$dir" || die "can't cd to ${base_dir}/${dir}: $!";
     push @subdirs, $dir;
