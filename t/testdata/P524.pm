@@ -138,11 +138,6 @@ my $bar = "\x{100}";
 my $baz = "B\366\x{100}";
 my $bba = qr/B\366\x{100}/;
 ####
-# s///e
-s/x/'y';/e;
-s/x/$a;/e;
-s/x/complex_expression();/e;
-####
 # block
 { my $x; }
 ####
@@ -829,21 +824,6 @@ $_ = qr/X/d;
 ####
 use feature 'unicode_strings';
 /X/d;
-####
-# all the flags (s///)
-s/X//m;
-s/X//s;
-s/X//i;
-s/X//x;
-s/X//p;
-s/X//o;
-s/X//u;
-s/X//a;
-s/X//l;
-s/X//n;
-s/X//g;
-s/X/'';/e;
-s/X//r;
 ####
 use feature 'unicode_strings';
 s/X//d;

@@ -18,9 +18,9 @@ my $eval_but_skip = $tests+1;
 
 my @test_files;
 if ($] >= 5.018 && $] <= 5.0249) {
-    @test_files = ('P524-short.pm');
+    @test_files = ('subst.pm', 'P524-short.pm');
 } else {
-    @test_files = ('P526-short.pm');
+    @test_files = ('subst.pm', 'P526-short.pm');
 }
 
 use constant MAX_ERROR_COUNT => 2;

@@ -18,6 +18,7 @@ package B::DeparseTree::PPfns;
 use Carp;
 use B qw(
     OPf_STACKED
+    OPf_SPECIAL
     OPpCONST_BARE
     OPpLVAL_INTRO
     OPpREPEAT_DOLIST
@@ -43,6 +44,7 @@ $VERSION = '3.1.1';
     POSTFIX
     baseop
     binop
+    code_list
     concat
     deparse_binop_left
     deparse_binop_right
@@ -101,6 +103,29 @@ sub deparse_op_siblings($$$$$)
 }
 
 
+my(%left, %right);
+
+sub assoc_class {
+    my $op = shift;
+    my $name = $op->name;
+    if ($name eq "concat" and $op->first->name eq "concat") {
+	# avoid spurious '=' -- see comment in pp_concat
+	return "concat";
+    }
+    if ($name eq "null" and B::class($op) eq "UNOP"
+	and $op->first->name =~ /^(and|x?or)$/
+	and null $op->first->sibling)
+    {
+	# Like all conditional constructs, OP_ANDs and OP_ORs are topped
+	# with a null that's used as the common end point of the two
+	# flows of control. For precedence purposes, ignore it.
+	# (COND_EXPRs have these too, but we don't bother with
+	# their associativity).
+	return assoc_class($op->first);
+    }
+    return $name . ($op->flags & B::OPf_STACKED ? "=" : "");
+}
+
 # routines implementing classes of ops
 
 sub baseop
@@ -154,29 +179,6 @@ sub binop
     return $node;
 }
 
-my(%left, %right);
-
-sub assoc_class {
-    my $op = shift;
-    my $name = $op->name;
-    if ($name eq "concat" and $op->first->name eq "concat") {
-	# avoid spurious '=' -- see comment in pp_concat
-	return "concat";
-    }
-    if ($name eq "null" and B::class($op) eq "UNOP"
-	and $op->first->name =~ /^(and|x?or)$/
-	and null $op->first->sibling)
-    {
-	# Like all conditional constructs, OP_ANDs and OP_ORs are topped
-	# with a null that's used as the common end point of the two
-	# flows of control. For precedence purposes, ignore it.
-	# (COND_EXPRs have these too, but we don't bother with
-	# their associativity).
-	return assoc_class($op->first);
-    }
-    return $name . ($op->flags & B::OPf_STACKED ? "=" : "");
-}
-
 # Left associative operators, like '+', for which
 # $a + $b + $c is equivalent to ($a + $b) + $c
 
@@ -194,6 +196,38 @@ BEGIN {
 	     'and' => 3,
 	     'or' => 2, 'xor' => 2,
 	    );
+}
+
+sub code_list {
+    my ($self, $op, $cv) = @_;
+
+    # localise stuff relating to the current sub
+    $cv and
+	local($self->{'curcv'}) = $cv,
+	local($self->{'curcvlex'}),
+	local(@$self{qw'curstash warnings hints hinthash curcop'})
+	    = @$self{qw'curstash warnings hints hinthash curcop'};
+
+    my $re;
+    for ($op = $op->first->sibling; !null($op); $op = $op->sibling) {
+	if ($op->name eq 'null' and $op->flags & OPf_SPECIAL) {
+	    my $scope = $op->first;
+	    # 0 context (last arg to scopeop) means statement context, so
+	    # the contents of the block will not be wrapped in do{...}.
+	    my $block = scopeop($scope->first->name eq "enter", $self,
+				$scope, 0);
+	    # next op is the source code of the block
+	    $op = $op->sibling;
+	    $re .= ($self->const_sv($op)->PV =~ m|^(\(\?\??\{)|)[0];
+	    my $multiline = $block =~ /\n/;
+	    $re .= $multiline ? "\n\t" : ' ';
+	    $re .= $block;
+	    $re .= $multiline ? "\n\b})" : " })";
+	} else {
+	    $re = re_dq_disambiguate($re, $self->re_dq($op));
+	}
+    }
+    $re;
 }
 
 # Concatenation or '.' is special because concats-of-concats are
