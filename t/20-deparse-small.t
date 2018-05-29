@@ -3,6 +3,7 @@
 
 use rlib '.'; use helper;
 use warnings; use strict;
+use File::Temp qw/ tempfile tempdir /;
 
 if ($] < 5.018 || $] > 5.0269) {
     plan skip_all => 'Customized to Perl 5.22 - 5.26 interpreters';
@@ -74,7 +75,7 @@ for my $file (@test_files) {
 	    new B::DeparseTree split /,/, $meta{options}
 	: $deparse;
 
-	my $coderef = eval "$meta{context};\n" . <<'EOC' . "sub {$input}";
+	my $code_string = "$meta{context};\n" . <<'EOC' . "sub {$input}";
 # Tell B::Deparse about our ambient pragmas so it doesn't add pragmas to
 # its output.
 my ($hint_bits, $warning_bits, $hinthash);
@@ -88,6 +89,7 @@ $deparse->ambient_pragmas (
 );
 EOC
 
+	my $coderef = eval $code_string;
 	if ($@) {
 	    is($@, "", "compilation of $desc");
 	}
@@ -116,6 +118,14 @@ EOC
 		::diag "\n", '-' x 30, "\n";
 		::diag diff \$deparsed, \$expected, { STYLE => "Context" };
 		::diag "\n", '=' x 30, "\n";
+		my ($fh, $filename) = tempfile( "deparse-bug-XXXX",
+						TMPDIR => 1,
+						UNLINK => 0,
+						SUFFIX => '.pl');
+		print $fh "sub {$input\n}\n";
+		::diag "Wrote failed Perl program to $filename";
+		close($fh);
+
 		if (++$error_count >= MAX_ERROR_COUNT) {
 		    done_testing;
 		    exit $error_count;

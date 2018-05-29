@@ -12,3 +12,4 @@
 /blib
 /how-to-make-a-release.txt
 /tmp
+t/roundtrip/tmp
