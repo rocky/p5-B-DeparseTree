@@ -204,8 +204,12 @@ sub trim_line_pair($$$$) {
 # second example where "~" was used instead of "-", to
 # indicate that the result was obtained the result by string matching
 # rather than by exact node matching inside the parent.
+# We can also use the "|" instead for instructions that really
+# don't have an equivalent concept in the source code, so we've
+# artificially tagged a location that is reasonable. "pushmark"
+# and "padrange" instructions would be in this category.
 #
-# The last two examples show how we do elision. The ...
+# In the last two examples, we show how we do elision. The ...
 # in the parent text means that we have only given the first line
 # of the parent text along with the line that the child fits in.
 # if there is an elision in the child text it means that that
@@ -233,7 +237,7 @@ sub extract_node_info($)
 	$child_text = substr($parent_text,
 			     $found_pos->[0], $found_pos->[1]);
 	my $parent_underline = ' ' x $found_pos->[0];
-	$parent_underline .= '-' x $found_pos->[1];
+	$parent_underline .= '|' x $found_pos->[1];
 	$candidate_pair = trim_line_pair($parent_text, $child_text,
 					 $parent_underline,
 					 $found_pos->[0]);
@@ -308,7 +312,7 @@ sub extract_node_info($)
 	    my $parent_underline;
 	    if ($marked_position) {
 		$parent_underline = ' ' x ($found_pos->[0] + $marked_position->[0]);
-		$parent_underline .= '-' x $marked_position->[1];
+		$parent_underline .= '|' x $marked_position->[1];
 	    } else {
 		$parent_underline = ' ' x $found_pos->[0];
 		$parent_underline .= '-' x $found_pos->[1];
