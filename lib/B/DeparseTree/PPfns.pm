@@ -48,6 +48,7 @@ $VERSION = '3.1.1';
     binop
     code_list
     concat
+    cops
     deparse_binop_left
     deparse_binop_right
     deparse_op_siblings
@@ -261,6 +262,131 @@ sub concat {
     my $rhs  = $self->deparse_binop_right($op, $right, $prec);
     return $self->bin_info_join_maybe_parens($op, $lhs, $rhs, ".$eq", " ", $cx, $prec,
 					     'real_concat');
+}
+
+# Handle pp_dbstate, and pp_nextstate and COP ops.
+#
+# Notice how subs and formats are inserted between statements here;
+# also $[ assignments and pragmas.
+sub cops
+{
+    my ($self, $op, $cx, $name) = @_;
+    $self->{'curcop'} = $op;
+    my @texts;
+    my $opts = {};
+    my @args_spec = ();
+    my $fmt = '%;';
+
+    push @texts, $self->cop_subs($op);
+    if (@texts) {
+	# Special marker to swallow up the semicolon
+	$opts->{'omit_next_semicolon'} = 1;
+    }
+
+    my $stash = $op->stashpv;
+    if ($stash ne $self->{'curstash'}) {
+	push @texts, $self->keyword("package") . " $stash;";
+	$self->{'curstash'} = $stash;
+    }
+
+    if (OPpCONST_ARYBASE && $self->{'arybase'} != $op->arybase) {
+	push @texts, '$[ = '. $op->arybase .";";
+	$self->{'arybase'} = $op->arybase;
+    }
+
+    my $warnings = $op->warnings;
+    my $warning_bits;
+    if ($warnings->isa("B::SPECIAL") && $$warnings == 4) {
+	$warning_bits = $warnings::Bits{"all"} & WARN_MASK;
+    }
+    elsif ($warnings->isa("B::SPECIAL") && $$warnings == 5) {
+        $warning_bits = $warnings::NONE;
+    }
+    elsif ($warnings->isa("B::SPECIAL")) {
+	$warning_bits = undef;
+    }
+    else {
+	$warning_bits = $warnings->PV & WARN_MASK;
+    }
+
+    if (defined ($warning_bits) and
+       !defined($self->{warnings}) || $self->{'warnings'} ne $warning_bits) {
+	my @warnings = $self->declare_warnings($self->{'warnings'}, $warning_bits);
+	foreach my $warning (@warnings) {
+	    push @texts, $warning;
+	}
+    	$self->{'warnings'} = $warning_bits;
+    }
+
+    my $hints = $] < 5.008009 ? $op->private : $op->hints;
+    my $old_hints = $self->{'hints'};
+    if ($self->{'hints'} != $hints) {
+	my @hints = $self->declare_hints($self->{'hints'}, $hints);
+	foreach my $hint (@hints) {
+	    push @texts, $hint;
+	}
+	$self->{'hints'} = $hints;
+    }
+
+    my $newhh;
+    if ($] > 5.009) {
+	$newhh = $op->hints_hash->HASH;
+    }
+
+    if ($] >= 5.015006) {
+	# feature bundle hints
+	my $from = $old_hints & $feature::hint_mask;
+	my $to   = $    hints & $feature::hint_mask;
+	if ($from != $to) {
+	    if ($to == $feature::hint_mask) {
+		if ($self->{'hinthash'}) {
+		    delete $self->{'hinthash'}{$_}
+			for grep /^feature_/, keys %{$self->{'hinthash'}};
+		}
+		else { $self->{'hinthash'} = {} }
+		$self->{'hinthash'}
+		    = _features_from_bundle($from, $self->{'hinthash'});
+	    }
+	    else {
+		my $bundle =
+		    $feature::hint_bundles[$to >> $feature::hint_shift];
+		$bundle =~ s/(\d[13579])\z/$1+1/e; # 5.11 => 5.12
+		push @texts,
+		    $self->keyword("no") . " feature ':all'",
+		    $self->keyword("use") . " feature ':$bundle'";
+	    }
+	}
+    }
+
+    if ($] > 5.009) {
+	# FIXME use format specifiers
+	my @hints = $self->declare_hinthash(
+	    $self->{'hinthash'}, $newhh, 0, $self->{hints});
+	foreach my $hint (@hints) {
+	    push @texts, $hint;
+	}
+	$self->{'hinthash'} = $newhh;
+    }
+
+
+    # This should go after of any branches that add statements, to
+    # increase the chances that it refers to the same line it did in
+    # the original program.
+    if ($self->{'linenums'} && $cx != .5) { # $cx == .5 means in a format
+	my $line = sprintf("\n# line %s '%s'", $op->line, $op->file);
+	$line .= sprintf(" 0x%x", $$op) if $self->{'opaddr'};
+	$opts->{'omit_next_semicolon'} = 1;
+	push @texts, $line;
+    }
+
+    if ($op->label) {
+	$fmt .= "%c\n";
+	push @args_spec, scalar(@args_spec);
+	push @texts, $op->label . ": " ;
+    }
+
+    return $self->info_from_template($name, $op, $fmt,
+				     \@args_spec, \@texts, $opts);
 }
 
 sub deparse_binop_left {
@@ -1216,16 +1342,7 @@ sub matchop_older
     return info_from_list($op, $self, \@texts, '', $type, $opts);
 }
 
-# The version of null_op_list before 5.20
-# Note: this uses "kid", not "op"
-sub is_list_older($) {
-    my ($self, $kid) = @_;
-    # Something may be funky where without the convesion we are getting ""
-    # as a return
-    return ($kid->name eq 'pushmark') ? 1 : 0;
-}
-
-# The version of null_op_list after 5.20
+# The version of null_op_list after 5.22
 # Note: this uses "op" not "kid"
 sub is_list_newer($$) {
     my ($self, $op) = @_;
@@ -1236,6 +1353,15 @@ sub is_list_newer($$) {
 	    && B::Deparse::_op_is_or_was($op, B::Deparse::OP_LIST));
 }
 
+
+# The version of null_op_list before 5.22
+# Note: this uses "kid", not "op"
+sub is_list_older($) {
+    my ($self, $kid) = @_;
+    # Something may be funky where without the convesion we are getting ""
+    # as a return
+    return ($kid->name eq 'pushmark') ? 1 : 0;
+}
 
 sub null_older
 {
@@ -1251,7 +1377,7 @@ sub null_older
 	    return $self->info_from_string('constant ""', $op, '');
 	}
     } elsif (B::class ($op) eq "COP") {
-	    return $self->pp_nextstate($op, $cx, $op->name);
+	    return $self->cops($op, $cx, $op->name);
     }
     my $kid = $op->first;
     if ($self->is_list_older($kid)) {
@@ -1328,7 +1454,7 @@ sub null_newer
 	    if $op->targ == B::Deparse::OP_CONST;
 	return $self->dquote($op, $cx) if $op->targ == B::Deparse::OP_STRINGIFY;
     } elsif (B::class($op) eq "COP") {
-	return $self->pp_nextstate($op, $cx, $op->name);
+	return $self->cops($op, $cx, $op->name);
     } else  {
 	# All of these use $kid
 	my $kid = $op->first;

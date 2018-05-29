@@ -107,7 +107,7 @@ use constant ASSIGN => 2; # operation OP has a =OP variant
     'db_open'     => 'listop',
     'dbmclose'    => 'unop',
     'dbmopen'     => 'listop',
-    # 'dbstate'    => 'nextstate',
+    'dbstate'     => 'cops',
     'defined'     => 'unop',
     'die'         => 'listop',
     'divide'      => ['maybe_targmy', 'binop', "/", 19, ASSIGN],
@@ -214,6 +214,7 @@ use constant ASSIGN => 2; # operation OP has a =OP variant
     'nbit_or'     => ['maybe_targmy', 'binop', "|", 12, ASSIGN],
     'nbit_xor'    => ['maybe_targmy', 'binop', "^", 12, ASSIGN],
     'next'        => 'loopex',
+    'nextstate'   => 'cops',
 
     'ord'         => ['maybe_targmy', 'unop'],
     'open'        => 'listop',
