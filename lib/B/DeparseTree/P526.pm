@@ -345,10 +345,11 @@ sub cop_subs {
 
 sub is_pp_null_list($$) {
     my ($self, $op) = @_;
-    return $op->name eq 'pushmark' or
-	($op->name eq 'null'
-	 && $op->targ == B::Deparse::OP_PUSHMARK
-	 && B::Deparse::_op_is_or_was($op, B::Deparse::OP_LIST));
+    my $kid = $op->first;
+    return 1 if $kid->name eq 'pushmark';
+    return ($kid->name eq 'null'
+	    && $kid->targ == B::Deparse::OP_PUSHMARK
+	    && B::Deparse::_op_is_or_was($op, B::Deparse::OP_LIST));
 }
 
 my %feature_keywords = (

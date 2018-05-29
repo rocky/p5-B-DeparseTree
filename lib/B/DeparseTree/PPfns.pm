@@ -61,6 +61,8 @@ $VERSION = '3.1.1';
     loopex
     mapop
     matchop
+    null_newer
+    null_older
     pfixop
     range
     repeat
@@ -948,24 +950,30 @@ sub mapop
 
     my $code_block = $kid->first; # skip a null
 
-    my $code_block_node;
-    my @nodes;
-    my ($fmt, $first_arg_fmt);
-    my $is_block;
+    my ($code_block_node, @nodes);
+    my ($fmt, $first_arg_fmt, $is_block);
     my $type = "map $name";
+    my @args_spec = ();
 
     if (B::Deparse::is_scope $code_block) {
 	$code_block_node = $self->deparse($code_block, 0, $op);
-	# my $transform_fn = sub {
-	#     ($_[0]->{text})=~ s/^\n//;  # remove first \n in block.
-	# };
-	# $first_arg_fmt = '{ %F }';
-	$first_arg_fmt = '{ %c }';
+	my $transform_fn = sub {
+	    # remove first \n in block.
+	    ($_[0]->{text})=~ s/^\n\s*//;
+	    return $_[0]->{text};
+	};
+	push @args_spec, [0, $transform_fn];
+	$first_arg_fmt = '{ %F }';
+
+	## Alternate simpler form:
+	# push @args_spec, 0;
+	# $first_arg_fmt = '{ %c }';
 	$type .= " block";
 	$is_block = 1;
 
     } else {
 	$code_block_node = $self->deparse($code_block, 24, $op);
+	push @args_spec, 0;
 	$first_arg_fmt = '%c';
 	$type .= " expr";
 	$is_block = 0;
@@ -976,6 +984,7 @@ sub mapop
     push @skipped_ops, $kid;
     $kid = $kid->sibling;
     $self->deparse_op_siblings(\@nodes, $kid, $op, 6);
+    push @args_spec, [1, $#nodes, ', '];
 
     if ($self->func_needs_parens($nodes[1]->{text}, $cx, 5)) {
 	$fmt = "$name $first_arg_fmt (%C)";
@@ -983,8 +992,8 @@ sub mapop
 	$fmt = "$name $first_arg_fmt %C";
     }
     my $node = $self->info_from_template($type, $op, $fmt,
-					 [0, [1, $#nodes, ', ']],
-					 \@nodes, {other_ops => \@skipped_ops});
+					 \@args_spec, \@nodes,
+					 {other_ops => \@skipped_ops});
 
     # Handle skipped ops
     my @new_ops;
@@ -1198,6 +1207,160 @@ sub matchop_older
 	$type = 'matchop_unnop';
     }
     return info_from_list($op, $self, \@texts, '', $type, $opts);
+}
+
+sub null_older
+{
+    my($self, $op, $cx) = @_;
+    my $info;
+    if (B::class($op) eq "OP") {
+	if ($op->targ == B::Deparse::OP_CONST) {
+	    # The Perl source constant value can't be recovered.
+	    # We'll use the 'ex_const' value as a substitute
+	    return info_from_text($op, $self, $self->{'ex_const'}, 'constant unrecoverable', {})
+	} else {
+	    return info_from_text($op, $self, '', 'constant ""', {});
+	}
+    } elsif (B::class ($op) eq "COP") {
+	    return $self->pp_nextstate($op, $cx);
+    }
+    my $kid = $op->first;
+    if ($self->is_pp_null_list($op)) {
+	my $node = $self->pp_list($op, $cx);
+	$node->update_other_ops($kid);
+	return $node;
+    } elsif ($kid->name eq "enter") {
+	return $self->pp_leave($op, $cx);
+    } elsif ($kid->name eq "leave") {
+	return $self->pp_leave($kid, $cx);
+    } elsif ($kid->name eq "scope") {
+	return $self->pp_scope($kid, $cx);
+    } elsif ($op->targ == B::Deparse::OP_STRINGIFY) {
+	return $self->dquote($op, $cx);
+    } elsif ($op->targ == B::Deparse::OP_GLOB) {
+	my @other_ops = ($kid, $kid->first, $kid->first->first);
+	my $info = $self->pp_glob(
+	    $kid    # entersub
+	    ->first    # ex-list
+	    ->first    # pushmark
+	    ->sibling, # glob
+	    $cx
+	    );
+	push @{$info->{other_ops}}, @other_ops;
+	return $info;
+    } elsif (!null($kid->sibling) and
+    	     $kid->sibling->name eq "readline" and
+    	     $kid->sibling->flags & OPf_STACKED) {
+    	my $lhs = $self->deparse($kid, 7, $op);
+    	my $rhs = $self->deparse($kid->sibling, 7, $kid);
+    	return $self->bin_info_join_maybe_parens($op, $lhs, $rhs, '=', " ", $cx, 7,
+						 'readline');
+    } elsif (!null($kid->sibling) and
+    	     $kid->sibling->name eq "trans" and
+    	     $kid->sibling->flags & OPf_STACKED) {
+    	my $lhs = $self->deparse($kid, 20, $op);
+    	my $rhs = $self->deparse($kid->sibling, 20, $op);
+    	return $self->bin_info_join_maybe_parens($op, $lhs, $rhs, '=~', " ", $cx, 20,
+	                                         'trans');
+    } elsif ($op->flags & OPf_SPECIAL && $cx < 1 && !$op->targ) {
+    	my $kid_info = $self->deparse($kid, $cx, $op);
+	return info_from_list($op, $self, ['do', "{\n\t", $kid_info->{text},
+			       "\n\b};"], '', 'null_special',
+	    {body => [$kid_info]});
+    } elsif (!null($kid->sibling) and
+	     $kid->sibling->name eq "null" and
+	     B::class($kid->sibling) eq "UNOP" and
+	     $kid->sibling->first->flags & OPf_STACKED and
+	     $kid->sibling->first->name eq "rcatline") {
+	my $lhs = $self->deparse($kid, 18, $op);
+	my $rhs = $self->deparse($kid->sibling, 18, $op);
+	return $self->bin_info_join_maybe_parens($op, $lhs, $rhs, '=', " ", $cx, 20,
+						 'null_rcatline');
+    } else {
+	return $self->deparse($kid, $cx, $op);
+    }
+    Carp::confess("unhandled condition in null");
+}
+
+# Note 5.26 and up
+sub null_newer
+{
+    my($self, $op, $cx) = @_;
+    my $info;
+    if (B::class($op) eq "OP") {
+	# If the Perl source constant value can't be recovered.
+	# We'll use the 'ex_const' value as a substitute
+	return $self->info_from_string("constant_unrecoverable",$op, $self->{'ex_const'})
+	    if $op->targ == B::Deparse::OP_CONST;
+	return $self->dquote($op, $cx) if $op->targ == B::Deparse::OP_STRINGIFY;
+    } elsif (B::class($op) eq "COP") {
+	return $self->pp_nextstate($op, $cx);
+    } else  {
+	# All of these use $kid
+	my $kid = $op->first;
+	if ($self->is_pp_null_list($op)) {
+	    my $node = $self->pp_list($op, $cx);
+	    $node->update_other_ops($kid);
+	    return $node;
+	} elsif ($kid->name eq "enter") {
+	    return $self->pp_leave($op, $cx);
+	} elsif ($kid->name eq "leave") {
+	    return $self->pp_leave($kid, $cx);
+	} elsif ($kid->name eq "scope") {
+	    return $self->pp_scope($kid, $cx);
+	}
+	if ($op->targ == B::Deparse::OP_STRINGIFY) {
+	    # This case is duplicated the below "else". Can it ever happen?
+	    return $self->dquote($op, $cx);
+	} elsif ($op->targ == B::Deparse::OP_GLOB) {
+	    my @other_ops = ($kid, $kid->first, $kid->first->first);
+	    my $info = $self->pp_glob(
+		$kid    # entersub
+		->first    # ex-list
+		->first    # pushmark
+		->sibling, # glob
+		$cx
+		);
+	    # FIXME: mark text.
+	    push @{$info->{other_ops}}, @other_ops;
+	    return $info;
+	} elsif (!null($kid->sibling) and
+		 $kid->sibling->name eq "readline" and
+		 $kid->sibling->flags & OPf_STACKED) {
+	    my $lhs = $self->deparse($kid, 7, $op);
+	    my $rhs = $self->deparse($kid->sibling, 7, $kid);
+	    return $self->info_from_template("readline = ", $op,
+					     "%c = %c", undef, [$lhs, $rhs],
+					     {maybe_parens => [$self, $cx, 7],
+					     prev_expr => $rhs});
+	} elsif (!null($kid->sibling) and
+		 $kid->sibling->name =~ /^transr?\z/ and
+		 $kid->sibling->flags & OPf_STACKED) {
+	    my $lhs = $self->deparse($kid, 20, $op);
+	    my $rhs = $self->deparse($kid->sibling, 20, $op);
+	    return $self->info_from_template("trans =~",$op,
+					     "%c =~ %c", undef, [$lhs, $rhs],
+					     { maybe_parens => [$self, $cx, 7],
+					       prev_expr => $rhs });
+	} elsif ($op->flags & OPf_SPECIAL && $cx < 1 && !$op->targ) {
+	    my $kid_info = $self->deparse($kid, $cx, $op);
+	    return $self->info_from_template("do { }", $op,
+					     "do {\n%+%c\n%-}", undef, [$kid_info]);
+	} elsif (!null($kid->sibling) and
+		 $kid->sibling->name eq "null" and
+		 B::class($kid->sibling) eq "UNOP" and
+		 $kid->sibling->first->flags & OPf_STACKED and
+		 $kid->sibling->first->name eq "rcatline") {
+	    my $lhs = $self->deparse($kid, 18, $op);
+	    my $rhs = $self->deparse($kid->sibling, 18, $op);
+	    return $self->info_from_template("rcatline =",$op,
+					     "%c = %c", undef, [$lhs, $rhs],
+					     { maybe_parens => [$self, $cx, 20],
+					       prev_expr => $rhs });
+	}
+	return $self->deparse($kid, $cx, $op);
+    }
+    Carp::confess("unhandled condition in null");
 }
 
 # This is the 5.26 version. It is different from earlier versions.

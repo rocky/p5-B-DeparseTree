@@ -151,6 +151,9 @@ sub new($$$$$)
 	};
 	$self->{text} = "($self->{text})" if exists $self->{text} and $parens;
     }
+    if ($opts->{prev_expr}) {
+	$self->{prev_expr} = $opts->{prev_expr};
+    }
     return $self;
 }
 
