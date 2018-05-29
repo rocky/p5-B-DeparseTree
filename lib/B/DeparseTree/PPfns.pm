@@ -1314,7 +1314,7 @@ sub null_newer
     } else  {
 	# All of these use $kid
 	my $kid = $op->first;
-	if ($self->is_pp_null_list_newer($op)) {
+	if ($self->null_op_list_newer($op)) {
 	    my $node = $self->pp_list($op, $cx);
 	    $node->update_other_ops($kid);
 	    return $node;

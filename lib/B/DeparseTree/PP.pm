@@ -959,10 +959,9 @@ sub pp_gv
     return $self->info_from_string("global variable $name", $op, $name);
 }
 
-# Note 5.20 and up
 sub pp_null
 {
-    $] < 5.020 ? null_older(@_) : null_newer(@_);
+    $] < 5.022 ? null_older(@_) : null_newer(@_);
 }
 
 sub pp_once

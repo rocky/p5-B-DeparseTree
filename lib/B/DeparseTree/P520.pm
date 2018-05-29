@@ -355,9 +355,10 @@ sub cop_subs {
 # Note: this uses "op" not "kid"
 sub null_op_list_newer($$) {
     my ($self, $op) = @_;
-    return $op->name eq 'pushmark' or
-	($op->name eq 'null'
-	 && $op->targ == B::Deparse::OP_PUSHMARK
+    my $kid = $op->first;
+    return $kid->name eq 'pushmark' or
+	($kid->name eq 'null'
+	 && $kid->targ == B::Deparse::OP_PUSHMARK
 	 && B::Deparse::_op_is_or_was($op, B::Deparse::OP_LIST));
 }
 
