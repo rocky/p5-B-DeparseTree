@@ -426,36 +426,6 @@ sub keyword {
 
 { no strict 'refs'; *{"pp_r$_"} = *{"pp_$_"} for qw< keys each values >; }
 
-sub pp_dofile
-{
-    my $code = unop(@_, "do", 1); # llafr does not apply
-    if ($code =~ s/^((?:CORE::)?do) \{/$1({/) { $code .= ')' }
-    $code;
-}
-
-sub pp_entereval
-{
-    unop(
-      @_,
-      $_[1]->private & OPpEVAL_BYTES ? $_[0]->keyword('evalbytes') : "eval"
-    )
-}
-
-sub pp_leavegiven { givwhen(@_, $_[0]->keyword("given")); }
-sub pp_leavewhen  { givwhen(@_, $_[0]->keyword("when")); }
-
-sub pp_scalar
-{
-    my($self, $op, $cx) = @_;
-    my $kid = $op->first;
-    if (not null $kid->sibling) {
-	# XXX Was a here-doc
-	return $self->dquote($op);
-    }
-    $self->unop($op, $cx, "scalar");
-}
-
-
 sub pp_readline {
     my $self = shift;
     my($op, $cx) = @_;

@@ -80,7 +80,9 @@ $VERSION = '1.0.0';
     pp_crypt
     pp_dbmopen
     pp_delete
+    pp_dofile
     pp_dor
+    pp_entereval
     pp_entersub
     pp_exec
     pp_exists
@@ -108,6 +110,8 @@ $VERSION = '1.0.0';
     pp_leaveloop
     pp_leavetry
     pp_lineseq
+    pp_leavegiven
+    pp_leavewhen
     pp_link
     pp_list
     pp_log
@@ -145,6 +149,7 @@ $VERSION = '1.0.0';
     pp_setpgrp
     pp_setpriority
     pp_sin
+    pp_scalar
     pp_sockpair
     pp_sprintf
     pp_sqrt
@@ -206,6 +211,14 @@ sub pp_chmod { maybe_targmy(@_, \&listop, "chmod") }
 sub pp_chown { maybe_targmy(@_, \&listop, "chown") }
 sub pp_cos { maybe_targmy(@_, \&unop, "cos") }
 sub pp_crypt { maybe_targmy(@_, \&listop, "crypt") }
+
+sub pp_dofile
+{
+    my $code = unop(@_, "do", 1); # llafr does not apply
+    if ($code =~ s/^((?:CORE::)?do) \{/$1({/) { $code .= ')' }
+    $code;
+}
+
 sub pp_exec { maybe_targmy(@_, \&listop, "exec") }
 sub pp_exp { maybe_targmy(@_, \&unop, "exp") }
 sub pp_flock { maybe_targmy(@_, \&listop, "flock") }
@@ -216,6 +229,10 @@ sub pp_int { maybe_targmy(@_, \&unop, "int") }
 sub pp_join { maybe_targmy(@_, \&listop, "join") }
 sub pp_kill { maybe_targmy(@_, \&listop, "kill") }
 sub pp_link { maybe_targmy(@_, \&listop, "link") }
+
+sub pp_leavegiven { givwhen(@_, $_[0]->keyword("given")); }
+sub pp_leavewhen  { givwhen(@_, $_[0]->keyword("when")); }
+
 sub pp_log { maybe_targmy(@_, \&unop, "log") }
 sub pp_mkdir { maybe_targmy(@_, \&listop, "mkdir") }
 
@@ -229,12 +246,25 @@ sub pp_not
     }
 }
 
+
 sub pp_oct { maybe_targmy(@_, \&unop, "oct") }
 sub pp_open_dir { listop(@_, "opendir") }
 sub pp_pos { maybe_local(@_, unop(@_, "pos")) }
 sub pp_push { maybe_targmy(@_, \&listop, "push") }
 sub pp_rename { maybe_targmy(@_, \&listop, "rename") }
 sub pp_rindex { maybe_targmy(@_, \&listop, "rindex") }
+
+sub pp_scalar
+{
+    my($self, $op, $cx) = @_;
+    my $kid = $op->first;
+    if (not null $kid->sibling) {
+	# XXX Was a here-doc
+	return $self->dquote($op);
+    }
+    $self->unop($op, $cx, "scalar");
+}
+
 sub pp_setpgrp { maybe_targmy(@_, \&listop, "setpgrp") }
 sub pp_setpriority { maybe_targmy(@_, \&listop, "setpriority") }
 sub pp_sin { maybe_targmy(@_, \&unop, "sin") }
@@ -811,6 +841,13 @@ sub pp_entersub
 	$node->{other_ops} = \@new_ops;
     }
     return $node;
+}
+
+sub pp_entereval {
+    unop(
+      @_,
+      $_[1]->private & OPpEVAL_BYTES ? 'evalbytes' : "eval"
+    )
 }
 
 sub pp_flop

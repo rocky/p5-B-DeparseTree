@@ -462,23 +462,6 @@ sub pp_chdir {
     }
 }
 
-sub pp_entereval {
-    unop(
-      @_,
-      $_[1]->private & OPpEVAL_BYTES ? 'evalbytes' : "eval"
-    )
-}
-
-sub pp_dofile
-{
-    my $code = unop(@_, "do", 1); # llafr does not apply
-    if ($code =~ s/^((?:CORE::)?do) \{/$1({/) { $code .= ')' }
-    $code;
-}
-
-sub pp_leavegiven { givwhen(@_, $_[0]->keyword("given")); }
-sub pp_leavewhen  { givwhen(@_, $_[0]->keyword("when")); }
-
 sub pp_require
 {
     my($self, $op, $cx) = @_;
@@ -1975,15 +1958,6 @@ sub pp_chdir {
 	maybe_targmy(@_, \&unop, "chdir")
     }
 }
-
-sub pp_entereval
-{
-    unop(
-      @_,
-      $_[1]->private & OPpEVAL_BYTES ? 'evalbytes' : "eval"
-    )
-}
-
 
 # Not in Perl 5.20 and presumeably < 5.20. No harm in adding to 5.20?
 *pp_ncomplement = *pp_complement;
