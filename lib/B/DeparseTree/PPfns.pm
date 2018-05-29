@@ -31,8 +31,8 @@ use B::Deparse;
 
 # Copy unchanged functions from B::Deparse
 *double_delim = *B::Deparse::double_delim;
-*escape_re = *B::Deparse::escape_re;
 *escape_extended_re = *B::Deparse::escape_extended_re;
+*escape_re = *B::Deparse::escape_re;
 *rv2gv_or_string = *B::Deparse::rv2gv_or_string;
 
 use B::DeparseTree::Common;

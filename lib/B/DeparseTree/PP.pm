@@ -1066,7 +1066,7 @@ sub pp_i_predec { pfixop(@_, "--", 23) }
 
 sub pp_subst {
 {
-    $] < 5.024 ? subst_older(@_) : subst_newer(@_);
+    $] < 5.022 ? subst_older(@_) : subst_newer(@_);
 }
 }
 

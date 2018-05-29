@@ -63,6 +63,7 @@ use B::Deparse;
 # Copy unchanged functions from B::Deparse
 *begin_is_use = *B::Deparse::begin_is_use;
 *const_sv = *B::Deparse::const_sv;
+*escape_extended_re = *B::Deparse::escape_extended_re;
 *gv_name = *B::Deparse::gv_name;
 *meth_rclass_sv = *B::Deparse::meth_rclass_sv;
 *meth_sv = *B::Deparse::meth_sv;
@@ -402,7 +403,10 @@ my %strong_proto_keywords = map { $_ => 1 } qw(
     undef
 );
 
-# FIXME: we can't make this common just yet.
+# FIXME remove dup with 5.24 and 5.18
+# NOTE: This is the deparse 5.26 routine which
+# differs from 5.18 in that adds CORE:: when
+# appropriate.
 sub keyword {
     my $self = shift;
     my $name = shift;
