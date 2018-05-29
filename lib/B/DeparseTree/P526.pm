@@ -676,6 +676,52 @@ sub elem_or_slice_single_index($$)
 			  'elem_or_slice_single_index',
 			  {body => [$idx_info]});
 }
+
+sub elem
+{
+    my ($self, $op, $cx, $left, $right, $padname) = @_;
+    my($array, $idx) = ($op->first, $op->first->sibling);
+
+    my $idx_info = $self->elem_or_slice_single_index($idx, $op);
+    my $opts = {body => [$idx_info]};
+
+    unless ($array->name eq $padname) { # Maybe this has been fixed
+	$opts->{other_ops} = [$array];
+	$array = $array->first; # skip rv2av (or ex-rv2av in _53+)
+    }
+    my @texts = ();
+    my $info;
+    my $array_name=$self->elem_or_slice_array_name($array, $left, $padname, 1);
+    if ($array_name) {
+	if ($array_name !~ /->\z/) {
+	    if ($array_name eq '#') {
+		$array_name = '${#}';
+	    }  else {
+		$array_name = '$' . $array_name ;
+	    }
+	}
+	push @texts, $array_name;
+	push @texts, $left if $left;
+	push @texts, $idx_info->{text}, $right;
+	return info_from_list($op, $self, \@texts, '', 'elem', $opts)
+    } else {
+	# $x[20][3]{hi} or expr->[20]
+	my $type;
+	my $array_info = $self->deparse($array, 24, $op);
+	push @{$info->{body}}, $array_info;
+	@texts = ($array_info->{text});
+	if (is_subscriptable($array)) {
+	    push @texts, $left, $idx_info->{text}, $right;
+	    $type = 'elem_no_arrow';
+	} else {
+	    push @texts, '->', $left, $idx_info->{text}, $right;
+	    $type = 'elem_arrow';
+	}
+	return info_from_list($op, $self, \@texts, '', $type, $opts);
+    }
+    Carp::confess("unhandled condition in elem");
+}
+
 # a simplified version of elem_or_slice_array_name()
 # for the use of pp_multideref
 
@@ -820,7 +866,7 @@ sub pp_gelem
     my($glob, $part) = ($op->first, $op->last);
     $glob = $glob->first; # skip rv2gv
     $glob = $glob->first if $glob->name eq "rv2gv"; # this one's a bug
-    my $scope = is_scope($glob);
+    my $scope = B::Deparse::is_scope($glob);
     $glob = $self->deparse($glob, 0);
     $part = $self->deparse($part, 1);
     return "*" . ($scope ? "{$glob}" : $glob) . "{$part}";

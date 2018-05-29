@@ -783,7 +783,7 @@ sub elem_or_slice_array_name
 
     if ($array->name eq $padname) {
 	return $self->padany($array);
-    } elsif (is_scope($array)) { # ${expr}[0]
+    } elsif (B::Deparse::is_scope($array)) { # ${expr}[0]
 	return "{" . $self->deparse($array, 0) . "}";
     } elsif ($array->name eq "gv") {
 	($array, my $quoted) =
@@ -987,7 +987,7 @@ sub pp_gelem
     my($glob, $part) = ($op->first, $op->last);
     $glob = $glob->first; # skip rv2gv
     $glob = $glob->first if $glob->name eq "rv2gv"; # this one's a bug
-    my $scope = is_scope($glob);
+    my $scope = B::Deparse::is_scope($glob);
     $glob = $self->deparse($glob, 0);
     $part = $self->deparse($part, 1);
     return "*" . ($scope ? "{$glob}" : $glob) . "{$part}";

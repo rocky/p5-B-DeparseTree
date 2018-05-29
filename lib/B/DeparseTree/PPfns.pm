@@ -1505,9 +1505,33 @@ sub null_newer
     } else  {
 	# All of these use $kid
 	my $kid = $op->first;
+	my $update_node = $kid;
 	if ($self->is_list_newer($op)) {
 	    my $node = $self->pp_list($op, $cx);
-	    $node->update_other_ops($kid);
+	    # Find first "(" or "{" in node.
+	    # FIXME figure out how to put ( { without
+	    # resorting to ASCII.
+	    my $position;
+	    if ($node->{parens}) {
+		$position = [0, 1];
+	    } elsif (exists $node->{fmt}) {
+		# Match up to %c, %C, or %F after ( or {
+		if ($node->{fmt} =~ /^(.*.)%[cCF]/) {
+		    $position = [length($1), 1];
+		}
+	    # } else {
+	    # 	# Match up to first ( or {
+	    # 	if ($node->{fmt} =~ /^(.*)\(|\{/) {
+	    # 	    $position = [length($1), 1];
+	    # 	}
+	    }
+	    if ($position) {
+		$update_node =
+		    $self->info_from_string($kid->name, $kid,
+					    $node->{text},
+					    {position => $position});
+	    }
+	    $node->update_other_ops($update_node);
 	    return $node;
 	} elsif ($kid->name eq "enter") {
 	    return $self->pp_leave($op, $cx);

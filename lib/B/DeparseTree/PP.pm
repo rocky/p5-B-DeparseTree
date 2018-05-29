@@ -511,7 +511,7 @@ sub pp_list
     }
 
     if ($local) {
-	return $self->info_from_template("$local list", $op,
+	return $self->info_from_template("$local ()", $op,
 					 "$local(%C)", [[0, $#exprs, ', ']],
 					 \@exprs,
 					 {other_ops => [$pushmark_op]});
