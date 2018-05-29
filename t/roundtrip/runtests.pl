@@ -15,7 +15,7 @@ chomp($base_dir = `pwd`);
 rmtree("tmp");
 mkdir("tmp");
 
-my $libdir = File::Spec->catfile('..', 'lib');
+my $libdir = File::Spec->catfile('..', '..', 'lib');
 my @subdirs = ();
 foreach my $dir (glob '*') {
     next if $dir eq 'tmp';
@@ -27,7 +27,7 @@ foreach my $dir (glob '*') {
     push @subdirs, $dir;
 
     foreach my $test_prog (glob('*.t')) {
-	my $outfile = File::Spec->catfile("../tmp/$dir", $test_prog);
+	my $outfile = File::Spec->catfile("..", "tmp", $dir, $test_prog);
 
 	# See if the command checks on its own out before we muck with it...
 	my $cmd = "$EXECUTABLE_NAME $test_prog >$outfile";

@@ -128,7 +128,7 @@ test-roundtrip: check-roundtrip
 
 #: Run Perl's own tests (after decompilation)
 check-roundtrip:
-	make install && cd t/roundtrip && perl runtests.pl
+	cd t/roundtrip && perl runtests.pl
 
 #: Run just the tests in the t/ directory
 check-t: test-unit
