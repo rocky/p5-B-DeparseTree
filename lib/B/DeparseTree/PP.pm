@@ -962,7 +962,7 @@ sub pp_gv
 # Note 5.20 and up
 sub pp_null
 {
-    $] < 5.026 ? null_older(@_) : null_newer(@_);
+    $] < 5.020 ? null_older(@_) : null_newer(@_);
 }
 
 sub pp_once

@@ -86,7 +86,7 @@ our(@EXPORT, @ISA);
 our $VERSION = '3.0.0';
 
 @ISA = qw(Exporter B::DeparseTree::Common);
-@EXPORT = qw(is_pp_null_list);
+@EXPORT = qw(null_op_list_newer);
 
 BEGIN {
     # List version-specific constants here.
@@ -376,7 +376,9 @@ sub cop_subs {
     return $self->seq_subs($seq);
 }
 
-sub is_pp_null_list($$) {
+# The version of null_op_list after 5.20
+# Note: this uses "op" not "kid"
+sub null_op_list_newer($$) {
     my ($self, $op) = @_;
     return $op->name eq 'pushmark' or
 	($op->name eq 'null'

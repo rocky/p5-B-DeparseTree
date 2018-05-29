@@ -63,6 +63,7 @@ $VERSION = '3.1.1';
     matchop
     null_newer
     null_older
+    null_op_is_list_older
     pfixop
     range
     repeat
@@ -1209,6 +1210,15 @@ sub matchop_older
     return info_from_list($op, $self, \@texts, '', $type, $opts);
 }
 
+# The version of null_op_list before 5.20
+# Note: this uses "kid", not "op"
+sub null_op_is_list_older($) {
+    my ($self, $kid) = @_;
+    # Something may be funky where without the convesion we are getting ""
+    # as a return
+    return ($kid->name eq 'pushmark') ? 1 : 0;
+}
+
 sub null_older
 {
     my($self, $op, $cx) = @_;
@@ -1217,15 +1227,16 @@ sub null_older
 	if ($op->targ == B::Deparse::OP_CONST) {
 	    # The Perl source constant value can't be recovered.
 	    # We'll use the 'ex_const' value as a substitute
-	    return info_from_text($op, $self, $self->{'ex_const'}, 'constant unrecoverable', {})
+	    return $self->info_from_string('constant unrecoverable', $op, $self->{'ex_const'});
 	} else {
-	    return info_from_text($op, $self, '', 'constant ""', {});
+	    # FIXME: look over. Is this right?
+	    return $self->info_from_string('constant ""', $op, '');
 	}
     } elsif (B::class ($op) eq "COP") {
 	    return $self->pp_nextstate($op, $cx);
     }
     my $kid = $op->first;
-    if ($self->is_pp_null_list($op)) {
+    if ($self->null_op_is_list_older($kid)) {
 	my $node = $self->pp_list($op, $cx);
 	$node->update_other_ops($kid);
 	return $node;
@@ -1251,22 +1262,25 @@ sub null_older
     } elsif (!null($kid->sibling) and
     	     $kid->sibling->name eq "readline" and
     	     $kid->sibling->flags & OPf_STACKED) {
-    	my $lhs = $self->deparse($kid, 7, $op);
-    	my $rhs = $self->deparse($kid->sibling, 7, $kid);
-    	return $self->bin_info_join_maybe_parens($op, $lhs, $rhs, '=', " ", $cx, 7,
-						 'readline');
+	my $lhs = $self->deparse($kid, 7, $op);
+	my $rhs = $self->deparse($kid->sibling, 7, $kid);
+	return $self->info_from_template("readline = ", $op,
+					 "%c = %c", undef, [$lhs, $rhs],
+					 {maybe_parens => [$self, $cx, 7],
+					  prev_expr => $rhs});
     } elsif (!null($kid->sibling) and
     	     $kid->sibling->name eq "trans" and
     	     $kid->sibling->flags & OPf_STACKED) {
     	my $lhs = $self->deparse($kid, 20, $op);
     	my $rhs = $self->deparse($kid->sibling, 20, $op);
-    	return $self->bin_info_join_maybe_parens($op, $lhs, $rhs, '=~', " ", $cx, 20,
-	                                         'trans');
+	return $self->info_from_template("trans =~",$op,
+					 "%c =~ %c", undef, [$lhs, $rhs],
+					 { maybe_parens => [$self, $cx, 7],
+					   prev_expr => $rhs });
     } elsif ($op->flags & OPf_SPECIAL && $cx < 1 && !$op->targ) {
-    	my $kid_info = $self->deparse($kid, $cx, $op);
-	return info_from_list($op, $self, ['do', "{\n\t", $kid_info->{text},
-			       "\n\b};"], '', 'null_special',
-	    {body => [$kid_info]});
+	my $kid_info = $self->deparse($kid, $cx, $op);
+	return $self->info_from_template("do { }", $op,
+					 "do {\n%+%c\n%-}", undef, [$kid_info]);
     } elsif (!null($kid->sibling) and
 	     $kid->sibling->name eq "null" and
 	     B::class($kid->sibling) eq "UNOP" and
@@ -1274,8 +1288,10 @@ sub null_older
 	     $kid->sibling->first->name eq "rcatline") {
 	my $lhs = $self->deparse($kid, 18, $op);
 	my $rhs = $self->deparse($kid->sibling, 18, $op);
-	return $self->bin_info_join_maybe_parens($op, $lhs, $rhs, '=', " ", $cx, 20,
-						 'null_rcatline');
+	return $self->info_from_template("rcatline =",$op,
+					 "%c = %c", undef, [$lhs, $rhs],
+					 { maybe_parens => [$self, $cx, 20],
+					   prev_expr => $rhs });
     } else {
 	return $self->deparse($kid, $cx, $op);
     }
@@ -1286,7 +1302,7 @@ sub null_older
 sub null_newer
 {
     my($self, $op, $cx) = @_;
-    my $info;
+    my $infoxo;
     if (B::class($op) eq "OP") {
 	# If the Perl source constant value can't be recovered.
 	# We'll use the 'ex_const' value as a substitute
@@ -1298,7 +1314,7 @@ sub null_newer
     } else  {
 	# All of these use $kid
 	my $kid = $op->first;
-	if ($self->is_pp_null_list($op)) {
+	if ($self->is_pp_null_list_newer($op)) {
 	    my $node = $self->pp_list($op, $cx);
 	    $node->update_other_ops($kid);
 	    return $node;

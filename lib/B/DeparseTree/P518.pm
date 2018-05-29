@@ -61,7 +61,6 @@ our(@EXPORT, @ISA);
 our $VERSION = '3.0.0';
 
 @ISA = qw(Exporter B::DeparseTree::Common);
-@EXPORT = qw(is_pp_null_list);
 
 BEGIN {
     # List version-specific constants here.
@@ -423,11 +422,6 @@ sub keyword {
 	return "CORE::$name"
     }
     return $name;
-}
-
-sub is_pp_null_list($) {
-    my ($self, $op) = @_;
-    return ($op->name eq 'pushmark');
 }
 
 { no strict 'refs'; *{"pp_r$_"} = *{"pp_$_"} for qw< keys each values >; }

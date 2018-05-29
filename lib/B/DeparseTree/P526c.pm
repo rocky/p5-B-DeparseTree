@@ -111,7 +111,7 @@ use types;
 our $VERSION = '3.1.1';
 
 our @ISA = qw(Exporter B::DeparseTree::Common);
-our @EXPORT = qw(cop_subs is_pp_null_list);
+our @EXPORT = qw(cop_subs);
 
 BEGIN {
     # List version-specific constants here.
@@ -401,14 +401,6 @@ sub cop_subs {
     }
     $seq = $out_seq if defined($out_seq) && $out_seq < $seq;
     return $self->seq_subs($seq);
-}
-
-sub is_pp_null_list($$) {
-    my ($self, $op) = @_;
-    return $op->name eq 'pushmark' or
-	($op->name eq 'null'
-	 && $op->targ == B::Deparse::OP_PUSHMARK
-	 && B::Deparse::_op_is_or_was($op, B::Deparse::OP_LIST));
 }
 
 my %feature_keywords = (
