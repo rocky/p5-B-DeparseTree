@@ -59,13 +59,15 @@ $VERSION = '1.0.0';
 
 @ISA = qw(Exporter B::Deparse);
 @EXPORT = qw(
-    pp_avalues
     pp_aassign
     pp_abs
+    pp_aelem
     pp_and
     pp_anonhash
     pp_anonlist
+    pp_aslice
     pp_atan2
+    pp_avalues
     pp_boolkeys
     pp_chmod
     pp_chomp
@@ -96,7 +98,9 @@ $VERSION = '1.0.0';
     pp_gpbynumber
     pp_grepwhile
     pp_gv
+    pp_helem
     pp_hex
+    pp_hslice
     pp_i_negate
     pp_i_predec
     pp_i_preinc
@@ -106,12 +110,14 @@ $VERSION = '1.0.0';
     pp_ioctl
     pp_join
     pp_kill
+    pp_kvaslice
+    pp_kvhslice
     pp_leave
+    pp_leavegiven
     pp_leaveloop
     pp_leavetry
-    pp_lineseq
-    pp_leavegiven
     pp_leavewhen
+    pp_lineseq
     pp_link
     pp_list
     pp_log
@@ -126,8 +132,8 @@ $VERSION = '1.0.0';
     pp_once
     pp_open_dir
     pp_or
-    pp_pos
     pp_padcv
+    pp_pos
     pp_pos
     pp_postdec
     pp_postinc
@@ -143,13 +149,13 @@ $VERSION = '1.0.0';
     pp_repeat
     pp_require
     pp_rindex
+    pp_scalar
     pp_schomp
     pp_schop
     pp_scope
     pp_setpgrp
     pp_setpriority
     pp_sin
-    pp_scalar
     pp_sockpair
     pp_sprintf
     pp_sqrt
@@ -168,8 +174,8 @@ $VERSION = '1.0.0';
     pp_unshift
     pp_unstack
     pp_utime
-    pp_vec
     pp_values
+    pp_vec
     pp_wait
     pp_waitpid
     pp_wantarray
@@ -190,6 +196,15 @@ BEGIN {
 sub SWAP_CHILDREN () { 1 }
 sub ASSIGN () { 2 } # has OP= variant
 sub LIST_CONTEXT () { 4 } # Assignment is in list context
+
+# Convert these to table entries...
+sub pp_aslice   { maybe_local(@_, slice(@_, "[", "]", "rv2av", "padav")) }
+sub pp_kvaslice {                 slice(@_, "[", "]", "rv2av", "padav")  }
+sub pp_hslice   { maybe_local(@_, slice(@_, "{", "}", "rv2hv", "padhv")) }
+sub pp_kvhslice {                 slice(@_, "{", "}", "rv2hv", "padhv")  }
+sub pp_aelem { maybe_local(@_, elem(@_, "[", "]", "padav")) }
+sub pp_helem { maybe_local(@_, elem(@_, "{", "}", "padhv")) }
+
 
 # FIXME: These don't seem to be able to go into the table.
 # PPfns calls pp_sockpair for example?
