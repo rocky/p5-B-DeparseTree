@@ -70,6 +70,7 @@ use B::Deparse;
 *padany = *B::Deparse::padany;
 *padname = *B::Deparse::padname;
 *padname_sv = *B::Deparse::padname_sv;
+*padval = *B::Deparse::padval;
 *re_flags = *B::Deparse::re_flags;
 *stash_variable = *B::Deparse::stash_variable;
 *stash_variable_name = *B::Deparse::stash_variable_name;

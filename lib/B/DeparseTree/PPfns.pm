@@ -977,7 +977,7 @@ sub mapop
     $kid = $kid->sibling;
     $self->deparse_op_siblings(\@nodes, $kid, $op, 6);
 
-    if ($self->func_needs_parens($name, $nodes[1], $cx, 5)) {
+    if ($self->func_needs_parens($name, $nodes[1]->{text}, $cx, 5)) {
 	$fmt = "$name $first_arg_fmt (%C)";
     } else {
 	$fmt = "$name $first_arg_fmt %C";

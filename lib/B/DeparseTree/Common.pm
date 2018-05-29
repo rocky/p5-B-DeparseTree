@@ -299,48 +299,71 @@ sub maybe_local {
     return maybe_local_str($self, $op, $cx, $var_info->{text});
 }
 
-# FIXME this doesn't return a String!
+# Handles "our", "local", "my" variables (and possibly no
+# declaration of these) in scalar and array contexts.
+# The complications include stripping a package name on
+# "our" variables, and not including parenthesis when
+# not needed, unless there's a setting to always include
+# parenthesis.
+
 sub maybe_local_str
 {
     my($self, $op, $cx, $info) = @_;
-    my $text;
+    my ($text, $is_node);
     if (ref $info && $info->isa("B::DeparseTree::Node")) {
 	$text = $self->info2str($info);
+	$is_node = 1;
     } else {
 	$text = $info;
+	$is_node = 0;
     }
+
     my $our_intro = ($op->name =~ /^(gv|rv2)[ash]v$/) ? OPpOUR_INTRO : 0;
+    my ($fmt, $type);
     if ($op->private & (OPpLVAL_INTRO|$our_intro)
 	and not $self->{'avoid_local'}{$$op}) {
 	my $our_local = ($op->private & OPpLVAL_INTRO) ? "local" : "our";
 	if( $our_local eq 'our' ) {
-	    # Strip off package prefix
+	    # "our" variables needs to strip off package the prefix
 
-	    # FIXME: use transformation function %F.
 	    if ( $text !~ /^\W(\w+::)*\w+\z/
-	     and !utf8::decode($text) || $text !~ /^\W(\w+::)*\w+\z/
+		 and !utf8::decode($text) || $text !~ /^\W(\w+::)*\w+\z/
 		) {
 		Carp::confess("Unexpected our text $text");
 	    }
-	    $text =~ s/(\w+::)+//;
 
-	    # FIXME: remove this after adding transform function
-	    if (B::Deparse::want_scalar($op)) {
-		return info_from_list($op, $self, [$our_local, $text], ' ',
-				      'maybe_local_scalar', {});
+	    if (!B::Deparse::want_scalar($op)
+		&& $self->func_needs_parens($text, $cx, 16)) {
+		$type = "our ()";
+		$fmt = "our(%F)";
 	    } else {
-		my @texts = $self->maybe_parens_func($our_local, $text, $cx, 16);
-		return info_from_list($op, $self, \@texts, '', 'maybe_local_array',
-				      {});
+		$type = "our";
+		$fmt = "our %F";
 	    }
+	    my $transform_fn = sub {
+		my $text = $is_node ? $_[0]->{text} : $_[0];
+		# Strip possible package prefix
+		$text =~ s/(\w+::)+//;
+		return $text;
+	    };
+	    # $info could be either a string or a node, %c covers both.
+	    return $self->info_from_template($type, $op, $fmt, [[0, $transform_fn]], [$info]);
 	}
+
+	# Not an "our" declaration.
         if (B::Deparse::want_scalar($op)) {
-	    return info_from_list($op, $self, [$our_local, $info], ' ',
-				  'maybe_local_scalar', {});
+	    # $info could be either a string or a node, %c covers both
+	    return $self->info_from_template("scalar $our_local", $op, "$our_local %c", undef, [$info]);
 	} else {
-	    my @texts = $self->maybe_parens_func($our_local, $info, $cx, 16);
-	    return info_from_list($op, $self, \@texts, '', 'maybe_local_array',
-				  {});
+	    if (!B::Deparse::want_scalar($op)
+		&& $self->func_needs_parens($text, $cx, 16)) {
+		$fmt = "$our_local(%F)";
+		$type = "$our_local()";
+	    } else {
+		$fmt = "$our_local %F";
+		$type = "$our_local";
+	    }
+	    return $self->info_from_template($type, $op, $fmt, undef, [$info]);
 	}
     } else {
 	if (ref $info && $info->isa("B::DeparseTree::Node")) {
@@ -354,7 +377,7 @@ sub maybe_local_str
 sub func_needs_parens($$$$$)
 {
     my($self, $first_param, $cx, $prec) = @_;
-    return ($prec <= $cx or substr($first_param->{text}, 0, 1) eq "(" or $self->{'parens'});
+    return ($prec <= $cx or substr($first_param, 0, 1) eq "(" or $self->{'parens'});
 }
 
 # FIXME: go back to default B::Deparse routine and return a string.
