@@ -46,6 +46,7 @@ use B::Deparse;
 
 use B qw(
     class
+    opnumber
     OPf_MOD OPpENTERSUB_AMPER
     OPf_SPECIAL
     OPf_STACKED
@@ -59,6 +60,7 @@ $VERSION = '1.0.0';
 
 @ISA = qw(Exporter B::Deparse);
 @EXPORT = qw(
+    feature_enabled
     pp_aassign
     pp_abs
     pp_aelem
@@ -163,6 +165,7 @@ $VERSION = '1.0.0';
     pp_repeat
     pp_require
     pp_rindex
+    pp_rv2cv
     pp_sassign
     pp_scalar
     pp_schomp
@@ -213,6 +216,22 @@ BEGIN {
 	no strict 'refs';
 	*{$_} = sub () {0} unless *{$_}{CODE};
     }
+}
+
+BEGIN { for (qw[ const stringify rv2sv list glob pushmark null aelem
+		 nextstate dbstate rv2av rv2hv helem custom ]) {
+    eval "sub OP_\U$_ () { " . opnumber($_) . "}"
+}}
+
+sub feature_enabled {
+	my($self,$name) = @_;
+	my $hh;
+	my $hints = $self->{hints} & $feature::hint_mask;
+	if ($hints && $hints != $feature::hint_mask) {
+	    $hh = B::Deparse::_features_from_bundle($hints);
+	}
+	elsif ($hints) { $hh = $self->{'hinthash'} }
+	return $hh && $hh->{"feature_$feature_keywords{$name}"}
 }
 
 sub SWAP_CHILDREN () { 1 }
@@ -316,11 +335,25 @@ sub pp_push { maybe_targmy(@_, \&listop, "push") }
 sub pp_rename { maybe_targmy(@_, \&listop, "rename") }
 sub pp_rindex { maybe_targmy(@_, \&listop, "rindex") }
 
+# skip down to the old, ex-rv2cv
+sub pp_rv2cv {
+    my ($self, $op, $cx) = @_;
+    if (!B::Deparse::null($op->first) && $op->first->name eq 'null' &&
+	$op->first->targ == OP_LIST)
+    {
+	return $self->rv2x($op->first->first->sibling, $cx, "&")
+    }
+    else {
+	return $self->rv2x($op, $cx, "")
+    }
+}
+
+
 sub pp_scalar
 {
     my($self, $op, $cx) = @_;
     my $kid = $op->first;
-    if (not null $kid->sibling) {
+    if (not B::Deparse::null $kid->sibling) {
 	# XXX Was a here-doc
 	return $self->dquote($op);
     }
@@ -493,7 +526,7 @@ sub pp_list
     }
     my $lop;
     my $local = "either"; # could be local(...), my(...), state(...) or our(...)
-    for ($lop = $kid; !null($lop); $lop = $lop->sibling) {
+    for ($lop = $kid; !B::Deparse::null($lop); $lop = $lop->sibling) {
 	# This assumes that no other private flags equal 128, and that
 	# OPs that store things other than flags in their op_private,
 	# like OP_AELEMFAST, won't be immediate children of a list.
@@ -541,7 +574,7 @@ sub pp_list
 	return $info;
     }
 
-    for (; !null($kid); $kid = $kid->sibling) {
+    for (; !B::Deparse::null($kid); $kid = $kid->sibling) {
 	if ($local) {
 	    if (class($kid) eq "UNOP" and $kid->first->name eq "gvsv") {
 		$lop = $kid->first;
@@ -588,7 +621,7 @@ sub pp_refgen
 	    $anoncode = $anoncode->first->first->sibling;
 	}
 	if ($anoncode->name eq "anoncode"
-	 or !null($anoncode = $kid->sibling) and
+	 or !B::Deparse::null($anoncode = $kid->sibling) and
 		 $anoncode->name eq "anoncode") {
             return $self->e_anoncode({ code => $self->padval($anoncode->targ) });
 	} elsif ($kid->name eq "pushmark") {
@@ -671,7 +704,7 @@ sub pp_cond_expr
     my @args_spec = (0, 1);
 
     my $i;
-    for ($i=0; !null($false) and B::Deparse::is_ifelse_cont($false); $i++) {
+    for ($i=0; !B::Deparse::null($false) and B::Deparse::is_ifelse_cont($false); $i++) {
 	my $newop = $false->first;
 	my $newcond = $newop->first;
 	my $newtrue = $newcond->sibling;
@@ -690,7 +723,7 @@ sub pp_cond_expr
     }
     $type .= " elsif($i)" if $i;
     my $false_info;
-    if (!null($false)) {
+    if (!B::Deparse::null($false)) {
 	$false_info = $self->deparse($false, 0, $op);
 	$fmt .= "${cuddle}else {\n%+%c\n%-}";
 	push @args_spec, scalar(@args_spec);
@@ -717,7 +750,7 @@ sub pp_entersub
 {
     my($self, $op, $cx) = @_;
     return $self->e_method($op, $self->_method($op, $cx))
-        unless null $op->first->sibling;
+        unless B::Deparse::null $op->first->sibling;
     my $prefix = "";
     my $amper = "";
     my($kid, @exprs);
@@ -731,7 +764,7 @@ sub pp_entersub
     my $other_ops = [$kid, $kid->first];
     $kid = $kid->first->sibling; # skip ex-list, pushmark
 
-    for (; not null $kid->sibling; $kid = $kid->sibling) {
+    for (; not B::Deparse::null $kid->sibling; $kid = $kid->sibling) {
 	push @exprs, $kid;
     }
     my ($simple, $proto, $subname_info) = (0, undef, undef);

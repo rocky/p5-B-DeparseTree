@@ -101,7 +101,7 @@ BEGIN {
     }
 }
 
-BEGIN { for (qw[ const stringify rv2sv list glob pushmark null aelem
+BEGIN { for (qw[ rv2sv glob null aelem
 		 nextstate dbstate rv2av rv2hv helem custom ]) {
     eval "sub OP_\U$_ () { " . opnumber($_) . "}"
 }}
@@ -268,47 +268,6 @@ sub ambient_pragmas {
     $self->{'ambient_hinthash'} = $hinthash;
 }
 
-# Sort of like maybe_parens in that we may possibly add ().  However we take
-# an op rather than text, and return a tree node. Also, we get around
-# the 'if it looks like a function' rule.
-sub maybe_parens_unop($$$$$)
-{
-    my $self = shift;
-    my($name, $op, $cx, $parent) = @_;
-    my $info =  $self->deparse($op, 1, $parent);
-    my $fmt;
-    my @exprs = ($info);
-    if ($name eq "umask" && $info->{text} =~ /^\d+$/) {
-	# Display umask numbers in octal.
-	# FIXME: add as a info_node option to run a transformation function
-	# such as the below
-	$info->{text} = sprintf("%#o", $info->{text});
-	$exprs[0] = $info;
-    }
-    $name = $self->keyword($name);
-    if ($cx > 16 or $self->{'parens'}) {
-	return $self->info_from_template("$name()", $op,
-					 "$name(%c)",[0], \@exprs);
-    } else {
-	# FIXME: we don't do \cS
-	# if (substr($text, 0, 1) eq "\cS") {
-	#     # use op's parens
-	#     return info_from_list($op, $self,[$name, substr($text, 1)],
-	# 			  '',  'maybe_parens_unop_cS', {body => [$info]});
-	# } else
-	if (substr($info->{text}, 0, 1) eq "(") {
-	    # avoid looks-like-a-function trap with extra parens
-	    # ('+' can lead to ambiguities)
-	    return $self->info_from_template("$name(())", $op,
-					     "$name(%c)", [0], \@exprs);
-	} else {
-	    return $self->info_from_template("$name <args>", $op,
-					     "$name %c", [0], \@exprs);
-	}
-    }
-    Carp::confess("unhandled condition in maybe_parens_unop");
-}
-
 # The following OPs don't have functions:
 
 # pp_padany -- does not exist after parsing
@@ -407,7 +366,7 @@ sub keyword {
 	my $hh;
 	my $hints = $self->{hints} & $feature::hint_mask;
 	if ($hints && $hints != $feature::hint_mask) {
-	    $hh = _features_from_bundle($hints);
+	    $hh = B::Deparse::_features_from_bundle($hints);
 	}
 	elsif ($hints) { $hh = $self->{'hinthash'} }
 	return "CORE::$name"
@@ -705,19 +664,6 @@ sub pp_av2arylen {
     } else {
 	return $self->maybe_local($op, $cx,
 				  $self->rv2x($op->first, $cx, '$#'));
-    }
-}
-
-# skip down to the old, ex-rv2cv
-sub pp_rv2cv {
-    my ($self, $op, $cx) = @_;
-    if (!null($op->first) && $op->first->name eq 'null' &&
-	$op->first->targ == OP_LIST)
-    {
-	return $self->rv2x($op->first->first->sibling, $cx, "&")
-    }
-    else {
-	return $self->rv2x($op, $cx, "")
     }
 }
 
@@ -1052,13 +998,13 @@ sub _method
 	$kid = $kid->first->sibling; # skip pushmark
 	$obj = $kid;
 	$kid = $kid->sibling;
-	for (; not null $kid; $kid = $kid->sibling) {
+	for (; not B::Deparse::null $kid; $kid = $kid->sibling) {
 	    push @exprs, $kid;
 	}
     } else {
 	$obj = $kid;
 	$kid = $kid->sibling;
-	for (; !null ($kid->sibling) && $kid->name!~/^method(?:_named)?\z/;
+	for (; !B::Deparse::null ($kid->sibling) && $kid->name!~/^method(?:_named)?\z/;
 	     $kid = $kid->sibling) {
 	    push @exprs, $kid
 	}
@@ -1195,7 +1141,7 @@ sub check_proto {
 	    } elsif (substr($chr, 0, 1) eq "\\") {
 		$chr =~ tr/\\[]//d;
 		if ($arg->name =~ /^s?refgen$/ and
-		    !null($real = $arg->first) and
+		    !B::Deparse::null($real = $arg->first) and
 		    ($chr =~ /\$/ && B::Deparse::is_scalar($real->first)
 		     or ($chr =~ /@/
 			 && class($real->first->sibling) ne 'NULL'
@@ -1308,7 +1254,7 @@ sub pp_stringify {
     my ($self, $op, $cx) = @_;
     my $kid = $op->first->sibling;
     my @other_ops = ();
-    while ($kid->name eq 'null' && !null($kid->first)) {
+    while ($kid->name eq 'null' && !B::Deparse::null($kid->first)) {
         push(@other_ops, $kid);
 	$kid = $kid->first;
     }
@@ -1644,7 +1590,7 @@ sub re_dq {
 
 sub pure_string {
     my ($self, $op) = @_;
-    return 0 if null $op;
+    return 0 if B::Deparse::null $op;
     my $type = $op->name;
 
     if ($type eq 'const' || $type eq 'av2arylen') {
@@ -1671,9 +1617,9 @@ sub pure_string {
     elsif (B::Deparse::is_scalar($op) || $type =~ /^[ah]elem$/) {
 	return 1;
     }
-    elsif ($type eq "null" and $op->can('first') and not null $op->first and
+    elsif ($type eq "null" and $op->can('first') and not B::Deparse::null $op->first and
 	  ($op->first->name eq "null" and $op->first->can('first')
-	   and not null $op->first->first and
+	   and not B::Deparse::null $op->first->first and
 	   $op->first->first->name eq "aelemfast"
           or
 	   $op->first->name =~ /^aelemfast(?:_lex)?\z/
@@ -1700,13 +1646,13 @@ sub regcomp
 	push @other_ops, $kid;
 	$kid = $kid->first;
     }
-    if ($kid->name eq "null" and !null($kid->first)
+    if ($kid->name eq "null" and !B::Deparse::null($kid->first)
 	and $kid->first->name eq 'pushmark') {
 	my $str = '';
 	push(@other_ops, $kid);
 	$kid = $kid->first->sibling;
 	my @body = ();
-	while (!null($kid)) {
+	while (!B::Deparse::null($kid)) {
 	    my $first = $str;
 	    my $last = $self->re_dq($kid, $extended);
 	    push @body, $last;

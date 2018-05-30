@@ -110,7 +110,7 @@ BEGIN {
     }
 }
 
-BEGIN { for (qw[ const stringify rv2sv list glob pushmark null aelem
+BEGIN { for (qw[ rv2sv glob null aelem
 		 nextstate dbstate rv2av rv2hv helem custom ]) {
     eval "sub OP_\U$_ () { " . opnumber($_) . "}"
 }}
@@ -365,17 +365,6 @@ my %strong_proto_keywords = map { $_ => 1 } qw(
     undef
 );
 
-sub feature_enabled {
-	my($self,$name) = @_;
-	my $hh;
-	my $hints = $self->{hints} & $feature::hint_mask;
-	if ($hints && $hints != $feature::hint_mask) {
-	    $hh = _features_from_bundle($hints);
-	}
-	elsif ($hints) { $hh = $self->{'hinthash'} }
-	return $hh && $hh->{"feature_$feature_keywords{$name}"}
-}
-
 # Note: maybe_local things can't be moved to PP yet.
 sub pp_pos { maybe_local(@_, unop(@_, "pos")) }
 
@@ -524,23 +513,6 @@ sub pp_av2arylen {
 	return $self->maybe_local_str($op, $cx,
 				      $self->rv2x($op->first, $cx, '$#'));
     }
-}
-
-# skip down to the old, ex-rv2cv
-sub pp_rv2cv {
-    my ($self, $op, $cx) = @_;
-    my ($type, $str);
-    if (!null($op->first) && $op->first->name eq 'null' &&
-	$op->first->targ == OP_LIST)
-    {
-	$str = $self->rv2x($op->first->first->sibling, $cx, "&");
-	$type = 'rv2cv_list';
-    }
-    else {
-	$str = $self->rv2x($op, $cx, "");
-	$type = 'rv2cv';
-    }
-    return info_from_text($op, $self, $str, $type, {});
 }
 
 sub list_const($$$) {
@@ -924,13 +896,13 @@ sub _method
 	$kid = $kid->first->sibling; # skip pushmark
 	$obj = $kid;
 	$kid = $kid->sibling;
-	for (; not null $kid; $kid = $kid->sibling) {
+	for (; not B::Deparse::null $kid; $kid = $kid->sibling) {
 	    push @exprs, $kid;
 	}
     } else {
 	$obj = $kid;
 	$kid = $kid->sibling;
-	for (; !null ($kid->sibling) && $kid->name!~/^method(?:_named)?\z/;
+	for (; !B::Deparse::null ($kid->sibling) && $kid->name!~/^method(?:_named)?\z/;
 	     $kid = $kid->sibling) {
 	    push @exprs, $kid
 	}
@@ -1064,7 +1036,7 @@ sub check_proto {
 	    } elsif (substr($chr, 0, 1) eq "\\") {
 		$chr =~ tr/\\[]//d;
 		if ($arg->name =~ /^s?refgen$/ and
-		    !null($real = $arg->first) and
+		    !B::Deparse::null($real = $arg->first) and
 		    ($chr =~ /\$/ && B::Deparse::is_scalar($real->first)
 		     or ($chr =~ /@/
 			 && class($real->first->sibling) ne 'NULL'
@@ -1177,7 +1149,7 @@ sub pp_stringify {
     my ($self, $op, $cx) = @_;
     my $kid = $op->first->sibling;
     my @other_ops = ();
-    while ($kid->name eq 'null' && !null($kid->first)) {
+    while ($kid->name eq 'null' && !B::Deparse::null($kid->first)) {
         push(@other_ops, $kid);
 	$kid = $kid->first;
     }
@@ -1509,7 +1481,7 @@ sub re_dq {
 
 sub pure_string {
     my ($self, $op) = @_;
-    return 0 if null $op;
+    return 0 if B::Deparse::null $op;
     my $type = $op->name;
 
     if ($type eq 'const' || $type eq 'av2arylen') {
@@ -1536,9 +1508,9 @@ sub pure_string {
     elsif (B::Deparse::is_scalar($op) || $type =~ /^[ah]elem$/) {
 	return 1;
     }
-    elsif ($type eq "null" and $op->can('first') and not null $op->first and
+    elsif ($type eq "null" and $op->can('first') and not B::Deparse::null $op->first and
 	  ($op->first->name eq "null" and $op->first->can('first')
-	   and not null $op->first->first and
+	   and not B::Deparse::null $op->first->first and
 	   $op->first->first->name eq "aelemfast"
           or
 	   $op->first->name =~ /^aelemfast(?:_lex)?\z/
@@ -1565,13 +1537,13 @@ sub regcomp
 	push @other_ops, $kid;
 	$kid = $kid->first;
     }
-    if ($kid->name eq "null" and !null($kid->first)
+    if ($kid->name eq "null" and !B::Deparse::null($kid->first)
 	and $kid->first->name eq 'pushmark') {
 	my $str = '';
 	push(@other_ops, $kid);
 	$kid = $kid->first->sibling;
 	my @body = ();
-	while (!null($kid)) {
+	while (!B::Deparse::null($kid)) {
 	    my $first = $str;
 	    my $last = $self->re_dq($kid, $extended);
 	    push @body, $last;
@@ -1615,7 +1587,7 @@ sub pp_split
 
     $kid = $op->first;
     $kid = $kid->sibling if $kid->name eq 'regcomp';
-    for (; !null($kid); $kid = $kid->sibling) {
+    for (; !B::Deparse::null($kid); $kid = $kid->sibling) {
 	push @exprs, $self->deparse($kid, 6, $op);
     }
 

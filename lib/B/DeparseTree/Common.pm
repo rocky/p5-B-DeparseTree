@@ -21,7 +21,6 @@ use B qw(class
          OPf_KIDS
          OPf_SPECIAL
          OPpLVAL_INTRO
-         OPpOUR_INTRO
          OPpTARGET_MY
          SVf_IOK
          SVf_NOK
@@ -59,9 +58,7 @@ $VERSION = '3.1.1';
     %globalnames
     %ignored_hints
     %rev_feature
-    %strict_bits
     WARN_MASK
-    _features_from_bundle
     ambiant_pragmas
     anon_hash_or_list
     coderef2info
@@ -74,19 +71,8 @@ $VERSION = '3.1.1';
     deparse_sub($$$$)
     deparse_subname($$)
     dquote
-    hint_pragmas
-    map_texts
-    maybe_local
-    maybe_local_str
-    maybe_my
-    maybe_parens
-    maybe_parens_func
-    maybe_qualify
-    maybe_qualify
-    maybe_targmy
     new
     next_todo
-    null
     pragmata
     print_protos
     rv2x
@@ -219,11 +205,6 @@ sub init {
     delete $self->{'subs_declared'};
 }
 
-my %strict_bits = do {
-    local $^H;
-    map +($_ => strict::bits($_)), qw/refs subs vars/
-};
-
 sub anon_hash_or_list($$$)
 {
     my ($self, $op, $cx) = @_;
@@ -233,7 +214,7 @@ sub anon_hash_or_list($$$)
     my($expr, @exprs);
     my $other_ops = [$op->first];
     $op = $op->first->sibling; # skip pushmark
-    for (; !null($op); $op = $op->sibling) {
+    for (; !B::Deparse::null($op); $op = $op->sibling) {
 	$expr = $self->deparse($op, 6, $op);
 	push @exprs, [$expr, $op];
     }
@@ -254,196 +235,6 @@ sub e_anoncode($$)
     my $sub_info = $self->deparse_sub($info->{code});
     return $self->info_from_template('sub anonymous', $sub_info->{op},
 				     'sub %c', [0], [$sub_info]);
-}
-
-# FIXME: remove this
-sub map_texts($$)
-{
-    my ($self, $args) = @_;
-    my @result ;
-    foreach my $expr (@$args) {
-	if (ref $expr eq 'ARRAY' and scalar(@$expr) == 2) {
-	    # First item is hash and second item is op address.
-	    push @result, [$expr->[0]{text}, $expr->[1]];
-	} else {
-	    push @result, [$expr->{text}, $expr->{addr}];
-	}
-    }
-    return @result;
-}
-
-sub maybe_my {
-    my $self = shift;
-    my($op, $cx, $text, $forbid_parens) = @_;
-    if ($op->private & OPpLVAL_INTRO and not $self->{'avoid_local'}{$$op}) {
-	my $my_str = $op->private & OPpPAD_STATE
-	    ? $self->keyword("state")
-	    : "my";
-	if ($forbid_parens || B::Deparse::want_scalar($op)) {
-	    return $self->info_from_string('my',  $op, "$my_str $text");
-	} else {
-	    return $self->info_from_string('my (maybe with parens)',  $op,
-					   "$my_str $text",
-					   {maybe_parens => [$self, $cx, 16]});
-	}
-    } else {
-	return $self->info_from_string('not my', $op, $text);
-    }
-}
-
-# FIXME: This is weird. Regularize var_info
-sub maybe_local {
-    my($self, $op, $cx, $var_info) = @_;
-    $var_info->{parent} = $$op;
-    return maybe_local_str($self, $op, $cx, $var_info->{text});
-}
-
-# Handles "our", "local", "my" variables (and possibly no
-# declaration of these) in scalar and array contexts.
-# The complications include stripping a package name on
-# "our" variables, and not including parenthesis when
-# not needed, unless there's a setting to always include
-# parenthesis.
-
-sub maybe_local_str
-{
-    my($self, $op, $cx, $info) = @_;
-    my ($text, $is_node);
-    if (ref $info && $info->isa("B::DeparseTree::Node")) {
-	$text = $self->info2str($info);
-	$is_node = 1;
-    } else {
-	$text = $info;
-	$is_node = 0;
-    }
-
-    my $our_intro = ($op->name =~ /^(gv|rv2)[ash]v$/) ? OPpOUR_INTRO : 0;
-    my ($fmt, $type);
-    if ($op->private & (OPpLVAL_INTRO|$our_intro)
-	and not $self->{'avoid_local'}{$$op}) {
-	my $our_local = ($op->private & OPpLVAL_INTRO) ? "local" : "our";
-	if( $our_local eq 'our' ) {
-	    # "our" variables needs to strip off package the prefix
-
-	    if ( $text !~ /^\W(\w+::)*\w+\z/
-		 and !utf8::decode($text) || $text !~ /^\W(\w+::)*\w+\z/
-		) {
-		Carp::confess("Unexpected our text $text");
-	    }
-
-	    if (!B::Deparse::want_scalar($op)
-		&& $self->func_needs_parens($text, $cx, 16)) {
-		$type = "our ()";
-		$fmt = "our(%F)";
-	    } else {
-		$type = "our";
-		$fmt = "our %F";
-	    }
-	    my $transform_fn = sub {
-		my $text = $is_node ? $_[0]->{text} : $_[0];
-		# Strip possible package prefix
-		$text =~ s/(\w+::)+//;
-		return $text;
-	    };
-	    # $info could be either a string or a node, %c covers both.
-	    return $self->info_from_template($type, $op, $fmt, [[0, $transform_fn]], [$info]);
-	}
-
-	# Not an "our" declaration.
-        if (B::Deparse::want_scalar($op)) {
-	    # $info could be either a string or a node, %c covers both
-	    return $self->info_from_template("scalar $our_local", $op, "$our_local %c", undef, [$info]);
-	} else {
-	    if (!B::Deparse::want_scalar($op)
-		&& $self->func_needs_parens($text, $cx, 16)) {
-		$fmt = "$our_local(%F)";
-		$type = "$our_local()";
-	    } else {
-		$fmt = "$our_local %F";
-		$type = "$our_local";
-	    }
-	    return $self->info_from_template($type, $op, $fmt, undef, [$info]);
-	}
-    } else {
-	if (ref $info && $info->isa("B::DeparseTree::Node")) {
-	    return $info;
-	} else {
-	    return $self->info_from_string('not local', $op, $text);
-	}
-    }
-}
-
-sub func_needs_parens($$$$$)
-{
-    my($self, $first_param, $cx, $prec) = @_;
-    return ($prec <= $cx or substr($first_param, 0, 1) eq "(" or $self->{'parens'});
-}
-
-# FIXME: go back to default B::Deparse routine and return a string.
-sub maybe_parens_func($$$$$)
-{
-    my($self, $func, $params, $cx, $prec) = @_;
-    if ($prec <= $cx or substr($params, 0, 1) eq "(" or $self->{'parens'}) {
-	return ($func, '(', $params, ')');
-    } else {
-	return ($func, ' ', $params);
-    }
-}
-
-# Sort of like maybe_parens in that we may possibly add ().  However we take
-# an op rather than text, and return a tree node. Also, we get around
-# the 'if it looks like a function' rule.
-sub maybe_parens_unop($$$$)
-{
-    my $self = shift;
-    my($name, $op, $cx, $parent) = @_;
-    my $info =  $self->deparse($op, 1, $parent);
-    my $fmt;
-    my @exprs = ($info);
-    if ($name eq "umask" && $info->{text} =~ /^\d+$/) {
-	# Display umask numbers in octal.
-	# FIXME: add as a info_node option to run a transformation function
-	# such as the below
-	$info->{text} = sprintf("%#o", $info->{text});
-	$exprs[0] = $info;
-    }
-    $name = $self->keyword($name);
-    if ($cx > 16 or $self->{'parens'}) {
-	return $self->info_from_template("$name()", $op,
-					 "$name(%c)",[0], \@exprs);
-    } else {
-	# FIXME: we don't do \cS
-	# if (substr($text, 0, 1) eq "\cS") {
-	#     # use op's parens
-	#     return info_from_list($op, $self,[$name, substr($text, 1)],
-	# 			  '',  'maybe_parens_unop_cS', {body => [$info]});
-	# } else
-	if (substr($info->{text}, 0, 1) eq "(") {
-	    # avoid looks-like-a-function trap with extra parens
-	    # ('+' can lead to ambiguities)
-	    return $self->info_from_template("$name(())", $op,
-					     "$name(%c)", [0], \@exprs);
-	} else {
-	    return $self->info_from_template("$name <args>", $op,
-					     "$name %c", [0], \@exprs);
-	}
-    }
-    Carp::confess("unhandled condition in maybe_parens_unop");
-}
-
-sub maybe_qualify {
-    my ($self,$prefix,$name) = @_;
-    my $v = ($prefix eq '$#' ? '@' : $prefix) . $name;
-    return $name if !$prefix || $name =~ /::/;
-    return $self->{'curstash'}.'::'. $name
-	if
-	    $name =~ /^(?!\d)\w/         # alphabetic
-	 && $v    !~ /^\$[ab]\z/	 # not $a or $b
-	 && !$globalnames{$name}         # not a global name
-	 && $self->{hints} & $strict_bits{vars}  # strict vars
-	 && !$self->lex_in_scope($v,1)   # no "our"
-      or $self->lex_in_scope($v);        # conflicts with "my" variable
-    return $name;
 }
 
 BEGIN { for (qw[ pushmark ]) {
@@ -698,13 +489,6 @@ sub dquote
 				                 )});
 }
 
-# FIXME: how can we inherit this from B::Deparse?
-sub null
-{
-    my $op = shift;
-    return class($op) eq "NULL";
-}
-
 # This is a special case of scopeop and lineseq, for the case of the
 # main_root.
 sub deparse_root {
@@ -713,8 +497,8 @@ sub deparse_root {
     local(@$self{qw'curstash warnings hints hinthash'})
       = @$self{qw'curstash warnings hints hinthash'};
     my @ops;
-    return if null $op->first; # Can happen, e.g., for Bytecode without -k
-    for (my $kid = $op->first->sibling; !null($kid); $kid = $kid->sibling) {
+    return if B::Deparse::null $op->first; # Can happen, e.g., for Bytecode without -k
+    for (my $kid = $op->first->sibling; !B::Deparse::null($kid); $kid = $kid->sibling) {
 	push @ops, $kid;
     }
     my $fn = sub {
@@ -830,38 +614,6 @@ sub lineseq {
     return $self->walk_lineseq($root, \@ops, $fn);
 }
 
-# FIXME: need a way to pass in skipped_ops
-sub maybe_targmy
-{
-    my($self, $op, $cx, $func, @args) = @_;
-    if ($op->private & OPpTARGET_MY) {
-	my $var = $self->padname($op->targ);
-	my $val = $func->($self, $op, 7, @args);
-	my @texts = ($var, '=', $val);
-	return $self->info_from_template("my", $op,
-					 "%c = %c", [0, 1],
-					 [$var, $val],
-					 {maybe_parens => [$self, $cx, 7]});
-    } else {
-	return $self->$func($op, $cx, @args);
-    }
-}
-
-# Possibly add () around $text depending on precedence $prec and
-# context $cx. We return a string.
-sub maybe_parens($$$$)
-{
-    my($self, $text, $cx, $prec) = @_;
-    if (B::DeparseTree::Node::parens_test($self, $cx, $prec)) {
-	$text = "($text)";
-	# In a unop, let parent reuse our parens; see maybe_parens_unop
-	$text = "\cS" . $text if $cx == 16;
-	return $text;
-    } else {
-	return $text;
-    }
-}
-
 sub todo
 {
     my $self = shift;
@@ -871,7 +623,7 @@ sub todo
     my $seq;
     if ($cv->OUTSIDE_SEQ) {
 	$seq = $cv->OUTSIDE_SEQ;
-    } elsif (!null($cv->START) and B::Deparse::is_state($cv->START)) {
+    } elsif (!B::deparse::null($cv->START) and B::Deparse::is_state($cv->START)) {
 	$seq = $cv->START->cop_seq;
     } else {
 	$seq = 0;
@@ -1093,13 +845,13 @@ sub compile {
         local $B::overlay = {};
 
 	if ($] < 5.021) {
-	    unless (null $root) {
+	    unless (B::Deparse::null $root) {
 		$self->pessimise($root, main_start);
 		# Print deparsed program
 		print $self->deparse_root($root)->{text}, "\n";
 	    }
 	} else {
-	    unless (null $root) {
+	    unless (B::Deparse::null $root) {
 		$self->B::Deparse::pad_subs($self->{'curcv'});
 		# Check for a stub-followed-by-ex-cop, resulting from a program
 		# consisting solely of sub declarations.  For backward-compati-
@@ -1111,9 +863,9 @@ sub compile {
 		my $kid;
 		if ( $root->name eq 'leave'
 		     and ($kid = $root->first)->name eq 'enter'
-		     and !null($kid = $kid->sibling) and $kid->name eq 'stub'
-		     and !null($kid = $kid->sibling) and $kid->name eq 'null'
-		     and class($kid) eq 'COP' and null $kid->sibling )
+		     and !B::Deparse::null($kid = $kid->sibling) and $kid->name eq 'stub'
+		     and !B::Deparse::null($kid = $kid->sibling) and $kid->name eq 'null'
+		     and class($kid) eq 'COP' and B::Deparse::null $kid->sibling )
 		{
 		    # ignore deparsing routine
 		} else {
@@ -1280,7 +1032,7 @@ sub deparse_sub($$$$)
     my $info = {};
 
     local $B::overlay = {};
-    if (not null $root) {
+    if (not B::Deparse::null $root) {
 	$self->pessimise($root, $cv->START);
 	my $lineseq = $root->first;
 	if ($lineseq->name eq "lineseq") {
@@ -1389,8 +1141,8 @@ sub deparse_subname($$)
     my ($self, $funcname) = @_;
     my $cv = svref_2object(\&$funcname);
     my $info = $self->deparse_sub($cv);
-    return $self->info_from_text("sub $funcname", $cv, "sub $funcname %c",
-				 [0], [$info]);
+    return $self->info_from_template("sub $funcname", $cv, "sub $funcname %c",
+				 undef, [$info]);
 }
 
 sub scopeop
@@ -1428,7 +1180,7 @@ sub scopeop
     } else {
 	$kid = $op->first;
     }
-    for (; !null($kid); $kid = $kid->sibling) {
+    for (; !B::Deparse::null($kid); $kid = $kid->sibling) {
 	push @kids, $kid;
     }
     if ($cx > 0) {
@@ -1449,23 +1201,6 @@ sub scopeop
     }
 }
 
-sub hint_pragmas {
-    my ($bits) = @_;
-    my (@pragmas, @strict);
-    push @pragmas, "integer" if $bits & 0x1;
-    for (sort keys %strict_bits) {
-	push @strict, "'$_'" if $bits & $strict_bits{$_};
-    }
-    if (@strict == keys %strict_bits) {
-	push @pragmas, "strict";
-    }
-    elsif (@strict) {
-	push @pragmas, "strict " . join ', ', @strict;
-    }
-    push @pragmas, "bytes" if $bits & 0x8;
-    return @pragmas;
-}
-
 # Return a list of info nodes for "use" and "no" pragmas.
 sub declare_hints
 {
@@ -1474,11 +1209,11 @@ sub declare_hints
     my $no  = $from & ~$to;
 
     my @decls = ();
-    for my $pragma (hint_pragmas($use)) {
+    for my $pragma (B::Deparse::hint_pragmas($use)) {
 	my $type = $self->keyword("use") . " $pragma";
 	push @decls, $self->info_from_template($type, undef, "$type", [], []);
     }
-    for my $pragma (hint_pragmas($no)) {
+    for my $pragma (B::Deparse::hint_pragmas($no)) {
 	my $type = $self->keyword("no") . " $pragma";
 	push @decls, $self->info_from_template($type, undef, "$type", [], []);
     }
@@ -1547,16 +1282,6 @@ sub declare_hinthash {
 	push @ret,
 	     join("\n" . (" " x $indent), "BEGIN {", @decls) . "\n}\n";
     return @ret;
-}
-
-sub _features_from_bundle
-{
-    my ($hints, $hh) = @_;
-    no warnings 'once';
-    foreach (@{$feature::feature_bundle{@feature::hint_bundles[$hints >> $feature::hint_shift]}}) {
-	$hh->{$feature::feature{$_}} = 1;
-    }
-    return $hh;
 }
 
 # generate any pragmas, 'package foo' etc needed to synchronise

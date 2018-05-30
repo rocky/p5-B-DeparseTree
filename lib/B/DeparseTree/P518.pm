@@ -12,8 +12,6 @@
 # B::Parse in turn is based on the module of the same name by Malcolm Beattie,
 # but essentially none of his code remains.
 
-# For now 5.18 and 5.20 are the same.  If in the future they should be
-# different, # we can deal with that here.
 use v5.16;
 
 use rlib '../..';
@@ -77,7 +75,7 @@ BEGIN {
     }
 }
 
-BEGIN { for (qw[ const stringify rv2sv list glob pushmark null]) {
+BEGIN { for (qw[ rv2sv glob]) {
     eval "sub OP_\U$_ () { " . opnumber($_) . "}"
 }}
 
@@ -108,7 +106,7 @@ sub deparse_format($$$)
     $op->{other_ops} = [$op->first];
     $op = $op->first->first; # skip leavewrite, lineseq
     my $kid;
-    while (not null $op) {
+    while (not B::Deparse::null $op) {
 	push @{$op->{other_ops}}, $op;
 	$op = $op->sibling; # skip nextstate
 	my @body;
@@ -117,7 +115,7 @@ sub deparse_format($$$)
 	push @texts, "\f".$self->const_sv($kid)->PV;
 	push @{$op->{other_ops}}, $kid;
 	$kid = $kid->sibling;
-	for (; not null $kid; $kid = $kid->sibling) {
+	for (; not B::Deparse::null $kid; $kid = $kid->sibling) {
 	    push @body, $self->deparse($kid, -1, $op);
 	    $body[-1] =~ s/;\z//;
 	}
@@ -241,40 +239,6 @@ sub ambient_pragmas {
     $self->{'ambient_warnings'} = $warning_bits;
     $self->{'ambient_hints'} = $hint_bits;
     $self->{'ambient_hinthash'} = $hinthash;
-}
-
-# Sort of like maybe_parens in that we may possibly add ().  However we take
-# an op rather than text, and return a tree node. Also, we get around
-# the 'if it looks like a function' rule.
-sub maybe_parens_unop($$$$$)
-{
-    my $self = shift;
-    my($name, $op, $cx, $parent) = @_;
-    my $info =  $self->deparse($op, 1, $parent);
-    my $text = $info->{text};
-    if ($name eq "umask" && $info->{text} =~ /^\d+$/) {
-	$text = sprintf("%#o", $text);
-    }
-    if ($cx > 16 or $self->{'parens'}) {
-	return info_from_list($op, $self, [$self->keyword($name), '(', $text, ')'],
-			      '', 'maybe_parens_unop_parens', {body => [$info]});
-    } else {
-	$name = $self->keyword($name);
-	if (substr($text, 0, 1) eq "\cS") {
-	    # use op's parens
-	    return info_from_list($op, $self,[$name, substr($text, 1)],
-				  '',  'maybe_parens_unop_cS', {});
-	} elsif (substr($text, 0, 1) eq "(") {
-	    # avoid looks-like-a-function trap with extra parens
-	    # ('+' can lead to ambiguities)
-	    return info_from_list($op, $self, [$name, '(', $text, ')'],
-				  '', "maybe_parens_unop_fn", {});
-	} else {
-  	    return info_from_list($op, $self, [$name,  $text], ' ',
-				  'maybe_parens_unop', {});
-	}
-    }
-    Carp::confess("unhandled condition in maybe_parens_unop");
 }
 
 # The following OPs don't have functions:
@@ -403,7 +367,7 @@ sub keyword {
 	my $hh;
 	my $hints = $self->{hints} & $feature::hint_mask;
 	if ($hints && $hints != $feature::hint_mask) {
-	    $hh = _features_from_bundle($hints);
+	    $hh = B::Deparse::_features_from_bundle($hints);
 	}
 	elsif ($hints) { $hh = $self->{'hinthash'} }
 	return "CORE::$name"
@@ -691,19 +655,6 @@ sub pp_av2arylen {
     }
 }
 
-# skip down to the old, ex-rv2cv
-sub pp_rv2cv {
-    my ($self, $op, $cx) = @_;
-    if (!null($op->first) && $op->first->name eq 'null' &&
-	$op->first->targ == OP_LIST)
-    {
-	return $self->rv2x($op->first->first->sibling, $cx, "&")
-    }
-    else {
-	return $self->rv2x($op, $cx, "")
-    }
-}
-
 sub list_const($$$) {
     my $self = shift;
     my($op, $cx, @list) = @_;
@@ -830,7 +781,7 @@ sub slice
     if (class($op) eq "LISTOP") {
 	$last = $op->last;
     } else { # ex-hslice inside delete()
-	for ($kid = $op->first; !null $kid->sibling; $kid = $kid->sibling) {}
+	for ($kid = $op->first; !B::Deparse::null $kid->sibling; $kid = $kid->sibling) {}
 	$last = $kid;
     }
     $array = $last;
@@ -842,7 +793,7 @@ sub slice
     if ($kid->name eq "list") {
 	# skip list, pushmark
 	$kid = $kid->first->sibling;
-	for (; !null $kid; $kid = $kid->sibling) {
+	for (; !B::Deparse::null $kid; $kid = $kid->sibling) {
 	    push @elems, $self->deparse($kid, 6, $op);
 	}
     } else {
@@ -897,13 +848,13 @@ sub _method
 	$kid = $kid->first->sibling; # skip pushmark
 	$obj = $kid;
 	$kid = $kid->sibling;
-	for (; not null $kid; $kid = $kid->sibling) {
+	for (; not B::Deparse::null $kid; $kid = $kid->sibling) {
 	    push @exprs, $kid;
 	}
     } else {
 	$obj = $kid;
 	$kid = $kid->sibling;
-	for (; !null ($kid->sibling) && $kid->name!~/^method(?:_named)?\z/;
+	for (; !B::Deparse::null ($kid->sibling) && $kid->name!~/^method(?:_named)?\z/;
 	     $kid = $kid->sibling) {
 	    push @exprs, $kid
 	}
@@ -1033,7 +984,7 @@ sub check_proto {
 	    } elsif (substr($chr, 0, 1) eq "\\") {
 		$chr =~ tr/\\[]//d;
 		if ($arg->name =~ /^s?refgen$/ and
-		    !null($real = $arg->first) and
+		    !B::Deparse::null($real = $arg->first) and
 		    ($chr =~ /\$/ && B::Deparse::is_scalar($real->first)
 		     or ($chr =~ /@/
 			 && class($real->first->sibling) ne 'NULL'
@@ -1461,7 +1412,7 @@ sub re_dq {
 
 sub pure_string {
     my ($self, $op) = @_;
-    return 0 if null $op;
+    return 0 if B::Deparse::null $op;
     my $type = $op->name;
 
     if ($type eq 'const' || $type eq 'av2arylen') {
@@ -1488,9 +1439,9 @@ sub pure_string {
     elsif (B::Deparse::is_scalar($op) || $type =~ /^[ah]elem$/) {
 	return 1;
     }
-    elsif ($type eq "null" and $op->can('first') and not null $op->first and
+    elsif ($type eq "null" and $op->can('first') and not B::Deparse::null $op->first and
 	  ($op->first->name eq "null" and $op->first->can('first')
-	   and not null $op->first->first and
+	   and not B::Deparse::null $op->first->first and
 	   $op->first->first->name eq "aelemfast"
           or
 	   $op->first->name =~ /^aelemfast(?:_lex)?\z/
@@ -1517,13 +1468,13 @@ sub regcomp
 	push @other_ops, $kid;
 	$kid = $kid->first;
     }
-    if ($kid->name eq "null" and !null($kid->first)
+    if ($kid->name eq "null" and !B::Deparse::null($kid->first)
 	and $kid->first->name eq 'pushmark') {
 	my $str = '';
 	push(@other_ops, $kid);
 	$kid = $kid->first->sibling;
 	my @body = ();
-	while (!null($kid)) {
+	while (!B::Deparse::null($kid)) {
 	    my $first = $str;
 	    my $last = $self->re_dq($kid, $extended);
 	    push @body, $last;
@@ -1577,7 +1528,7 @@ sub pp_split
     }
     $ary = $self->stash_variable('@', $self->gv_name($gv), $cx) if $gv;
 
-    for (; !null($kid); $kid = $kid->sibling) {
+    for (; !B::Deparse::null($kid); $kid = $kid->sibling) {
 	push @exprs, $self->deparse($kid, 6, $op);
     }
 
