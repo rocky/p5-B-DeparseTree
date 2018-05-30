@@ -32,6 +32,10 @@ use B::DeparseTree::SyntaxTree;
 use B::DeparseTree::PPfns;
 use B::DeparseTree::Node;
 use B::Deparse;
+our($VERSION, @EXPORT, @ISA);
+$VERSION = '3.1.1';
+
+@ISA = qw(Exporter B::Deparse );
 
 # Copy unchanged functions from B::Deparse
 *lex_in_scope = *B::Deparse::lex_in_scope;
@@ -57,10 +61,6 @@ use B qw(
     opnumber
 );
 
-our($VERSION, @EXPORT, @ISA);
-$VERSION = '1.0.0';
-
-@ISA = qw(Exporter B::Deparse );
 @EXPORT = qw(
     feature_enabled
     pp_aassign

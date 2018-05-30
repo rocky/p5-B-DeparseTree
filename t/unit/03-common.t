@@ -6,7 +6,7 @@ use rlib '../../lib';
 use B qw(main_root);
 
 use Test::More;
-note( "Testing B::DeparseTree B::DeparseTree:Common" );
+note( "Testing B::DeparseTree B::DeparseTree:TreeMain" );
 
 BEGIN {
 use_ok( 'B::DeparseTree::TreeMain' );

@@ -41,7 +41,6 @@ use B qw(class
 
 use Carp;
 use B::Deparse;
-use B::DeparseTree::Node;   # FIXME: we shouldn't need this
 use B::DeparseTree::PP_OPtable;
 use B::DeparseTree::SyntaxTree;
 
