@@ -74,6 +74,7 @@ $VERSION = '1.0.0';
     pp_chop
     pp_chown
     pp_clonecv
+    pp_cmp
     pp_complement
     pp_cond_expr
     pp_connect
@@ -86,21 +87,31 @@ $VERSION = '1.0.0';
     pp_dor
     pp_entereval
     pp_entersub
+    pp_eq
     pp_exec
     pp_exists
     pp_exp
     pp_flock
     pp_flop
+    pp_ge
     pp_getppid
     pp_getpriority
     pp_glob
     pp_gnbyaddr
     pp_gpbynumber
     pp_grepwhile
+    pp_gt
     pp_gv
     pp_helem
     pp_hex
     pp_hslice
+    pp_i_cmp
+    pp_i_eq
+    pp_i_ge
+    pp_i_gt
+    pp_i_le
+    pp_i_lt
+    pp_i_ne
     pp_i_negate
     pp_i_predec
     pp_i_preinc
@@ -112,6 +123,7 @@ $VERSION = '1.0.0';
     pp_kill
     pp_kvaslice
     pp_kvhslice
+    pp_le
     pp_leave
     pp_leavegiven
     pp_leaveloop
@@ -121,10 +133,12 @@ $VERSION = '1.0.0';
     pp_link
     pp_list
     pp_log
+    pp_lt
     pp_mapstart
     pp_mapwhile
     pp_mkdir
     pp_msgsnd
+    pp_ne
     pp_negate
     pp_not
     pp_null
@@ -149,13 +163,21 @@ $VERSION = '1.0.0';
     pp_repeat
     pp_require
     pp_rindex
+    pp_sassign
     pp_scalar
     pp_schomp
     pp_schop
+    pp_scmp
     pp_scope
+    pp_seq
     pp_setpgrp
     pp_setpriority
+    pp_sge
+    pp_sgt
     pp_sin
+    pp_sle
+    pp_slt
+    pp_sne
     pp_sockpair
     pp_sprintf
     pp_sqrt
@@ -204,6 +226,31 @@ sub pp_hslice   { maybe_local(@_, slice(@_, "{", "}", "rv2hv", "padhv")) }
 sub pp_kvhslice {                 slice(@_, "{", "}", "rv2hv", "padhv")  }
 sub pp_aelem { maybe_local(@_, elem(@_, "[", "]", "padav")) }
 sub pp_helem { maybe_local(@_, elem(@_, "{", "}", "padhv")) }
+
+sub pp_eq { binop(@_, "==", 14) }
+sub pp_ne { binop(@_, "!=", 14) }
+sub pp_lt { binop(@_, "<", 15) }
+sub pp_gt { binop(@_, ">", 15) }
+sub pp_ge { binop(@_, ">=", 15) }
+sub pp_le { binop(@_, "<=", 15) }
+sub pp_cmp { binop(@_, "<=>", 14) }
+sub pp_i_eq { binop(@_, "==", 14) }
+sub pp_i_ne { binop(@_, "!=", 14) }
+sub pp_i_lt { binop(@_, "<", 15) }
+sub pp_i_gt { binop(@_, ">", 15) }
+sub pp_i_ge { binop(@_, ">=", 15) }
+sub pp_i_le { binop(@_, "<=", 15) }
+sub pp_i_cmp { maybe_targmy(@_, \&binop, "<=>", 14) }
+
+sub pp_seq { binop(@_, "eq", 14) }
+sub pp_sne { binop(@_, "ne", 14) }
+sub pp_slt { binop(@_, "lt", 15) }
+sub pp_sgt { binop(@_, "gt", 15) }
+sub pp_sge { binop(@_, "ge", 15) }
+sub pp_sle { binop(@_, "le", 15) }
+sub pp_scmp { binop(@_, "cmp", 14) }
+
+sub pp_sassign { binop(@_, "=", 7, SWAP_CHILDREN) }
 
 
 # FIXME: These don't seem to be able to go into the table.

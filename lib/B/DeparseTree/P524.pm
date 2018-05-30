@@ -316,9 +316,8 @@ sub maybe_parens_unop($$$$$)
 
 sub AUTOLOAD {
     if ($AUTOLOAD =~ s/^.*::pp_//) {
-	use Enbugger "trepan"; Enbugger->stop;
 	warn "unexpected OP_".
-	  ($_[1]->type == OP_CUSTOM ? "CUSTOM ($AUTOLOAD)" : uc $AUTOLOAD);
+	    ($_[1]->type == OP_CUSTOM ? "CUSTOM ($AUTOLOAD)" : uc $AUTOLOAD);
 	return "XXX";
     } else {
 	Carp::confess "Undefined subroutine $AUTOLOAD called";
@@ -451,35 +450,6 @@ sub pp_rcatline {
     return info_from_list($op, $self, ["<", $self->gv_name($self->gv_or_padgv($op)), ">"],
 			  '', 'rcatline', {});
 }
-
-sub SWAP_CHILDREN () { 1 }
-sub ASSIGN () { 2 } # has OP= variant
-sub LIST_CONTEXT () { 4 } # Assignment is in list context
-
-sub pp_eq { binop(@_, "==", 14) }
-sub pp_ne { binop(@_, "!=", 14) }
-sub pp_lt { binop(@_, "<", 15) }
-sub pp_gt { binop(@_, ">", 15) }
-sub pp_ge { binop(@_, ">=", 15) }
-sub pp_le { binop(@_, "<=", 15) }
-sub pp_ncmp { binop(@_, "<=>", 14) }
-sub pp_i_eq { binop(@_, "==", 14) }
-sub pp_i_ne { binop(@_, "!=", 14) }
-sub pp_i_lt { binop(@_, "<", 15) }
-sub pp_i_gt { binop(@_, ">", 15) }
-sub pp_i_ge { binop(@_, ">=", 15) }
-sub pp_i_le { binop(@_, "<=", 15) }
-sub pp_i_ncmp { binop(@_, "<=>", 14) }
-
-sub pp_seq { binop(@_, "eq", 14) }
-sub pp_sne { binop(@_, "ne", 14) }
-sub pp_slt { binop(@_, "lt", 15) }
-sub pp_sgt { binop(@_, "gt", 15) }
-sub pp_sge { binop(@_, "ge", 15) }
-sub pp_sle { binop(@_, "le", 15) }
-sub pp_scmp { binop(@_, "cmp", 14) }
-
-sub pp_sassign { binop(@_, "=", 7, SWAP_CHILDREN) }
 
 sub pp_smartmatch {
     my ($self, $op, $cx) = @_;
