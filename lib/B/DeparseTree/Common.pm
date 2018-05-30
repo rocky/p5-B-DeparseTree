@@ -67,7 +67,6 @@ $VERSION = '3.1.1';
     declare_hinthash
     declare_hints
     declare_warnings
-    dedup_parens_func
     deparse_sub($$$$)
     deparse_subname($$)
     dquote
@@ -75,8 +74,6 @@ $VERSION = '3.1.1';
     next_todo
     pragmata
     print_protos
-    rv2x
-    scopeop
     seq_subs
     single_delim
     style_opts
@@ -247,45 +244,6 @@ sub main2info
     $self->{'curcv'} = B::main_cv;
     $self->pessimise(B::main_root, B::main_start);
     return $self->deparse_root(B::main_root);
-}
-
-sub rv2x
-{
-    my($self, $op, $cx, $type) = @_;
-    if (class($op) eq 'NULL' || !$op->can("first")) {
-	carp("Unexpected op in pp_rv2x");
-	return info_from_text($op, $self, 'XXX', 'bad_rv2x', {});
-    }
-    my ($info, $kid_info);
-    my $kid = $op->first;
-    $kid_info = $self->deparse($kid, 0, $op);
-    if ($kid->name eq "gv") {
-	my $transform_fn = sub {$self->stash_variable($type, $self->info2str(shift), $cx)};
-	return $self->info_from_template("rv2x $type", undef, "%F", [[0, $transform_fn]], [$kid_info])
-    } elsif (B::Deparse::is_scalar $kid) {
-	my $str = $self->info2str($kid_info);
-	my $fmt = '%c';
-	my @args_spec = (0);
-	if ($str =~ /^\$([^\w\d])\z/) {
-	    # "$$+" isn't a legal way to write the scalar dereference
-	    # of $+, since the lexer can't tell you aren't trying to
-	    # do something like "$$ + 1" to get one more than your
-	    # PID. Either "${$+}" or "$${+}" are workable
-	    # disambiguations, but if the programmer did the former,
-	    # they'd be in the "else" clause below rather than here.
-	    # It's not clear if this should somehow be unified with
-	    # the code in dq and re_dq that also adds lexer
-	    # disambiguation braces.
-	    my $transform = sub { $_[0] =~ /^\$([^\w\d])\z/; '$' . "{$1}"};
-	    $fmt = '%F';
-	    @args_spec = (0, $transform);
-	}
-	return $self->info_from_template("scalar $str", $op, $fmt, \@args_spec, {})
-    } else {
-	my $str = "$type" . '{}';
-	return info_from_text($op, $self, $str, $str, {other_ops => [$kid_info]});
-    }
-    Carp::confess("unhandled condition in rv2x");
 }
 
 sub coderef2info
@@ -459,20 +417,6 @@ sub const_dumper
         return info_from_text($sv, $self, ['${my', $str, '\$v}'], 'const_dumper_my', {});
     } else {
         return info_from_text($sv, $self, $str, 'constant dumper', {});
-    }
-}
-
-sub dedup_parens_func($$$)
-{
-    my $self = shift;
-    my $sub_info = shift;
-    my ($args_ref) = @_;
-    my @args = @$args_ref;
-    if (scalar @args == 1 && substr($args[0], 0, 1) eq '(' &&
-	substr($args[0], -1, 1) eq ')') {
-	return ($sub_info, $self->combine(', ', \@args), );
-    } else {
-	return ($sub_info, '(', $self->combine(', ', \@args), ')', );
     }
 }
 
@@ -1143,62 +1087,6 @@ sub deparse_subname($$)
     my $info = $self->deparse_sub($cv);
     return $self->info_from_template("sub $funcname", $cv, "sub $funcname %c",
 				 undef, [$info]);
-}
-
-sub scopeop
-{
-    my($real_block, $self, $op, $cx) = @_;
-    my $kid;
-    my @kids;
-
-    local(@$self{qw'curstash warnings hints hinthash'})
-		= @$self{qw'curstash warnings hints hinthash'} if $real_block;
-    if ($real_block) {
-	$kid = $op->first->sibling; # skip enter
-	if (B::Deparse::is_miniwhile($kid)) {
-	    my $top = $kid->first;
-	    my $name = $top->name;
-	    if ($name eq "and") {
-		$name = $self->keyword("while");
-	    } elsif ($name eq "or") {
-		$name = $self->keyword("until");
-	    } else { # no conditional -> while 1 or until 0
-		my $body = $self->deparse($top->first, 1, $top);
-		return info_from_list $op, $self, [$body, 'while', '1'],
-				      ' ', "$name 1", {};
-	    }
-	    my $cond = $top->first;
-	    my $skipped_ops = [$cond->sibling];
-	    my $body = $cond->sibling->first; # skip lineseq
-	    my $cond_info = $self->deparse($cond, 1, $top);
-	    my $body_info = $self->deparse($body, 1, $top);
-	    return  info_from_list($op, $self,
-				   [$body_info, $name, $cond_info], ' ',
-				   "$name",
-				   {other_ops => $skipped_ops});
-	}
-    } else {
-	$kid = $op->first;
-    }
-    for (; !B::Deparse::null($kid); $kid = $kid->sibling) {
-	push @kids, $kid;
-    }
-    if ($cx > 0) {
-	# inside an expression, (a do {} while for lineseq)
-	my $body = $self->lineseq($op, 0, @kids);
-	my $text;
-	if (B::Deparse::is_lexical_subs(@kids)) {
-	    return $self->info_from_template("scoped do", $op,
-					     'do {\n%+%c\n%-}',
-					     [0], [$body]);
-
-	} else {
-	    return $self->info_from_template("scoped expression", $op,
-					     '%c',[0], [$body]);
-	}
-    } else {
-	return $self->lineseq($op, $cx, @kids);
-    }
 }
 
 # Return a list of info nodes for "use" and "no" pragmas.

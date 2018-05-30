@@ -28,7 +28,6 @@ use rlib '../..';
 
 package B::DeparseTree::PP;
 
-use B::DeparseTree::Common;
 use B::DeparseTree::SyntaxTree;
 use B::DeparseTree::PPfns;
 use B::DeparseTree::Node;
