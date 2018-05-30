@@ -280,15 +280,14 @@ sub maybe_my {
 	    ? $self->keyword("state")
 	    : "my";
 	if ($forbid_parens || B::Deparse::want_scalar($op)) {
-	    return info_from_list($op, $self, [$my_str,  $text], ' ',
-				  'maybe_my_no_parens', {});
+	    return $self->info_from_string('my',  $op, "$my_str $text");
 	} else {
-	    return info_from_list($op, $self, [$my_str,  $text], ' ',
-				  'maybe_my_parens',
-				  {maybe_parens => [$self, $cx, 16]});
+	    return $self->info_from_string('my (maybe with parens)',  $op,
+					   "$my_str $text",
+					   {maybe_parens => [$self, $cx, 16]});
 	}
     } else {
-	return $self->info_from_string('maybe my avoid local', $op, $text);
+	return $self->info_from_string('not my', $op, $text);
     }
 }
 
@@ -369,7 +368,7 @@ sub maybe_local_str
 	if (ref $info && $info->isa("B::DeparseTree::Node")) {
 	    return $info;
 	} else {
-	    return $self->info_from_string('maybe local', $op, $text);
+	    return $self->info_from_string('not local', $op, $text);
 	}
     }
 }

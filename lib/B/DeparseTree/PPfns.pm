@@ -1489,11 +1489,35 @@ sub null_older
     Carp::confess("unhandled condition in null");
 }
 
+sub pushmark_position($) {
+    my ($node) = @_;
+    my $l = undef;
+    if ($node->{parens}) {
+	return [0, 1];
+    } elsif (exists $node->{fmt}) {
+	# Match up to %c, %C, or %F after ( or {
+	if ($node->{fmt} =~ /^(.*)%[cCF]/) {
+	    $l = length($1);
+	}
+    } else {
+	# Match up to first ( or {
+	if ($node->{text} =~ /^(.*)\W/) {
+	    $l = length($1);
+	}
+    }
+    if (defined($l)) {
+	$l = $l > 0 ? $l-1 : 0;
+	return [$l, 1]
+    }
+    return undef;
+}
+
+
 # Note 5.26 and up
 sub null_newer
 {
     my($self, $op, $cx) = @_;
-    my $infoxo;
+    my $node;
     if (B::class($op) eq "OP") {
 	# If the Perl source constant value can't be recovered.
 	# We'll use the 'ex_const' value as a substitute
@@ -1507,42 +1531,16 @@ sub null_newer
 	my $kid = $op->first;
 	my $update_node = $kid;
 	if ($self->is_list_newer($op)) {
-	    my $node = $self->pp_list($op, $cx);
-	    # Find first "(" or "{" in node.
-	    # FIXME figure out how to put ( { without
-	    # resorting to ASCII.
-	    my $position;
-	    if ($node->{parens}) {
-		$position = [0, 1];
-	    } elsif (exists $node->{fmt}) {
-		# Match up to %c, %C, or %F after ( or {
-		if ($node->{fmt} =~ /^(.*.)%[cCF]/) {
-		    $position = [length($1), 1];
-		}
-	    # } else {
-	    # 	# Match up to first ( or {
-	    # 	if ($node->{fmt} =~ /^(.*)\(|\{/) {
-	    # 	    $position = [length($1), 1];
-	    # 	}
-	    }
-	    if ($position) {
-		$update_node =
-		    $self->info_from_string($kid->name, $kid,
-					    $node->{text},
-					    {position => $position});
-	    }
-	    $node->update_other_ops($update_node);
-	    return $node;
+	    $node = $self->pp_list($op, $cx);
 	} elsif ($kid->name eq "enter") {
-	    return $self->pp_leave($op, $cx);
+	    $node = $self->pp_leave($op, $cx);
 	} elsif ($kid->name eq "leave") {
-	    return $self->pp_leave($kid, $cx);
+	    $node = $self->pp_leave($kid, $cx);
 	} elsif ($kid->name eq "scope") {
-	    return $self->pp_scope($kid, $cx);
-	}
-	if ($op->targ == B::Deparse::OP_STRINGIFY) {
+	    $node = $self->pp_scope($kid, $cx);
+	} elsif ($op->targ == B::Deparse::OP_STRINGIFY) {
 	    # This case is duplicated the below "else". Can it ever happen?
-	    return $self->dquote($op, $cx);
+	    $node =  $self->dquote($op, $cx);
 	} elsif ($op->targ == B::Deparse::OP_GLOB) {
 	    my @other_ops = ($kid, $kid->first, $kid->first->first);
 	    my $info = $self->pp_glob(
@@ -1560,22 +1558,22 @@ sub null_newer
 		 $kid->sibling->flags & OPf_STACKED) {
 	    my $lhs = $self->deparse($kid, 7, $op);
 	    my $rhs = $self->deparse($kid->sibling, 7, $kid);
-	    return $self->info_from_template("readline = ", $op,
-					     "%c = %c", undef, [$lhs, $rhs],
-					     {maybe_parens => [$self, $cx, 7],
-					     prev_expr => $rhs});
+	    $node = $self->info_from_template("readline = ", $op,
+					      "%c = %c", undef, [$lhs, $rhs],
+					      {maybe_parens => [$self, $cx, 7],
+					       prev_expr => $rhs});
 	} elsif (!null($kid->sibling) and
 		 $kid->sibling->name =~ /^transr?\z/ and
 		 $kid->sibling->flags & OPf_STACKED) {
 	    my $lhs = $self->deparse($kid, 20, $op);
 	    my $rhs = $self->deparse($kid->sibling, 20, $op);
-	    return $self->info_from_template("trans =~",$op,
-					     "%c =~ %c", undef, [$lhs, $rhs],
-					     { maybe_parens => [$self, $cx, 7],
-					       prev_expr => $rhs });
+	    $node = $self->info_from_template("trans =~",$op,
+					      "%c =~ %c", undef, [$lhs, $rhs],
+					      { maybe_parens => [$self, $cx, 7],
+						prev_expr => $rhs });
 	} elsif ($op->flags & OPf_SPECIAL && $cx < 1 && !$op->targ) {
 	    my $kid_info = $self->deparse($kid, $cx, $op);
-	    return $self->info_from_template("do { }", $op,
+	    $node = $self->info_from_template("do { }", $op,
 					     "do {\n%+%c\n%-}", undef, [$kid_info]);
 	} elsif (!null($kid->sibling) and
 		 $kid->sibling->name eq "null" and
@@ -1584,12 +1582,24 @@ sub null_newer
 		 $kid->sibling->first->name eq "rcatline") {
 	    my $lhs = $self->deparse($kid, 18, $op);
 	    my $rhs = $self->deparse($kid->sibling, 18, $op);
-	    return $self->info_from_template("rcatline =",$op,
-					     "%c = %c", undef, [$lhs, $rhs],
-					     { maybe_parens => [$self, $cx, 20],
-					       prev_expr => $rhs });
+	    $node = $self->info_from_template("rcatline =",$op,
+					      "%c = %c", undef, [$lhs, $rhs],
+					      { maybe_parens => [$self, $cx, 20],
+						prev_expr => $rhs });
+	} else {
+	    my $node = $self->deparse($kid, $cx, $op);
+	    return $self->info_from_template($op->name, $op,
+					     "%c", undef, [$node]);
 	}
-	return $self->deparse($kid, $cx, $op);
+	my $position = pushmark_position($node);
+	if ($position) {
+	    $update_node =
+		$self->info_from_string($kid->name, $kid,
+					$node->{text},
+					{position => $position});
+	}
+	$node->update_other_ops($update_node);
+	return $node;
     }
     Carp::confess("unhandled condition in null");
 }

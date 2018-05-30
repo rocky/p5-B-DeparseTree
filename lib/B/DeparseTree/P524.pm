@@ -316,6 +316,7 @@ sub maybe_parens_unop($$$$$)
 
 sub AUTOLOAD {
     if ($AUTOLOAD =~ s/^.*::pp_//) {
+	use Enbugger "trepan"; Enbugger->stop;
 	warn "unexpected OP_".
 	  ($_[1]->type == OP_CUSTOM ? "CUSTOM ($AUTOLOAD)" : uc $AUTOLOAD);
 	return "XXX";
