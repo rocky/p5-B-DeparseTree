@@ -475,102 +475,11 @@ sub pp_substr {
     }
     return maybe_local(@_, listop(@_, "substr"))
 }
-sub pp_vec { maybe_local(@_, listop(@_, "vec")) }
-sub pp_index { maybe_targmy(@_, \&listop, "index") }
-sub pp_rindex { maybe_targmy(@_, \&listop, "rindex") }
-sub pp_sprintf { maybe_targmy(@_, \&listop, "sprintf") }
 sub pp_formline { listop(@_, "formline") } # see also deparse_format
-sub pp_crypt { maybe_targmy(@_, \&listop, "crypt") }
 sub pp_unpack { listop(@_, "unpack") }
-sub pp_join { maybe_targmy(@_, \&listop, "join") }
 sub pp_splice { listop(@_, "splice") }
-sub pp_push { maybe_targmy(@_, \&listop, "push") }
-sub pp_unshift { maybe_targmy(@_, \&listop, "unshift") }
-sub pp_flock { maybe_targmy(@_, \&listop, "flock") }
 sub pp_socket { listop(@_, "socket") }
-sub pp_sockpair { listop(@_, "socketpair") }
-sub pp_ssockopt { listop(@_, "setsockopt") }
-sub pp_chown { maybe_targmy(@_, \&listop, "chown") }
-sub pp_unlink { maybe_targmy(@_, \&listop, "unlink") }
-sub pp_chmod { maybe_targmy(@_, \&listop, "chmod") }
-sub pp_utime { maybe_targmy(@_, \&listop, "utime") }
-sub pp_rename { maybe_targmy(@_, \&listop, "rename") }
-sub pp_link { maybe_targmy(@_, \&listop, "link") }
-sub pp_symlink { maybe_targmy(@_, \&listop, "symlink") }
-sub pp_mkdir { maybe_targmy(@_, \&listop, "mkdir") }
-sub pp_open_dir { listop(@_, "opendir") }
 sub pp_seekdir { listop(@_, "seekdir") }
-sub pp_waitpid { maybe_targmy(@_, \&listop, "waitpid") }
-sub pp_system { maybe_targmy(@_, \&listop, "system") }
-sub pp_exec { maybe_targmy(@_, \&listop, "exec") }
-sub pp_kill { maybe_targmy(@_, \&listop, "kill") }
-sub pp_setpgrp { maybe_targmy(@_, \&listop, "setpgrp") }
-sub pp_getpriority { maybe_targmy(@_, \&listop, "getpriority") }
-sub pp_setpriority { maybe_targmy(@_, \&listop, "setpriority") }
-
-sub pp_glob
-{
-    my($self, $op, $cx) = @_;
-
-    my $opts = {other_ops => [$op->first]};
-    my $kid = $op->first->sibling;  # skip pushmark
-    my $keyword =
-	$op->flags & OPf_SPECIAL ? 'glob' : $self->keyword('glob');
-
-    if ($keyword =~ /^CORE::/ or $kid->name ne 'const') {
-	my $kid_info = $self->dq($kid, $op);
-	my $body = [$kid_info];
-	my $text = $kid_info->{text};
-	if ($text =~ /^\$?(\w|::|\`)+$/ # could look like a readline
-	    or $text =~ /[<>]/) {
-	    $kid_info = $self->deparse($kid, 0, $op);
-	    $body = [$kid_info];
-	    $text = $kid_info->{text};
-	    $opts->{body} = $body;
-	    if ($cx >= 5 || $self->{'parens'}) {
-		return info_from_list($op, $self, [$keyword, '(', $text, ')'], '',
-				      'glob_paren', $opts);
-	    } else {
-		return info_from_list($op, $self, [$keyword, $text], ' ',
-				      'glob_space', $opts);
-	    }
-	} else {
-	    return info_from_list($op, $self, ['<', $text, '>'], '', 'glob_angle', $opts);
-	}
-    }
-    return info_from_list($op, $self, ['<', '>'], '', 'glob_angle', $opts);
-}
-
-# Truncate is special because OPf_SPECIAL makes a bareword first arg
-# be a filehandle. This could probably be better fixed in the core
-# by moving the GV lookup into ck_truc.
-
-sub pp_truncate
-{
-    my($self, $op, $cx) = @_;
-    my(@exprs);
-    my $parens = ($cx >= 5) || $self->{'parens'};
-    my $kid = $op->first->sibling;
-    my $fh;
-    if ($op->flags & OPf_SPECIAL) {
-	# $kid is an OP_CONST
-	$fh = $self->const_sv($kid)->PV;
-    } else {
-	$fh = $self->deparse($kid, 6, $op);
-        $fh = "+$fh" if not $parens and substr($fh, 0, 1) eq "(";
-    }
-    my $len = $self->deparse($kid->sibling, 6, $op);
-    my $name = $self->keyword('truncate');
-    my $opts = {body => [$fh, $len]};
-    my $args = "$fh->{text}, $len->{text}";
-    if ($parens) {
-	return info_from_list($op, $self, [$name, '(', $args, ')'], '',
-			      'truncate_parens', $opts);
-	return "$name($fh, $len)";
-    } else {
-	return info_from_list($op, $self, [$name, $args], '', 'truncate', $opts);
-    }
-}
 
 sub for_loop {
     my $self = shift;
