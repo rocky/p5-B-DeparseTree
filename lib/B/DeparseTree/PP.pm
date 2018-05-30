@@ -45,14 +45,17 @@ use B::Deparse;
 *real_negate = *B::Deparse::real_negate;
 
 use B qw(
-    class
-    opnumber
     OPf_MOD OPpENTERSUB_AMPER
     OPf_SPECIAL
     OPf_STACKED
     OPpEXISTS_SUB
+    OPpTRANS_COMPLEMENT
+    OPpTRANS_DELETE
+    OPpTRANS_SQUASH
     SVf_POK
     SVf_ROK
+    class
+    opnumber
 );
 
 our($VERSION, @EXPORT, @ISA);
@@ -194,6 +197,8 @@ $VERSION = '1.0.0';
     pp_sysseek
     pp_system
     pp_time
+    pp_trans
+    pp_transr
     pp_truncate
     pp_unlink
     pp_unshift
@@ -1024,6 +1029,37 @@ sub pp_stub {
 };
 
 sub pp_symlink { maybe_targmy(@_, \&listop, "symlink") }
+
+sub pp_trans {
+    my $self = shift;
+    my($op, $cx) = @_;
+    my($from, $to);
+    my $class = class($op);
+    my $priv_flags = $op->private;
+    if ($class eq "PVOP") {
+	($from, $to) = B::Deparse::tr_decode_byte($op->pv, $priv_flags);
+    } elsif ($class eq "PADOP") {
+	($from, $to)
+	  = tr_decode_utf8($self->padval($op->padix)->RV, $priv_flags);
+    } else { # class($op) eq "SVOP"
+	($from, $to) = B::Deparse::tr_decode_utf8($op->sv->RV, $priv_flags);
+    }
+    my $flags = "";
+    $flags .= "c" if $priv_flags & OPpTRANS_COMPLEMENT;
+    $flags .= "d" if $priv_flags & OPpTRANS_DELETE;
+    $to = "" if $from eq $to and $flags eq "";
+    $flags .= "s" if $priv_flags & OPpTRANS_SQUASH;
+    return info_from_list($op, $self, ['tr', double_delim($from, $to), $flags],
+		      '', 'pp_trans', {});
+}
+
+sub pp_transr {
+    my $self = $_[0];
+    my $op = $_[1];
+    my $info = pp_trans(@_);
+    return info_from_text($op, $self, $info->{text} . 'r', 'pp_transr',
+			  {body => [$info]});
+}
 
 sub pp_unstack {
     my ($self, $op) = @_;
