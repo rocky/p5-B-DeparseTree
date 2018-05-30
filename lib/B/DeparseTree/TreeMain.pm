@@ -64,7 +64,6 @@ $VERSION = '3.1.1';
     %rev_feature
     WARN_MASK
     ambiant_pragmas
-    anon_hash_or_list
     coderef2info
     coderef2text
     const
@@ -82,6 +81,35 @@ $VERSION = '3.1.1';
     single_delim
     style_opts
     );
+
+use Config;
+my $is_cperl = $Config::Config{usecperl};
+
+my $module;
+if ($] >= 5.016 and $] < 5.018) {
+    # 5.16 and 5.18 are the same for now
+    $module = "P518";
+} elsif ($] >= 5.018 and $] < 5.020) {
+    $module = "P518";
+} elsif ($] >= 5.020 and $] < 5.022) {
+    $module = "P520";
+} elsif ($] >= 5.022 and $] < 5.024) {
+    $module = "P522";
+} elsif ($] >= 5.024 and $] < 5.026) {
+    $module = "P524";
+} elsif ($] >= 5.026) {
+    $module = "P526";
+} else {
+    die "Can only handle Perl 5.16..5.26";
+}
+
+$module .= 'c' if $is_cperl;
+
+if (!$is_cperl) {
+    @ISA = ("Exporter", "B::DeparseTree::$module");
+}
+
+require "B/DeparseTree/${module}.pm";
 
 # The BEGIN {} is used here because otherwise this code isn't executed
 # when you run B::Deparse on itself.
@@ -204,38 +232,6 @@ sub init {
 
     # also a convenient place to clear out subs_declared
     delete $self->{'subs_declared'};
-}
-
-sub anon_hash_or_list($$$)
-{
-    my ($self, $op, $cx) = @_;
-    my $name = $op->name;
-    my($pre, $post) = @{{"anonlist" => ["[","]"],
-			 "anonhash" => ["{","}"]}->{$name}};
-    my($expr, @exprs);
-    my $other_ops = [$op->first];
-    $op = $op->first->sibling; # skip pushmark
-    for (; !B::Deparse::null($op); $op = $op->sibling) {
-	$expr = $self->deparse($op, 6, $op);
-	push @exprs, [$expr, $op];
-    }
-    if ($pre eq "{" and $cx < 1) {
-	# Disambiguate that it's not a block
-	$pre = "+{";
-    }
-    my $texts = [$pre, $self->combine(", ", \@exprs), $post];
-    return info_from_list($op, $self, $texts, '', $name,
-			  {body => \@exprs,
-			   other_ops => $other_ops
-			  });
-}
-
-sub e_anoncode($$)
-{
-    my ($self, $info) = @_;
-    my $sub_info = $self->deparse_sub($info->{code});
-    return $self->info_from_template('sub anonymous', $sub_info->{op},
-				     'sub %c', [0], [$sub_info]);
 }
 
 BEGIN { for (qw[ pushmark ]) {

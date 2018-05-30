@@ -45,6 +45,7 @@ $VERSION = '3.1.1';
 @EXPORT = qw(
     %strict_bits
     POSTFIX
+    anon_hash_or_list
     baseop
     binop
     code_list
@@ -57,6 +58,7 @@ $VERSION = '3.1.1';
     double_delim
     dq_unop
     dquote
+    e_anoncode
     elem
     filetest
     func_needs_parens
@@ -149,6 +151,30 @@ BEGIN { for (qw[ pushmark ]) {
 }
 
 my(%left, %right);
+
+sub anon_hash_or_list($$$)
+{
+    my ($self, $op, $cx) = @_;
+    my $name = $op->name;
+    my($pre, $post) = @{{"anonlist" => ["[","]"],
+			 "anonhash" => ["{","}"]}->{$name}};
+    my($expr, @exprs);
+    my $other_ops = [$op->first];
+    $op = $op->first->sibling; # skip pushmark
+    for (; !B::Deparse::null($op); $op = $op->sibling) {
+	$expr = $self->deparse($op, 6, $op);
+	push @exprs, [$expr, $op];
+    }
+    if ($pre eq "{" and $cx < 1) {
+	# Disambiguate that it's not a block
+	$pre = "+{";
+    }
+    my $texts = [$pre, $self->combine(", ", \@exprs), $post];
+    return info_from_list($op, $self, $texts, '', $name,
+			  {body => \@exprs,
+			   other_ops => $other_ops
+			  });
+}
 
 sub assoc_class {
     my $op = shift;
@@ -622,6 +648,14 @@ sub elem
 	return info_from_list($op, $self, \@texts, '', $type, $opts);
     }
     Carp::confess("unhandled condition in elem");
+}
+
+sub e_anoncode($$)
+{
+    my ($self, $info) = @_;
+    my $sub_info = $self->deparse_sub($info->{code});
+    return $self->info_from_template('sub anonymous', $sub_info->{op},
+				     'sub %c', [0], [$sub_info]);
 }
 
 # Handle filetest operators -r, stat, etc.

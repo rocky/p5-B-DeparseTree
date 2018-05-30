@@ -7,6 +7,7 @@ s/x/'y'/e;
 s/x/$a/e;
 s/x/complex_expression()/e;
 ####
+# SKIP ?$ENV{'CIRCLECI'} && "Something is odd about CircleCI"
 # all the flags (s///)
 s/X//m;
 s/X//s;
