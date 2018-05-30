@@ -98,6 +98,7 @@ $VERSION = '1.0.0';
     pp_exp
     pp_flock
     pp_flop
+    pp_formline
     pp_ge
     pp_getppid
     pp_getpriority
@@ -175,6 +176,7 @@ $VERSION = '1.0.0';
     pp_schop
     pp_scmp
     pp_scope
+    pp_seekdir
     pp_seq
     pp_setpgrp
     pp_setpriority
@@ -184,7 +186,9 @@ $VERSION = '1.0.0';
     pp_sle
     pp_slt
     pp_sne
+    pp_socket
     pp_sockpair
+    pp_slice
     pp_sprintf
     pp_sqrt
     pp_sselect
@@ -201,6 +205,7 @@ $VERSION = '1.0.0';
     pp_transr
     pp_truncate
     pp_unlink
+    pp_unpack
     pp_unshift
     pp_unstack
     pp_utime
@@ -244,44 +249,42 @@ sub ASSIGN () { 2 } # has OP= variant
 sub LIST_CONTEXT () { 4 } # Assignment is in list context
 
 # Convert these to table entries...
-sub pp_aslice   { maybe_local(@_, slice(@_, "[", "]", "rv2av", "padav")) }
-sub pp_kvaslice {                 slice(@_, "[", "]", "rv2av", "padav")  }
-sub pp_hslice   { maybe_local(@_, slice(@_, "{", "}", "rv2hv", "padhv")) }
-sub pp_kvhslice {                 slice(@_, "{", "}", "rv2hv", "padhv")  }
 sub pp_aelem { maybe_local(@_, elem(@_, "[", "]", "padav")) }
-sub pp_helem { maybe_local(@_, elem(@_, "{", "}", "padhv")) }
-
-sub pp_eq { binop(@_, "==", 14) }
-sub pp_ne { binop(@_, "!=", 14) }
-sub pp_lt { binop(@_, "<", 15) }
-sub pp_gt { binop(@_, ">", 15) }
-sub pp_ge { binop(@_, ">=", 15) }
-sub pp_le { binop(@_, "<=", 15) }
+sub pp_aslice   { maybe_local(@_, slice(@_, "[", "]", "rv2av", "padav")) }
 sub pp_cmp { binop(@_, "<=>", 14) }
-sub pp_i_eq { binop(@_, "==", 14) }
-sub pp_i_ne { binop(@_, "!=", 14) }
-sub pp_i_lt { binop(@_, "<", 15) }
-sub pp_i_gt { binop(@_, ">", 15) }
-sub pp_i_ge { binop(@_, ">=", 15) }
-sub pp_i_le { binop(@_, "<=", 15) }
+sub pp_eq { binop(@_, "==", 14) }
+sub pp_ge { binop(@_, ">=", 15) }
+sub pp_gt { binop(@_, ">", 15) }
+sub pp_helem { maybe_local(@_, elem(@_, "{", "}", "padhv")) }
+sub pp_hslice   { maybe_local(@_, slice(@_, "{", "}", "rv2hv", "padhv")) }
 sub pp_i_cmp { maybe_targmy(@_, \&binop, "<=>", 14) }
-
-sub pp_seq { binop(@_, "eq", 14) }
-sub pp_sne { binop(@_, "ne", 14) }
-sub pp_slt { binop(@_, "lt", 15) }
-sub pp_sgt { binop(@_, "gt", 15) }
-sub pp_sge { binop(@_, "ge", 15) }
-sub pp_sle { binop(@_, "le", 15) }
-sub pp_scmp { binop(@_, "cmp", 14) }
-
+sub pp_i_eq { binop(@_, "==", 14) }
+sub pp_i_ge { binop(@_, ">=", 15) }
+sub pp_i_gt { binop(@_, ">", 15) }
+sub pp_i_le { binop(@_, "<=", 15) }
+sub pp_i_lt { binop(@_, "<", 15) }
+sub pp_i_ne { binop(@_, "!=", 14) }
+sub pp_kvaslice { slice(@_, "[", "]", "rv2av", "padav")  }
+sub pp_kvhslice { slice(@_, "{", "}", "rv2hv", "padhv")  }
+sub pp_le { binop(@_, "<=", 15) }
+sub pp_lt { binop(@_, "<", 15) }
+sub pp_ne { binop(@_, "!=", 14) }
 sub pp_sassign { binop(@_, "=", 7, SWAP_CHILDREN) }
-
+sub pp_scmp { binop(@_, "cmp", 14) }
+sub pp_seekdir { listop(@_, "seekdir") }
+sub pp_seq { binop(@_, "eq", 14) }
+sub pp_sge { binop(@_, "ge", 15) }
+sub pp_sgt { binop(@_, "gt", 15) }
+sub pp_sle { binop(@_, "le", 15) }
+sub pp_slt { binop(@_, "lt", 15) }
+sub pp_sne { binop(@_, "ne", 14) }
 
 # FIXME: These don't seem to be able to go into the table.
 # PPfns calls pp_sockpair for example?
 sub pp_sockpair { listop(@_, "socketpair") }
 sub pp_values { unop(@_, "values") }
 sub pp_avalues { unop(@_, "values") }
+
 
 
 sub pp_aassign { binop(@_, "=", 7, SWAP_CHILDREN | LIST_CONTEXT, 'array assign') }

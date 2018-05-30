@@ -382,14 +382,6 @@ my %strong_proto_keywords = map { $_ => 1 } qw(
     undef
 );
 
-# FIXME: These we don't seem to be able to put in a table.
-sub pp_each { unop(@_, "each") }
-sub pp_values { unop(@_, "values") }
-sub pp_keys { unop(@_, "keys") }
-
-# Note: maybe_local things can't be moved to PP yet.
-sub pp_pos { maybe_local(@_, unop(@_, "pos")) }
-
 { no strict 'refs'; *{"pp_r$_"} = *{"pp_$_"} for qw< keys each values >; }
 
 # FIXME:

@@ -365,11 +365,6 @@ my %strong_proto_keywords = map { $_ => 1 } qw(
     undef
 );
 
-# Note: maybe_local things can't be moved to PP yet.
-sub pp_pos { maybe_local(@_, unop(@_, "pos")) }
-
-sub pp_each { unop(@_, "each") }
-sub pp_values { unop(@_, "values") }
 { no strict 'refs'; *{"pp_r$_"} = *{"pp_$_"} for qw< keys each values >; }
 
 # FIXME:

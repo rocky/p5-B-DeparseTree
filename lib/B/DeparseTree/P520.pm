@@ -413,12 +413,6 @@ sub pp_substr {
     }
     return maybe_local(@_, listop(@_, "substr"))
 }
-sub pp_formline { listop(@_, "formline") } # see also deparse_format
-sub pp_unpack { listop(@_, "unpack") }
-sub pp_splice { listop(@_, "splice") }
-sub pp_socket { listop(@_, "socket") }
-sub pp_seekdir { listop(@_, "seekdir") }
-
 # Truncate is special because OPf_SPECIAL makes a bareword first arg
 # be a filehandle. This could probably be better fixed in the core
 # by moving the GV lookup into ck_truc.
