@@ -1,7 +1,6 @@
 # Copyright (c) 2015 Rocky Bernstein
 use strict; use warnings;
 use rlib '../..';
-use B::DeparseTree::Common;
 
 package B::DeparseTree::Printer;
 

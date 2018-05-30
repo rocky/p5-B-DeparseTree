@@ -52,7 +52,6 @@ use B qw(class opnumber
 );
 
 use B::DeparseTree::PPfns;
-use B::DeparseTree::Common;
 use B::DeparseTree::SyntaxTree;
 use B::DeparseTree::PP;
 use B::Deparse;

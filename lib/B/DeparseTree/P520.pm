@@ -25,7 +25,6 @@ use B qw(class opnumber
          PMf_MULTILINE PMf_SINGLELINE PMf_FOLD PMf_EXTENDED);
 
 use B::DeparseTree::PPfns;
-use B::DeparseTree::Common;
 use B::DeparseTree::SyntaxTree;
 use B::DeparseTree::PP;
 use B::Deparse;
