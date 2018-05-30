@@ -60,7 +60,7 @@ use B qw(
 our($VERSION, @EXPORT, @ISA);
 $VERSION = '1.0.0';
 
-@ISA = qw(Exporter B::Deparse);
+@ISA = qw(Exporter B::Deparse );
 @EXPORT = qw(
     feature_enabled
     pp_aassign

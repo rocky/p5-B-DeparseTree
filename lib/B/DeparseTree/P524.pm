@@ -82,7 +82,7 @@ require feature;
 our(@EXPORT, @ISA);
 our $VERSION = '3.0.0';
 
-@ISA = qw(Exporter B::DeparseTree::Common);
+@ISA = qw(Exporter);
 
 BEGIN {
     # List version-specific constants here.

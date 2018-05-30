@@ -59,7 +59,6 @@ use B qw(class main_root main_start main_cv svref_2object opnumber perlstring
     );
 
 use B::DeparseTree::PPfns;
-use B::DeparseTree::Common;
 use B::DeparseTree::SyntaxTree;
 use B::DeparseTree::PP;
 use B::Deparse;
@@ -91,7 +90,7 @@ require feature;
 our(@EXPORT, @ISA);
 our $VERSION = '3.0.0';
 
-@ISA = qw(Exporter B::DeparseTree::Common);
+@ISA = qw(Exporter);
 
 BEGIN {
     # List version-specific constants here.

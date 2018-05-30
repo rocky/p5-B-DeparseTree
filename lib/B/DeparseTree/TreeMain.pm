@@ -11,9 +11,14 @@
 
 # B::Parse in turn is based on the module of the same name by Malcolm Beattie,
 # but essentially none of his code remains.
+
+# The is the main entrypoint for DeparseTree objects and routines.
+# In the future there may be a StringMain which is like this
+# but doesn't save copious tree information but instead just gathers
+# strings in the same way B::Deparse does.
 use strict; use warnings;
 
-package B::DeparseTree::Common;
+package B::DeparseTree;
 
 use B qw(class
          CVf_LVALUE
@@ -418,19 +423,6 @@ sub const_dumper
     } else {
         return info_from_text($sv, $self, $str, 'constant dumper', {});
     }
-}
-
-sub dquote
-{
-    my($self, $op, $cx) = @_;
-    # FIXME figure out how to use this
-    my $skipped_ops = [$op->first];
-    my $kid = $op->first->sibling; # skip ex-stringify, pushmark
-    return $self->deparse($kid, $cx, $op) if $self->{'unquote'};
-    $self->maybe_targmy($kid, $cx,
-			sub {$self->single_delim($kid, "qq", '"',
-						 $self->info2str($self->dq($_[1], $op))
-				                 )});
 }
 
 # This is a special case of scopeop and lineseq, for the case of the

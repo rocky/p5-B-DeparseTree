@@ -9,6 +9,10 @@
 # by opcode address.
 
 # Note the package name. It is *not* B::DeparseTree::Tree.
+# In the future there may be a version of this that doesn't
+# save as much information, but just stores enough to extract
+# a string, which would be a slightly more heavyweight version of
+# B::Deparse.
 package B::DeparseTree::SyntaxTree;
 
 use B::DeparseTree::Node;

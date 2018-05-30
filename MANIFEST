@@ -15,7 +15,6 @@ example/five.pl
 example/multiline.pl
 lib/B/DeparseTree.pm
 lib/B/DeparseTree.pod
-lib/B/DeparseTree/Common.pm
 lib/B/DeparseTree/Fragment.pm
 lib/B/DeparseTree/Node.pm
 lib/B/DeparseTree/PP_OPtable.pm
@@ -29,6 +28,7 @@ lib/B/DeparseTree/PP.pm
 lib/B/DeparseTree/PPfns.pm
 lib/B/DeparseTree/Printer.pm
 lib/B/DeparseTree/SyntaxTree.pm
+lib/B/DeparseTree/TreeMain.pm
 scripts/Makefile
 scripts/README.md
 scripts/benchtests.pl

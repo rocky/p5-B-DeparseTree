@@ -32,21 +32,10 @@ if ($] >= 5.016 and $] < 5.018) {
 
 $module .= 'c' if $is_cperl;
 
-require "B/DeparseTree/${module}.pm";
+# In the future there is plain a StringMain.
+use B::DeparseTree::TreeMain;
 
-# FIXME:
-*compile = \&B::DeparseTree::Common::compile;
-*new = \&B::DeparseTree::Common::new;
-*init = \&B::DeparseTree::Common::init;
-*coderef2info = \&B::DeparseTree::Common::coderef2info;
-*coderef2text = \&B::DeparseTree::Common::coderef2text;
-*deparse_sub = \&B::DeparseTree::Common::deparse_sub;
-*pessimise = \&B::DeparseTree::Common::pessimise;
-*_pessimise_walk = \&B::DeparseTree::Common::_pessimise_walk;
-*_pessimise_walk_exe = \&B::DeparseTree::Common::_pessimise_walk_exe;
-*lineseq = \&B::DeparseTree::Common::lineseq;
-*walk_lineseq = \&B::DeparseTree::Common::walk_lineseq;
-*deparse = \&B::DeparseTree::Common::deparse;
+require "B/DeparseTree/${module}.pm";
 
 if (!$is_cperl) {
     @ISA = ("Exporter", "B::DeparseTree::$module");

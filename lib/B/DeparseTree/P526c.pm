@@ -107,7 +107,7 @@ use types;
 
 our $VERSION = '3.1.1';
 
-our @ISA = qw(Exporter B::DeparseTree::Common);
+our @ISA = qw(Exporter);
 our @EXPORT = qw(cop_subs);
 
 BEGIN {

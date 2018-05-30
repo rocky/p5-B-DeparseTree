@@ -56,6 +56,7 @@ $VERSION = '3.1.1';
     deparse_op_siblings
     double_delim
     dq_unop
+    dquote
     elem
     filetest
     func_needs_parens
@@ -146,26 +147,6 @@ BEGIN { for (qw[ pushmark ]) {
 	return $WARN_MASK;
     }
 }
-
-# Iterate via sibling links a list of OP nodes starting with
-# $first. Each OP is deparsed, with $op and $precedence each to get a
-# node. Then the "prev" field in the node is set, and finally it is
-# pushed onto the end of the $exprs reference ARRAY.
-sub deparse_op_siblings($$$$$)
-{
-    my ($self, $exprs, $kid, $op, $precedence) = @_;
-    my $prev_expr = undef;
-    $prev_expr = $exprs->[-1] if scalar @{$exprs};
-    for ( ; !B::Deparse::null($kid); $kid = $kid->sibling) {
-	my $expr = $self->deparse($kid, $precedence, $op);
-	if (defined $expr) {
-	    $expr->{prev_expr} = $prev_expr;
-	    $prev_expr = $expr;
-	    push @$exprs, $expr;
-	}
-    }
-}
-
 
 my(%left, %right);
 
@@ -502,6 +483,26 @@ sub deparse_binop_right {
     }
 }
 
+# Iterate via sibling links a list of OP nodes starting with
+# $first. Each OP is deparsed, with $op and $precedence each to get a
+# node. Then the "prev" field in the node is set, and finally it is
+# pushed onto the end of the $exprs reference ARRAY.
+sub deparse_op_siblings($$$$$)
+{
+    my ($self, $exprs, $kid, $op, $precedence) = @_;
+    my $prev_expr = undef;
+    $prev_expr = $exprs->[-1] if scalar @{$exprs};
+    for ( ; !B::Deparse::null($kid); $kid = $kid->sibling) {
+	my $expr = $self->deparse($kid, $precedence, $op);
+	if (defined $expr) {
+	    $expr->{prev_expr} = $prev_expr;
+	    $prev_expr = $expr;
+	    push @$exprs, $expr;
+	}
+    }
+}
+
+
 # tr/// and s/// (and tr[][], tr[]//, tr###, etc)
 # note that tr(from)/to/ is OK, but not tr/from/(to)
 sub double_delim {
@@ -565,6 +566,18 @@ sub dq_unop
     Carp::confess("unhandled condition in dq_unop");
 }
 
+sub dquote
+{
+    my($self, $op, $cx) = @_;
+    # FIXME figure out how to use this
+    my $skipped_ops = [$op->first];
+    my $kid = $op->first->sibling; # skip ex-stringify, pushmark
+    return $self->deparse($kid, $cx, $op) if $self->{'unquote'};
+    $self->maybe_targmy($kid, $cx,
+			sub {$self->single_delim($kid, "qq", '"',
+						 $self->info2str($self->dq($_[1], $op))
+				                 )});
+}
 
 sub elem
 {
