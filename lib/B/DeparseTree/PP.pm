@@ -108,6 +108,7 @@ use B qw(
     pp_grepwhile
     pp_gt
     pp_gv
+    pp_gvsv
     pp_helem
     pp_hex
     pp_hslice
@@ -981,6 +982,16 @@ sub pp_gv
     my $gv = $self->gv_or_padgv($op);
     my $name = $self->gv_name($gv);
     return $self->info_from_string("global variable $name", $op, $name);
+}
+
+# FIXME: adjust use of maybe_local_str
+sub pp_gvsv
+{
+    my($self, $op, $cx) = @_;
+    my $gv = $self->gv_or_padgv($op);
+    return $self->maybe_local_str($op, $cx,
+				  $self->stash_variable("\$",
+							$self->gv_name($gv), $cx));
 }
 
 sub pp_null

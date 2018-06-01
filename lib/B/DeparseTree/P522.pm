@@ -349,16 +349,6 @@ sub gv_or_padgv {
     }
 }
 
-# FIXME: adjust use of maybe_local_str
-sub pp_gvsv
-{
-    my($self, $op, $cx) = @_;
-    my $gv = $self->gv_or_padgv($op);
-    return $self->maybe_local_str($op, $cx,
-				  $self->stash_variable("\$",
-							$self->gv_name($gv), $cx));
-}
-
 sub pp_aelemfast_lex
 {
     my($self, $op, $cx) = @_;

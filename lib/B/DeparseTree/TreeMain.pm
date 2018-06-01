@@ -72,7 +72,6 @@ $VERSION = '3.1.1';
     declare_warnings
     deparse_sub($$$$)
     deparse_subname($$)
-    dquote
     new
     next_todo
     pragmata
