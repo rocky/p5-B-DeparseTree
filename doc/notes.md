@@ -19,14 +19,14 @@ but...
 # Deparse problems
 
 The biggest issue with `B::Deparse` is it is one 6.5K file. There are
-two tests for it, but stored in different directories. The sheer
+three test files, of which two of them are significant.  The sheer
 *number* of tests are huge too - hundreds of tests in one, and a
 couple thousand in the other. The reason for the large number of tests
-in the latter test is a result of perl having so many builtin
+in the latter test is a result of Perl having so many builtin
 functions - over 100 of them. Each of these is an opcode; and each
 function can be tried several times in different ways.
 
-There there is such extensive testing is great, but given Perl
+That there is such extensive testing is great, but given Perl
 testing's default behavior of running all tests unconditionally, the
 slightest error meant that I'd see a spew of error of hundreds to
 thousands of line. (Does `prove` or `Test::More` have simple way to
@@ -34,7 +34,7 @@ stop on the first failure?)
 
 So it was important to get tests under control, I mean starting with
 some quick little unit tests, and bailing if those fail. Unit tests
-and B::Deparse? Now there's a concept!
+and B::Deparse?
 
 When a program is big and monolithic, it is often not modular. When it
 is not modular, it's hard to test it. That is most likely why both
@@ -69,8 +69,8 @@ code that is reading data. What you really want to know is the line
 number of the data that it is reading. The best it does is give
 'Constants in a block' so you can search for that.
 
-By the way, I have split out the test data from the code so that I can
-reuse the code for different Perl versions.
+I have split out the test data from the code so that I can reuse the
+code for different Perl versions.
 
 The way I currently address the above is to show in addition to the
 above message, a diff of two compared texts:
@@ -94,67 +94,107 @@ above message, a diff of two compared texts:
 #
 ```
 
-I can easily ignore remove differences in what spaces to see what's wrong.
+Visually, it is easily to ignore differences in what spaces to see
+what's wrong.
 
-Shortly though what I'll be adding is a way to write to a file just
-that test case that failed, so that it is isolated and can be tested
-by itself.
+Going future, when I hit an error, the test program that failed is written
+out to disk. This way that test can be run in isolation to the other tests.
 
--- Runing t/base/cond.t etc
+What is further needed though is to start grouping the simple tests of
+a `B::Deparse` function that handles it and split that off into a
+sparate file. For example there might be a test data file of tests for
+the method `binop` which handles for binary operators, another test
+data file for `listop`, which handles the list-like operators and so
+on.
+
+## Roundtrip tests
+
+I have ameliorated somewhat of the difficulty in figuring out what
+went wrong when a test fails by improving the error message and
+writing out the test. However, there still is the problem that the
+tests are frail, even though a regular expressions is used in
+comparison. We have this conundrum: if you want something that a
+person can easily detect difference you woull compare using a string
+or the simplest of regular expressions. But as you move to making the
+test less fragile, less subject to the whim of how `B::Deparse` chose to
+format Perl, you move onto more complicated regular expressions,
+which harder to suss when there is a difference. So how do we do better?
+
+We can avoid all of the frailty associated comparions or pattern
+matching by doing roundtrip testing. In the Perl source code
+distribution there already are a number of Perl programs that check
+themselves when run. These are in Perl's `t` directory. Some files in
+that are `t/base/cond.t`, or `t/base.if.t`.
+
+So all that is needed is have `B::Deparse` compile and decompile these
+programs (the somewhat magical invocation is `perl -MO=Deparse,sC
+...`), and write the decompiled result to file. When we can then run
+Perl on the decompiled code and Perl will checks if the result is
+obviously invalid. And when there is an error, Perl reports the line
+number of the failure. When the error is a problem in Perl syntax,
+Perl's error is pretty exact and revealing. BUt Even when the error is
+not a syntax error, the the decompilation error and the runtime error
+are generally close.
+
+By inspecting the resulting file, I can usually see what's wrong. And
+I have original source to compare against if the problem was not
+apparent.
+
 
 # The need for modularity
 
-Given that B::Deparse isn't all modular, and it is a single file, the
-most expedient way to extend its behavior was to copy the file and
-modify it. While expedient this now runs into a problem once you want
-to a put out package for multiple versions of Perl.
 
-Yes, you can copy those other versions as well, but instead of one
-6.5K mess you now have upwards of five 6.5K messes. Clearly this
-doesn't scale if you want to support more Perl versions.
+## Tracking changes across Perl Versions
 
-Lack modularity, then, is less viable of an option once you try to
-decouple B::Deparse from Perl.
+Currently `B::Deparse` is bundled with Perl and that means that the
+code that comes with Perl only needs to be concerened with that version.
 
-You could, and I have done, pour over diffs over released versions of
-the 6.5K file. This is not fun. Mentally you need to associate groups
-of changed sections with a logical change. To get the logical change
-structure you'd need to look at changes by version-control diffs, and
-if the changes aren't squashed (which is most certainly the case to
-some extent), then this is tedious too.
+Although it is true that you'll find tests on the Perl versions like
+this:
 
-And *after* that, then you need to separate each changes into one of 3
+    $self->{'hints'} &= 0xFF if $] < 5.009;
+
+in reality the code generally be used by another major Perl version.
+
+Here are some of the error messages I got when I tried to use the Perl
+5.26.2 version of `B::Deparse` from Perl 5.24.4:
+
+    "OPpSPLIT_ASSIGN" is not exported by the B module
+    "OPpSPLIT_LEX" is not exported by the B module
+
+So how would you understand for example, how has the OP tree changed
+between in 5.24.4 and 5.26.2 that required changes in the way
+`B::Deparse` works? Well, you could use either a diff between two
+files and/or use that with git commits. Depending on what changed,
+this might not be so bad, but generally I find it tedious.
+
+You want to separate each changes into one of three
 categories:
 
-1. Bug fixes that you want from the newer version to take effect in
-   the older version
+1. Bug fixes in the newer version would also be beneficial in the older version
 2. Nonfunctional, but stylistic changes
 3. Changes that reflect real changes between versions and so the
    two sets of code need be kept separately
 
-So again, in sum there's really no choice but to make the code more
-modular. Aside from the modularity benefits, there is an additional
-the benefit when this is done of being able to see in code what has
-changed over the revisions of Perl.
+## The how-to-extend problem?
 
-So most of my time in working with B::Deparse has been to modularize
-it if not just to sort out code into common code and version-specific
-changes.
+I wanted to extend `B::Deparse` so I can use it at runtime to
+determine my position. So how do I do this.
 
+But given that B::Deparse isn't all modular and is a single file, I
+started in the most expedient way by copying the file and modifying
+it. Given my lack of understanding of how B::Deparse worked, this was
+probably unavoidable. However very quickly I realized that
+it just doesn't scale, I'd have to modularize the code, and I have
+spent a good deal time trying to refactor the code at least in the context
+of my new feature.
 
+I'm close to having this finished. This code could be used as the
+basis for a rewritten `B::Deparse`.
 
-# This method is the inner loop.  Rocky's comment with respect to: so
-# try to keep it simple Most normal programs really aren't that
-# big. Yeah I know there are a couple of big pigs like the B::Deparse
-# code itself. The perl5 debugger comes to mind too. But what's the
-# likelihood of anyone wanting to decompile all of this? If someone
-# can make a case for a reason high-speed decompilation is vital, I'd
-# like to hear it.
-
+Next are some cool features of the new code that could be used in `B::Deparse`.
 
 # Table-driven opcodes
-
-With regard to the table format:
 
 In trying to use and modularize this code, I see there is
 a lot of repetition in subroutine parsing routines.
@@ -204,8 +244,6 @@ so that in a template you get a sense of what's going on, and then
 just fill in the values. And that's a good solution here.
 
 [Show how we can simply using format specifiers]
-
-loopop? indirop? if/else?
 
 Currently `B::Deparse` embeds control characters into the string
 `\cS`, `\cK`, and so on.
