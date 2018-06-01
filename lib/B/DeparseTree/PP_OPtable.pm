@@ -243,6 +243,7 @@ use constant ASSIGN => 2; # operation OP has a =OP variant
     'rewinddir'   => 'unop',
     'right_shift' => ['maybe_targmy', 'binop', ">>", 17, ASSIGN],
     'rmdir'       => ['maybe_targmy', 'unop'],
+    'runcv'       => ['unop', '__SUB__'],
 
     'say'         => 'indirop',
     'seek'        => 'listop',
