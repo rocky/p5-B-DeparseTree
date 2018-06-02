@@ -70,6 +70,7 @@ $VERSION = '3.1.1';
     deparse_format
     deparse_op_siblings
     double_delim
+    dq
     dq_unop
     dquote
     e_anoncode
@@ -733,6 +734,52 @@ sub double_delim {
 	$to =~ s[/][\\/]g;
 	return "/$from/$to/";
     }
+}
+
+sub dq($$$)
+{
+    my ($self, $op, $parent) = @_;
+    my $type = $op->name;
+    my $info;
+    if ($type eq "const") {
+	return info_from_text($op, $self, '$[', 'dq constant ary', {}) if $op->private & OPpCONST_ARYBASE;
+	return info_from_text($op, $self,
+			      B::Deparse::uninterp(B::Deparse::escape_str(B::Deparse::unback($self->const_sv($op)->as_string))),
+			 'dq constant', {});
+    } elsif ($type eq "concat") {
+	my $first = $self->dq($op->first, $op);
+	my $last  = $self->dq($op->last, $op);
+
+	# Disambiguate "${foo}bar", "${foo}{bar}", "${foo}[1]", "$foo\::bar"
+	($last =~ /^[A-Z\\\^\[\]_?]/ &&
+	    $first =~ s/([\$@])\^$/${1}{^}/)  # "${^}W" etc
+	    || ($last =~ /^[:'{\[\w_]/ && #'
+		$first =~ s/([\$@])([A-Za-z_]\w*)$/${1}{$2}/);
+
+	return info_from_list($op, $self, [$first->{text}, $last->{text}], '', 'dq_concat',
+			      {body => [$first, $last]});
+    } elsif ($type eq "join") {
+	return $self->deparse($op->last, 26, $op); # was join($", @ary)
+    } else {
+	return $self->deparse($op, 26, $parent);
+    }
+    my $kid = $self->dq($op->first->sibling, $op);
+    my $kid_text = $kid->{text};
+    if ($type eq "uc") {
+	$info = info_from_lists(['\U', $kid, '\E'], '', 'dq_uc', {});
+    } elsif ($type eq "lc") {
+	$info = info_from_lists(['\L', $kid, '\E'], '', 'dq_lc', {});
+    } elsif ($type eq "ucfirst") {
+	$info = info_from_lists(['\u', $kid, '\E'], '', 'dq_ucfirst', {});
+    } elsif ($type eq "lcfirst") {
+	$info = info_from_lists(['\l', $kid, '\E'], '', 'dq_lcfirst', {});
+    } elsif ($type eq "quotemeta") {
+	$info = info_from_lists(['\Q', $kid, '\E'], '', 'dq_quotemeta', {});
+    } elsif ($type eq "fc") {
+	$info = info_from_lists(['\F', $kid, '\E'], '', 'dq_fc', {});
+    }
+    $info->{body} = [$kid];
+    return $info;
 }
 
 # Handle unary operators that can occur as pseudo-listops inside
