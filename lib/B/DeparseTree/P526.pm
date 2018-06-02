@@ -163,20 +163,6 @@ sub populate_curcvlex {
     }
 }
 
-# Returns a list of subs which should be inserted before the COP
-sub cop_subs {
-    my ($self, $op, $out_seq) = @_;
-    my $seq = $op->cop_seq;
-    # If we have nephews, then our sequence number indicates
-    # the cop_seq of the end of some sort of scope.
-    if (class($op->sibling) ne "NULL" && $op->sibling->flags & OPf_KIDS
-	and my $nseq = $self->find_scope_st($op->sibling) ) {
-	$seq = $nseq;
-    }
-    $seq = $out_seq if defined($out_seq) && $out_seq < $seq;
-    return $self->seq_subs($seq);
-}
-
 my %feature_keywords = (
   # keyword => 'feature',
     state   => 'state',

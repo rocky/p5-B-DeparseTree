@@ -466,7 +466,7 @@ sub cops
     my @args_spec = ();
     my $fmt = '%;';
 
-    push @texts, $self->cop_subs($op);
+    push @texts, $self->B::Deparse::cop_subs($op);
     if (@texts) {
 	# Special marker to swallow up the semicolon
 	$opts->{'omit_next_semicolon'} = 1;

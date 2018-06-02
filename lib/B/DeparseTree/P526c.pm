@@ -127,7 +127,6 @@ use types;
 our $VERSION = '3.1.1';
 
 our @ISA = qw(Exporter);
-our @EXPORT = qw(cop_subs);
 
 BEGIN {
     # List version-specific constants here.
@@ -200,20 +199,6 @@ sub populate_curcvlex {
 		  }}, [$seq_st, $seq_en, $ns[$i]];
 	}
     }
-}
-
-# Returns a list of subs which should be inserted before the COP
-sub cop_subs {
-    my ($self, $op, $out_seq) = @_;
-    my $seq = $op->cop_seq;
-    # If we have nephews, then our sequence number indicates
-    # the cop_seq of the end of some sort of scope.
-    if (class($op->sibling) ne "NULL" && $op->sibling->flags & OPf_KIDS
-	and my $nseq = $self->find_scope_st($op->sibling) ) {
-	$seq = $nseq;
-    }
-    $seq = $out_seq if defined($out_seq) && $out_seq < $seq;
-    return $self->seq_subs($seq);
 }
 
 my %feature_keywords = (
