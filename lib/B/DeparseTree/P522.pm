@@ -97,8 +97,8 @@ BEGIN {
     }
 }
 
-BEGIN { for (qw[ rv2sv glob null aelem
-		 nextstate dbstate rv2av rv2hv helem custom ]) {
+BEGIN { for (qw[ rv2sv aelem
+		 rv2av rv2hv helem ]) {
     eval "sub OP_\U$_ () { " . opnumber($_) . "}"
 }}
 

@@ -70,7 +70,7 @@ BEGIN {
     }
 }
 
-BEGIN { for (qw[ rv2sv glob]) {
+BEGIN { for (qw[rv2sv]) {
     eval "sub OP_\U$_ () { " . opnumber($_) . "}"
 }}
 

@@ -109,8 +109,8 @@ BEGIN {
     }
 }
 
-BEGIN { for (qw[ rv2sv glob null aelem
-		 nextstate dbstate rv2av rv2hv helem custom ]) {
+BEGIN { for (qw[ rv2sv aelem
+		 rv2av rv2hv helem custom ]) {
     eval "sub OP_\U$_ () { " . opnumber($_) . "}"
 }}
 
@@ -162,29 +162,6 @@ sub populate_curcvlex {
 	}
     }
 }
-
-my %feature_keywords = (
-  # keyword => 'feature',
-    state   => 'state',
-    say     => 'say',
-    given   => 'switch',
-    when    => 'switch',
-    default => 'switch',
-    break   => 'switch',
-    evalbytes=>'evalbytes',
-    __SUB__ => '__SUB__',
-   fc       => 'fc',
-);
-
-# keywords that are strong and also have a prototype
-#
-my %strong_proto_keywords = map { $_ => 1 } qw(
-    pos
-    prototype
-    scalar
-    study
-    undef
-);
 
 { no strict 'refs'; *{"pp_r$_"} = *{"pp_$_"} for qw< keys each values >; }
 
