@@ -912,7 +912,7 @@ sub pp_entersub
 	    # take some major code restructuring to do right.
 	    @texts = $self->maybe_parens_func($sub_name, $self->combine2str(', ', \@body), $cx, 16);
 	} elsif ($dproto ne '$' and defined($proto) || $simple) { #'
-	    $type = 'call with prototype';
+	    $type = "call $sub_name having prototype";
 	    @texts = $self->maybe_parens_func($sub_name, $self->combine2str(', ', \@body), $cx, 5);
 	    return B::DeparseTree::Node->new($op, $self, \@texts,
 					     '', $type,

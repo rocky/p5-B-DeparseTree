@@ -446,8 +446,9 @@ sub cops
 	push @texts, $op->label . ": " ;
     }
 
-    return $self->info_from_template($name, $op, $fmt,
-				     \@args_spec, \@texts, $opts);
+    my $node = $self->info_from_template($name, $op, $fmt,
+					 \@args_spec, \@texts, $opts);
+    return $node;
 }
 
 sub deparse_binop_left {

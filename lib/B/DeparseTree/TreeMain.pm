@@ -72,7 +72,6 @@ $VERSION = '3.1.1';
     declare_warnings
     deparse_sub($$$$)
     deparse_subname($$)
-    dquote
     new
     next_todo
     pragmata
@@ -465,16 +464,32 @@ sub deparse_root {
 
 }
 
+sub update_node($$$$)
+{
+    my ($self, $node, $prev_expr, $op) = @_;
+    $node->{prev_expr} = $prev_expr;
+    $self->{optree}{$$op} = $node if $op;
+    $self->{ops}{$$op}{info} = $node if $op;
+}
+
 sub walk_lineseq
 {
     my ($self, $op, $kids, $callback) = @_;
     my @kids = @$kids;
     my @body = (); # Accumulated node structures
     my $expr;
+    my $prev_expr = undef;
+    my $fix_cop = undef;
     for (my $i = 0; $i < @kids; $i++) {
 	if (B::Deparse::is_state $kids[$i]) {
 	    $expr = ($self->deparse($kids[$i], 0, $op));
-	    $callback->(\@body, $i, $expr);
+	    $callback->(\@body, $i, $expr, $op);
+	    $self->update_node($expr, $prev_expr, $op);
+	    $prev_expr = $expr;
+	    if ($fix_cop) {
+		$fix_cop->{text} = $expr->{text};
+	    }
+
 	    $i++;
 	    if ($i > $#kids) {
 		last;
@@ -485,6 +500,8 @@ sub walk_lineseq
 	    $callback->(\@body,
 			$i += $kids[$i]->sibling->name eq "unstack" ? 2 : 1,
 			$loop_expr);
+	    $self->update_node($expr, $prev_expr, $op);
+	    $prev_expr = $expr;
 	    next;
 	}
 	$expr = $self->deparse($kids[$i], (@kids != 1)/2, $op);
@@ -492,15 +509,27 @@ sub walk_lineseq
 	# Perform semantic action on $expr accumulating the result
 	# in @body. $op is the parent, and $i is the child position
 	$callback->(\@body, $i, $expr, $op);
+	$self->update_node($expr, $prev_expr, $op);
+	$prev_expr = $expr;
+	if ($fix_cop) {
+	    $fix_cop->{text} = $expr->{text};
+	}
+
+	# If the text portion of a COP is empty, set up to fill it in
+	# from the text portion of the next node.
+	if (B::class($op) eq "COP" && !$expr->{text}) {
+	    $fix_cop = $op;
+	} else {
+	    $fix_cop = undef;
+	}
     }
 
     # Add semicolons between statements. Don't null statements
     # (which can happen for nexstate which doesn't have source code
     # associated with it.
-    my $info = $self->info_from_template("statements", $op, "%;", [], \@body);
-    $self->{optree}{$$op} = $info if $op;
-    $self->{ops}{$$op}{info} = $info if $op;
-    return $info;
+    $expr = $self->info_from_template("statements", $op, "%;", [], \@body);
+    $self->update_node($expr, $prev_expr, $op);
+    return $expr;
 }
 
 # $root should be the op which represents the root of whatever
