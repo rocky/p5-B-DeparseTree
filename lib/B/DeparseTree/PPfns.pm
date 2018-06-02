@@ -424,7 +424,7 @@ sub code_list {
 	    $re .= $block;
 	    $re .= $multiline ? "\n\b})" : " })";
 	} else {
-	    $re = re_dq_disambiguate($re, $self->re_dq($op));
+	    $re = B::Deparse::re_dq_disambiguate($re, $self->re_dq($op));
 	}
     }
     $re;

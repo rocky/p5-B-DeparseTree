@@ -1387,16 +1387,6 @@ sub pp_transr {
 			  {body => [$info]});
 }
 
-sub re_dq_disambiguate {
-    my ($first, $last) = @_;
-    # Disambiguate "${foo}bar", "${foo}{bar}", "${foo}[1]"
-    ($last =~ /^[A-Z\\\^\[\]_?]/ &&
-	$first =~ s/([\$@])\^$/${1}{^}/)  # "${^}W" etc
-	|| ($last =~ /^[{\[\w_]/ &&
-	    $first =~ s/([\$@])([A-Za-z_]\w*)$/${1}{$2}/);
-    return $first . $last;
-}
-
 # Like dq(), but different
 sub re_dq {
     my $self = shift;
@@ -1411,7 +1401,7 @@ sub re_dq {
     } elsif ($type eq "concat") {
 	my $first = $self->re_dq($op->first);
 	my $last  = $self->re_dq($op->last);
-	return re_dq_disambiguate($first, $last);
+	return B::Deparse::re_dq_disambiguate($first, $last);
     } elsif ($type eq "uc") {
 	$re_dq_info = $self->re_dq($op->first->sibling);
 	$fmt = '\U%c\E';
@@ -1517,8 +1507,8 @@ sub regcomp
 	    my $last = $self->re_dq($kid, $extended);
 	    push @body, $last;
 	    push(@other_ops, $kid);
-	    $str = re_dq_disambiguate($first,
-				      $self->info2str($last));
+	    $str = B::Deparse::re_dq_disambiguate($first,
+						  $self->info2str($last));
 	    $kid = $kid->sibling;
 	}
 	return (info_from_text($op, $self, $str, 'regcomp',
