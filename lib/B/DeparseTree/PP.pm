@@ -763,6 +763,8 @@ sub pp_const {
     return $self->const($sv, $cx);;
 }
 
+# Handle subroutien calls. These are a bit complicated.
+# NOTE: this is not right for CPerl, so it needs to be split out.
 sub pp_entersub
 {
     my($self, $op, $cx) = @_;

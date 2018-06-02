@@ -122,12 +122,12 @@ say 'foo';
 >>>>
 say 'foo'
 ####
-# SKIP ?$] < 5.015 && "__SUB__ not implemented on this Perl version"
+# SKIP ?($] < 5.015 || $is_cperl) && "__SUB__ not implemented on this Perl version"
 # CONTEXT use feature ':5.15';
 # __SUB__
 __SUB__;
 ####
-# SKIP ?$] < 5.015 && "__SUB__ not implemented on this Perl version"
+# SKIP ?($] < 5.015 || $is_cperl) && "__SUB__ not implemented on this Perl version"
 # CONTEXT use 5.15.0;
 # __SUB__ in the context of use 5.15.0
 __SUB__;
@@ -141,7 +141,7 @@ no feature ':all';
 use feature ':5.16';
 __SUB__;
 ####
-# SKIP ?$] < 5.015 && "__SUB__ not implemented on this Perl version"
+# SKIP ?($] < 5.015 || $is_cperl) && "__SUB__ not implemented on this Perl version"
 # __SUB__ with use feature ':5.15';
 use feature ':5.15';
 __SUB__;
@@ -149,7 +149,7 @@ __SUB__;
 use feature 'current_sub', 'evalbytes', 'fc', 'say', 'state', 'switch', 'unicode_strings', 'unicode_eval';
 __SUB__;
 ####
-# SKIP ?$] < 5.015 && "__SUB__ not implemented on this Perl version"
+# SKIP ?($] < 5.015 || $is_cperl) && "__SUB__ not implemented on this Perl version"
 # CONTEXT use feature ':5.15';
 # __SUB__ with use 5.15.0 in the context of use feature
 use 5.15.0;
@@ -159,7 +159,7 @@ no feature ':all';
 use feature ':5.16';
 __SUB__;
 ####
-# SKIP ?$] < 5.015 && "__SUB__ not implemented on this Perl version"
+# SKIP ?($] < 5.015 || $is_cperl) && "__SUB__ not implemented on this Perl version"
 # CONTEXT use 5.15.0;
 # __SUB__ with use feature ':5.15' in the context of use 5.15.0
 use feature ':5.15';
@@ -167,7 +167,7 @@ __SUB__;
 >>>>
 __SUB__;
 ####
-# SKIP ?$] < 5.010 && "state vars not implemented on this Perl version"
+# SKIP (?$] < 5.010 || $is_cperl) && "state vars not implemented on this Perl version"
 # CONTEXT use feature ':5.10';
 # state vars
 state $x = 42;

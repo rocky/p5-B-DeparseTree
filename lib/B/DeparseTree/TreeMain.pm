@@ -62,7 +62,6 @@ $VERSION = '3.1.1';
     %ignored_hints
     %rev_feature
     WARN_MASK
-    ambiant_pragmas
     coderef2info
     coderef2text
     const
@@ -101,10 +100,7 @@ if ($] >= 5.016 and $] < 5.018) {
 }
 
 $module .= 'c' if $is_cperl;
-
-if (!$is_cperl) {
-    @ISA = ("Exporter", "B::DeparseTree::$module");
-}
+@ISA = ("Exporter", "B::DeparseTree::$module");
 
 require "B/DeparseTree/${module}.pm";
 
@@ -581,7 +577,7 @@ sub todo
     my $seq;
     if ($cv->OUTSIDE_SEQ) {
 	$seq = $cv->OUTSIDE_SEQ;
-    } elsif (!B::deparse::null($cv->START) and B::Deparse::is_state($cv->START)) {
+    } elsif (!B::Deparse::null($cv->START) and B::Deparse::is_state($cv->START)) {
 	$seq = $cv->START->cop_seq;
     } else {
 	$seq = 0;

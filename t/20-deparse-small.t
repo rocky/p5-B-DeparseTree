@@ -13,6 +13,9 @@ if ($ENV{'CIRCLECI'}) {
     plan skip_all => 'Something is funky with CircleCI';
 }
 
+use Config;
+my $is_cperl = $Config::Config{usecperl};
+
 my $tests = 19; # not counting those in the __DATA__ section
 
 my %deparse;
@@ -126,6 +129,7 @@ EOC
 						TMPDIR => 1,
 						UNLINK => 0,
 						SUFFIX => '.pl');
+		print $fh "# $desc\n";
 		print $fh "sub {$input\n}\n";
 		::diag "Wrote failed Perl program to $filename";
 		close($fh);
@@ -185,8 +189,10 @@ $b &&= undef;
 
 $a = `$^X $path "-MO=Deparse" -e "use constant PI => 4" 2>&1`;
 $a =~ s/-e syntax OK\n//g;
-is($a, "use constant ('PI', 4);\n",
-   "Proxy Constant Subroutines must not show up as (incorrect) prototypes");
+if (!$is_cperl) {
+    is($a, "use constant ('PI', 4);\n",
+       "Proxy Constant Subroutines must not show up as (incorrect) prototypes");
+}
 
 #Re: perlbug #35857, patch #24505
 #handle warnings::register-ed packages properly.
@@ -269,7 +275,7 @@ EOCODE
 $a =
   `$^X $path "-MO=Deparse" -e "BEGIN{*CORE::GLOBAL::require=sub{1}}" 2>&1`;
 $a =~ s/-e syntax OK\n//g;
-is($a, <<'EOCODF', "CORE::GLOBAL::require override causing panick");
+is($a, <<'EOCODF', "CORE::GLOBAL::require override causing panic") if !$is_cperl;
 sub BEGIN {
     *CORE::GLOBAL::require = sub {
         1;
@@ -318,10 +324,11 @@ SKIP: {
    `;
 }
 
-# multiple statements on format lines
-$a = `$^X $path "-MO=Deparse" -e "format =" -e "\@" -e "x();z()" -e. 2>&1`;
-$a =~ s/-e syntax OK\n//g;
-is($a, <<'EOCODH', 'multiple statements on format lines');
+if (!$is_cperl) {
+    # multiple statements on format lines
+    $a = `$^X $path "-MO=Deparse" -e "format =" -e "\@" -e "x();z()" -e. 2>&1`;
+    $a =~ s/-e syntax OK\n//g;
+    is($a, <<'EOCODH', 'multiple statements on format lines');
 format STDOUT =
 @
 x(); z()
@@ -335,5 +342,6 @@ EOCODH
 #     /\x{20ac}/;
 # }',
 # "qr/euro/");
+};
 
 done_testing();

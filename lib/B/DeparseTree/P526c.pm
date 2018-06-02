@@ -20,59 +20,79 @@ package B::DeparseTree::P526c;
 use Carp;
 
 use B qw(class main_root main_start main_cv svref_2object opnumber perlstring
-	 OPf_KIDS OPf_REF OPf_STACKED OPf_SPECIAL OPf_MOD OPf_PARENS
-	 OPpLVAL_INTRO OPpOUR_INTRO OPpENTERSUB_AMPER OPpSLICE OPpCONST_BARE
-         OPpMULTIDEREF_EXISTS OPpMULTIDEREF_DELETE
-         OPpPADRANGE_COUNTSHIFT OPpSIGNATURE_FAKE
-         OPpSPLIT_ASSIGN OPpSPLIT_LEX
-	 SVf_ROK SVpad_OUR SVf_FAKE SVs_RMG SVs_SMG
-	 SVpad_TYPED
-         CVf_METHOD
-	 PMf_KEEP PMf_GLOBAL PMf_CONTINUE PMf_EVAL PMf_ONCE
-	 PMf_MULTILINE PMf_SINGLELINE PMf_FOLD PMf_EXTENDED PMf_EXTENDED_MORE
-	 PADNAMEt_OUTER
-         MDEREF_reload
-         MDEREF_AV_pop_rv2av_aelem
-         MDEREF_AV_gvsv_vivify_rv2av_aelem
-         MDEREF_AV_padsv_vivify_rv2av_aelem
-         MDEREF_AV_vivify_rv2av_aelem
-         MDEREF_AV_padav_aelem
-         MDEREF_AV_gvav_aelem
-         MDEREF_HV_pop_rv2hv_helem
-         MDEREF_HV_gvsv_vivify_rv2hv_helem
-         MDEREF_HV_padsv_vivify_rv2hv_helem
-         MDEREF_HV_vivify_rv2hv_helem
-         MDEREF_HV_padhv_helem
-         MDEREF_HV_gvhv_helem
-         MDEREF_ACTION_MASK
-         MDEREF_INDEX_none
-         MDEREF_INDEX_const
-         MDEREF_INDEX_padsv
-         MDEREF_INDEX_gvsv
-         MDEREF_INDEX_MASK
-         MDEREF_FLAG_last
-         MDEREF_MASK
-         MDEREF_SHIFT
 
-         SIGNATURE_reload
-         SIGNATURE_end
-         SIGNATURE_padintro
-         SIGNATURE_arg
-         SIGNATURE_arg_default_none
-         SIGNATURE_arg_default_undef
-         SIGNATURE_arg_default_0
-         SIGNATURE_arg_default_1
-         SIGNATURE_arg_default_iv
-         SIGNATURE_arg_default_const
-         SIGNATURE_arg_default_padsv
-         SIGNATURE_arg_default_gvsv
-         SIGNATURE_arg_default_op
-         SIGNATURE_array
-         SIGNATURE_hash
-         SIGNATURE_ACTION_MASK
-         SIGNATURE_FLAG_skip
-         SIGNATURE_MASK
-         SIGNATURE_SHIFT
+    CVf_METHOD
+    MDEREF_ACTION_MASK
+    MDEREF_AV_gvav_aelem
+    MDEREF_AV_gvsv_vivify_rv2av_aelem
+    MDEREF_AV_padav_aelem
+    MDEREF_AV_padsv_vivify_rv2av_aelem
+    MDEREF_AV_pop_rv2av_aelem
+    MDEREF_AV_vivify_rv2av_aelem
+    MDEREF_FLAG_last
+    MDEREF_HV_gvhv_helem
+    MDEREF_HV_gvsv_vivify_rv2hv_helem
+    MDEREF_HV_padhv_helem
+    MDEREF_HV_padsv_vivify_rv2hv_helem
+    MDEREF_HV_pop_rv2hv_helem
+    MDEREF_HV_vivify_rv2hv_helem
+    MDEREF_INDEX_MASK
+    MDEREF_INDEX_const
+    MDEREF_INDEX_gvsv
+    MDEREF_INDEX_none
+    MDEREF_INDEX_padsv
+    MDEREF_MASK
+    MDEREF_SHIFT
+    MDEREF_reload
+    OPf_KIDS
+    OPf_MOD OPf_PARENS
+    OPf_REF
+    OPf_SPECIAL
+    OPf_STACKED
+    OPpCONST_BARE
+    OPpENTERSUB_AMPER
+    OPpSLICE
+    OPpLVAL_INTRO
+    OPpMULTIDEREF_DELETE
+    OPpMULTIDEREF_EXISTS
+    OPpOUR_INTRO
+    OPpPADRANGE_COUNTSHIFT
+    OPpSIGNATURE_FAKE
+    OPpSPLIT_ASSIGN
+    OPpSPLIT_LEX
+    OPpTRANS_COMPLEMENT
+    OPpTRANS_DELETE
+    OPpTRANS_SQUASH
+    PMf_CONTINUE
+    PMf_EVAL PMf_ONCE
+    PMf_EXTENDED_MORE
+    PMf_FOLD PMf_EXTENDED
+    PMf_KEEP PMf_GLOBAL
+    PMf_MULTILINE
+    PMf_SINGLELINE
+    SIGNATURE_ACTION_MASK
+    SIGNATURE_FLAG_skip
+    SIGNATURE_MASK
+    SIGNATURE_SHIFT
+    SIGNATURE_arg
+    SIGNATURE_arg_default_0
+    SIGNATURE_arg_default_1
+    SIGNATURE_arg_default_const
+    SIGNATURE_arg_default_gvsv
+    SIGNATURE_arg_default_iv
+    SIGNATURE_arg_default_none
+    SIGNATURE_arg_default_op
+    SIGNATURE_arg_default_padsv
+    SIGNATURE_arg_default_undef
+    SIGNATURE_array
+    SIGNATURE_end
+    SIGNATURE_hash
+    SIGNATURE_padintro
+    SIGNATURE_reload
+    SVf_FAKE SVs_RMG
+    SVf_ROK SVpad_OUR
+    SVpad_TYPED
+    SVs_SMG
     );
 
 use B::DeparseTree::PPfns;
@@ -260,50 +280,6 @@ sub pp_require
     }
     Carp::confess("unhandled condition in pp_require");
 }
-
-sub e_anoncode
-{
-    my ($self, $info) = @_;
-    my $sub_info = $self->deparse_sub($info->{code});
-    return info_from_list($sub_info->{op}, $self,
-			  ['sub', $sub_info->{text}], ' ', 'e_anoncode',
-			  {body=> [$sub_info]});
-}
-
-sub pp_refgen
-{
-    my($self, $op, $cx) = @_;
-    my $kid = $op->first;
-    if ($kid->name eq "null") {
-	my $other_ops = [$kid];
-	my $anoncode = $kid = $kid->first;
-	if ($anoncode->name eq "anonconst") {
-	    $anoncode = $anoncode->first->first->sibling;
-	}
-	if ($anoncode->name eq "anoncode"
-	 or !null($anoncode = $kid->sibling) and
-		 $anoncode->name eq "anoncode") {
-            return $self->e_anoncode({ code => $self->padval($anoncode->targ) });
-	} elsif ($kid->name eq "pushmark") {
-            my $sib_name = $kid->sibling->name;
-            if ($sib_name =~ /^enter(xs)?sub/) {
-                my $kid_info = $self->deparse($kid->sibling, 1, $op);
-                # Always show parens for \(&func()), but only with -p otherwise
-		my @texts = ('\\', $kid_info->{text});
-		if ($self->{'parens'} or $kid->sibling->private & OPpENTERSUB_AMPER) {
-		    @texts = ('(', "\\", $kid_info->{text}, ')');
-		}
-		return info_from_list($op, $self, \@texts, '', 'refgen_entersub',
-				      {body => [$kid_info],
-				       other_ops => $other_ops});
-            }
-        }
-    }
-    local $self->{'in_refgen'} = 1;
-    $self->pfixop($op, $cx, "\\", 20);
-}
-
-sub pp_srefgen { pp_refgen(@_) }
 
 sub pp_readline {
     my $self = shift;
@@ -680,6 +656,12 @@ sub pp_multideref
     return info_from_list($op, $self, \@texts, '', 'multideref', {});
 }
 
+# placeholder; signatures are handled specially in deparse_sub()
+sub pp_signature {
+    my($self, $op, $cx) = @_;
+    return $self->info_from_string("signature", $op, '');
+}
+
 sub pp_gelem
 {
     my($self, $op, $cx) = @_;
@@ -700,7 +682,7 @@ sub slice
     if (class($op) eq "LISTOP") {
 	$last = $op->last;
     } else { # ex-hslice inside delete()
-	for ($kid = $op->first; !null $kid->sibling; $kid = $kid->sibling) {}
+	for ($kid = $op->first; !B::Deparse::null $kid->sibling; $kid = $kid->sibling) {}
 	$last = $kid;
     }
     $array = $last;
@@ -712,7 +694,7 @@ sub slice
     if ($kid->name eq "list") {
 	# skip list, pushmark
 	$kid = $kid->first->sibling;
-	for (; !null $kid; $kid = $kid->sibling) {
+	for (; !B::Deparse::null $kid; $kid = $kid->sibling) {
 	    push @elems, $self->deparse($kid, 6, $op);
 	}
     } else {
@@ -934,6 +916,209 @@ sub check_proto {
     return ('', \@reals);
 }
 
+sub retscalar {
+    my $name = $_[0]->name;
+    # XXX There has to be a better way of doing this scalar-op check.
+    #     Currently PL_opargs is not exposed.
+    if ($name eq 'null') {
+        $name = substr B::ppname($_[0]->targ), 3
+    }
+    $name =~ /^(?:scalar|pushmark|wantarray|const|gvsv|gv|padsv|rv2gv
+                 |rv2sv|av2arylen|anoncode|prototype|srefgen|ref|bless
+                 |regcmaybe|regcreset|regcomp|qr|subst|substcont|trans
+                 |transr|sassign|chop|schop|chomp|schomp|defined|undef
+                 |study|pos|preinc|i_preinc|predec|i_predec|postinc
+                 |i_postinc|postdec|i_postdec|pow|multiply|i_multiply
+                 |divide|i_divide|modulo|i_modulo|add|i_add|subtract
+                 |i_subtract|concat|stringify|left_shift|right_shift|lt
+                 |i_lt|gt|i_gt|le|i_le|ge|i_ge|eq|i_eq|ne|i_ne|n_cmp|i_cmp
+                 |s_lt|s_gt|s_le|s_ge|s_eq|s_ne|s_cmp|([isn]_)?bit_(?:and|x?or)|negate
+                 |i_negate|not|([isn]_)?complement|smartmatch|atan2|sin|cos
+                 |rand|srand|exp|log|sqrt|int|hex|oct|abs|length|substr
+                 |vec|index|rindex|sprintf|formline|ord|chr|crypt|ucfirst
+                 |lcfirst|uc|lc|quotemeta|aelemfast|aelem|exists|helem
+                 |pack|join|anonlist|anonhash|push|pop|shift|unshift|xor
+                 |andassign|orassign|dorassign|warn|die|reset|nextstate
+                 |dbstate|unstack|last|next|redo|dump|goto|exit|open|close
+                 |pipe_op|fileno|umask|binmode|tie|untie|tied|dbmopen
+                 |dbmclose|select|getc|read|enterwrite|prtf|print|say
+                 |sysopen|sysseek|sysread|syswrite|eof|tell|seek|truncate
+                 |fcntl|ioctl|flock|send|recv|socket|sockpair|bind|connect
+                 |listen|accept|shutdown|gsockopt|ssockopt|getsockname
+                 |getpeername|ftrread|ftrwrite|ftrexec|fteread|ftewrite
+                 |fteexec|ftis|ftsize|ftmtime|ftatime|ftctime|ftrowned
+                 |fteowned|ftzero|ftsock|ftchr|ftblk|ftfile|ftdir|ftpipe
+                 |ftsuid|ftsgid|ftsvtx|ftlink|fttty|fttext|ftbinary|chdir
+                 |chown|chroot|unlink|chmod|utime|rename|link|symlink
+                 |readlink|mkdir|rmdir|open_dir|telldir|seekdir|rewinddir
+                 |closedir|fork|wait|waitpid|system|exec|kill|getppid
+                 |getpgrp|setpgrp|getpriority|setpriority|time|alarm|sleep
+                 |shmget|shmctl|shmread|shmwrite|msgget|msgctl|msgsnd
+                 |msgrcv|semop|semget|semctl|hintseval|shostent|snetent
+                 |sprotoent|sservent|ehostent|enetent|eprotoent|eservent
+                 |spwent|epwent|sgrent|egrent|getlogin|syscall|lock|runcv
+                 |i_aelem|n_aelem|s_aelem|aelem_u|i_aelem_u|n_aelem_u|s_aelem_u
+                 |u_add|u_multiply|u_subtract
+                 |fc)\z/x
+}
+
+sub pp_enterxssub { goto &pp_entersub; }
+
+# FIXME: go over
+# sub pp_entersub {
+#     my $self = shift;
+#     my($op, $cx) = @_;
+#     return $self->e_method($self->_method($op, $cx))
+#         unless null $op->first->sibling;
+#     my $prefix = "";
+#     my $amper = "";
+#     my($kid, @exprs);
+#     if ($op->flags & OPf_SPECIAL && !($op->flags & OPf_MOD)) {
+# 	$prefix = "do ";
+#     } elsif ($op->private & OPpENTERSUB_AMPER) {
+# 	$amper = "&";
+#     }
+#     $kid = $op->first;
+#     $kid = $kid->first->sibling; # skip ex-list, pushmark
+#     for (; not null $kid->sibling; $kid = $kid->sibling) {
+# 	push @exprs, $kid;
+#     }
+#     my $simple = 0;
+#     my $proto = undef;
+#     my $lexical;
+#     if (is_scope($kid)) {
+# 	$amper = "&";
+# 	$kid = "{" . $self->deparse($kid, 0) . "}";
+#     } elsif ($kid->first->name eq "gv") {
+# 	my $gv = $self->gv_or_padgv($kid->first);
+# 	my $cv;
+# 	if (class($gv) eq 'GV' && class($cv = $gv->CV) ne "SPECIAL"
+# 	 || $gv->FLAGS & SVf_ROK && class($cv = $gv->RV) eq 'CV') {
+# 	    $proto = $cv->PV if $cv->FLAGS & SVf_POK;
+# 	}
+# 	$simple = 1; # only calls of named functions can be prototyped
+# 	$kid = $self->deparse($kid, 24);
+# 	my $fq;
+# 	# Fully qualify any sub name that conflicts with a lexical.
+# 	if ($self->lex_in_scope("&$kid")
+# 	 || $self->lex_in_scope("&$kid", 1))
+# 	{
+# 	    $fq++;
+# 	} elsif (!$amper) {
+# 	    if ($kid eq 'main::') {
+# 		$kid = '::';
+# 	    }
+# 	    else {
+# 	      if ($kid !~ /::/ && $kid ne 'x') {
+# 		# Fully qualify any sub name that is also a keyword.  While
+# 		# we could check the import flag, we cannot guarantee that
+# 		# the code deparsed so far would set that flag, so we qual-
+# 		# ify the names regardless of importation.
+# 		if (exists $feature_keywords{$kid}) {
+# 		    $fq++ if $self->feature_enabled($kid);
+# 		} elsif (do { local $@; local $SIG{__DIE__};
+# 			      eval { () = prototype "CORE::$kid"; 1 } }) {
+# 		    $fq++
+# 		}
+# 	      }
+# 	      if ($kid !~ /^(?:\w|::)(?:[\w\d]|::(?!\z))*\z/) {
+# 		$kid = single_delim("q", "'", $kid, $self) . '->';
+# 	      }
+# 	    }
+# 	}
+# 	$fq and substr $kid, 0, 0, = $self->{'curstash'}.'::';
+#     } elsif (is_scalar ($kid->first) && $kid->first->name ne 'rv2cv') {
+# 	$amper = "&";
+# 	$kid = $self->deparse($kid, 24);
+#     } else {
+# 	$prefix = "";
+# 	my $grandkid = $kid->first;
+# 	my $arrow = ($lexical = $grandkid->name eq "padcv")
+# 		 || is_subscriptable($grandkid)
+# 		    ? ""
+# 		    : "->";
+# 	$kid = $self->deparse($kid, 24) . $arrow;
+# 	if ($lexical) {
+# 	    my $padlist = $self->{'curcv'}->PADLIST;
+# 	    my $padoff = $grandkid->targ;
+# 	    my $padname = $padlist->ARRAYelt(0)->ARRAYelt($padoff);
+# 	    my $protocv = $padname->FLAGS & SVpad_STATE
+# 		? $padlist->ARRAYelt(1)->ARRAYelt($padoff)
+# 		: $padname->PROTOCV;
+# 	    if ($protocv->FLAGS & SVf_POK) {
+# 		$proto = $protocv->PV
+# 	    }
+# 	    $simple = 1;
+# 	}
+#     }
+
+#     # Doesn't matter how many prototypes there are, if
+#     # they haven't happened yet!
+#     my $declared = $lexical || exists $self->{'subs_declared'}{$kid};
+#     if (not $declared and $self->{'in_coderef2text'}) {
+# 	no strict 'refs';
+# 	no warnings 'uninitialized';
+# 	$declared =
+# 	       (
+# 		 defined &{ ${$self->{'curstash'}."::"}{$kid} }
+# 		 && !exists
+# 		     $self->{'subs_deparsed'}{$self->{'curstash'}."::".$kid}
+# 		 && defined prototype $self->{'curstash'}."::".$kid
+# 	       );
+#     }
+#     if (!$declared && defined($proto)) {
+# 	# Avoid "too early to check prototype" warning
+# 	($amper, $proto) = ('&');
+#     }
+
+#     my $args;
+#     my $listargs = 1;
+#     if ($declared and defined $proto and not $amper) {
+# 	($amper, $args) = $self->check_proto($proto, @exprs);
+# 	$listargs = $amper;
+#     }
+#     if ($listargs) {
+# 	$args = join(", ", map(
+# 		    ($_->flags & OPf_WANT) == OPf_WANT_SCALAR
+# 		 && !retscalar($_)
+# 			? $self->maybe_parens_unop('scalar', $_, 6)
+# 			: $self->deparse($_, 6),
+# 		    @exprs
+# 		));
+#     }
+#     if ($prefix or $amper) {
+# 	if ($kid eq '&') { $kid = "{$kid}" } # &{&} cannot be written as &&
+# 	if ($op->flags & OPf_STACKED) {
+# 	    return $prefix . $amper . $kid . "(" . $args . ")";
+# 	} else {
+# 	    return $prefix . $amper. $kid;
+# 	}
+#     } else {
+# 	# It's a syntax error to call CORE::GLOBAL::foo with a prefix,
+# 	# so it must have been translated from a keyword call. Translate
+# 	# it back.
+# 	$kid =~ s/^CORE::GLOBAL:://;
+
+# 	my $dproto = defined($proto) ? $proto : "undefined";
+# 	my $scalar_proto = $dproto =~ /^;*(?:[\$*_+]|\\.|\\\[[^]]\])\z/;
+#         if (!$declared) {
+# 	    return "$kid(" . $args . ")";
+# 	} elsif ($dproto =~ /^\s*\z/) {
+# 	    return $kid;
+# 	} elsif ($scalar_proto and is_scalar($exprs[0])) {
+# 	    # is_scalar is an excessively conservative test here:
+# 	    # really, we should be comparing to the precedence of the
+# 	    # top operator of $exprs[0] (ala unop()), but that would
+# 	    # take some major code restructuring to do right.
+# 	    return $self->maybe_parens_func($kid, $args, $cx, 16);
+# 	} elsif (not $scalar_proto and defined($proto) || $simple) { #'
+# 	    return $self->maybe_parens_func($kid, $args, $cx, 5);
+# 	} else {
+# 	    return "$kid(" . $args . ")";
+# 	}
+#     }
+# }
+
 sub pp_enterwrite { unop(@_, "write") }
 
 # Split a floating point number into an integer mantissa and a binary
@@ -1003,7 +1188,7 @@ sub dq
     return $info;
 }
 
-o# OP_STRINGIFY is a listop, but it only ever has one arg
+# OP_STRINGIFY is a listop, but it only ever has one arg
 sub pp_stringify {
     my ($self, $op, $cx) = @_;
     my $kid = $op->first->sibling;
@@ -1401,6 +1586,11 @@ sub pp_match { matchop(@_, "m", "/") }
 sub pp_pushre { matchop(@_, "m", "/") }
 sub pp_qr { matchop(@_, "qr", "") }
 
+# FIXME: I guessed these. Are they right?
+sub pp_s_cmp { binop(@_, "cmp", 14) }
+sub pp_s_eq { binop(@_, "cmp", 14) }
+sub pp_s_ne { binop(@_, "cmp", 14) }
+
 sub pp_split
 {
     my($self, $op, $cx) = @_;
@@ -1498,83 +1688,83 @@ map($substwords{join "", sort split //, $_} = $_, 'ego', 'egoism', 'em',
     'sir', 'rise', 'smore', 'more', 'seer', 'rome', 'gore', 'grim', 'grime',
     'or', 'rose', 'rosie');
 
-sub pp_subst
-{
-    my($self, $op, $cx) = @_;
-    my $kid = $op->first;
-    my($binop, $var, $re, @other_ops) = ("", "", "", ());
-    my @body = ();
-    my ($repl, $repl_info);
+# sub pp_subst
+# {
+#     my($self, $op, $cx) = @_;
+#     my $kid = $op->first;
+#     my($binop, $var, $re, @other_ops) = ("", "", "", ());
+#     my @body = ();
+#     my ($repl, $repl_info);
 
-    if ($op->flags & OPf_STACKED) {
-	$binop = 1;
-	$var = $self->deparse($kid, 20, $op);
-	$kid = $kid->sibling;
-    }
-    elsif (my $targ = $op->targ) {
-	$binop = 1;
-	$var = $self->padname($targ);
-    }
-    my $flags = "";
-    my $pmflags = $op->pmflags;
-    if (null($op->pmreplroot)) {
-	$repl = $kid;
-	$kid = $kid->sibling;
-    } else {
-	push @other_ops, $op->pmreplroot;
-	$repl = $op->pmreplroot->first; # skip substcont
-    }
-    while ($repl->name eq "entereval") {
-	push @other_ops, $repl;
-	$repl = $repl->first;
-	    $flags .= "e";
-    }
-    {
-	local $self->{in_subst_repl} = 1;
-	if ($pmflags & PMf_EVAL) {
-	    $repl_info = $self->deparse($repl->first, 0, $repl);
-	} else {
-	    $repl_info = $self->dq($repl);
-	}
-    }
-    my $extended = ($pmflags & PMf_EXTENDED);
-    if (null $kid) {
-	my $unbacked = B::Deparse::re_unback($op->precomp);
-	if ($extended) {
-	    $re = B::Deparse::re_uninterp_extended(escape_extended_re($unbacked));
-	}
-	else {
-	    $re = B::Deparse::re_uninterp(B::Deparse::escape_str($unbacked));
-	}
-    } else {
-	my ($re_info, $junk) = $self->regcomp($kid, 1, $extended);
-	push @body, $re_info;
-	$re = $re_info->{text};
-    }
-    $flags .= "r" if $pmflags & PMf_NONDESTRUCT;
-    $flags .= "e" if $pmflags & PMf_EVAL;
-    $flags .= $self->re_flags($op);
-    $flags = join '', sort split //, $flags;
-    $flags = $substwords{$flags} if $substwords{$flags};
-    my $core_s = $self->keyword("s"); # maybe CORE::s
-    my $info;
-    push @body, $repl_info;
-    my $repl_text = $repl_info->{text};
-    my $opts = {body => \@body};
-    my $opts->{other_ops} = \@other_ops if @other_ops;
-    my $find_replace_re = double_delim($re, $repl_text);
-    my $args = [$var, $find_replace_re];
-    my $args_spec = [0, 1];
-    if ($binop) {
-	my $fmt = "%c =~ $core_s%c$flags";
-	return $self->info_from_template("=~ s///", $op, $fmt, $args_spec, $args,
-					 {maybe_parens => [$self, $cx, 20]});
-    } else {
-	my $fmt = "$core_s%c$flags";
-	return $self->info_from_template("s///", $op, $fmt, $args_spec, $args, {});
-    }
-    Carp::confess("unhandled condition in pp_subst");
-}
+#     if ($op->flags & OPf_STACKED) {
+# 	$binop = 1;
+# 	$var = $self->deparse($kid, 20, $op);
+# 	$kid = $kid->sibling;
+#     }
+#     elsif (my $targ = $op->targ) {
+# 	$binop = 1;
+# 	$var = $self->padname($targ);
+#     }
+#     my $flags = "";
+#     my $pmflags = $op->pmflags;
+#     if (B::Deparse::null($op->pmreplroot)) {
+# 	$repl = $kid;
+# 	$kid = $kid->sibling;
+#     } else {
+# 	push @other_ops, $op->pmreplroot;
+# 	$repl = $op->pmreplroot->first; # skip substcont
+#     }
+#     while ($repl->name eq "entereval") {
+# 	push @other_ops, $repl;
+# 	$repl = $repl->first;
+# 	    $flags .= "e";
+#     }
+#     {
+# 	local $self->{in_subst_repl} = 1;
+# 	if ($pmflags & PMf_EVAL) {
+# 	    $repl_info = $self->deparse($repl->first, 0, $repl);
+# 	} else {
+# 	    $repl_info = $self->dq($repl);
+# 	}
+#     }
+#     my $extended = ($pmflags & PMf_EXTENDED);
+#     if (B::Deparse::null $kid) {
+# 	my $unbacked = B::Deparse::re_unback($op->precomp);
+# 	if ($extended) {
+# 	    $re = B::Deparse::re_uninterp_extended(B::Deparse::escape_extended_re($unbacked));
+# 	}
+# 	else {
+# 	    $re = B::Deparse::re_uninterp(B::Deparse::escape_str($unbacked));
+# 	}
+#     } else {
+# 	my ($re_info, $junk) = $self->regcomp($kid, 1, $extended);
+# 	push @body, $re_info;
+# 	$re = $re_info->{text};
+#     }
+#     $flags .= "r" if $pmflags & PMf_NONDESTRUCT;
+#     $flags .= "e" if $pmflags & PMf_EVAL;
+#     $flags .= $self->re_flags($op);
+#     $flags = join '', sort split //, $flags;
+#     $flags = $substwords{$flags} if $substwords{$flags};
+#     my $core_s = $self->keyword("s"); # maybe CORE::s
+#     my $info;
+#     push @body, $repl_info;
+#     my $repl_text = $repl_info->{text};
+#     my $opts = {body => \@body};
+#     my $opts->{other_ops} = \@other_ops if @other_ops;
+#     my $find_replace_re = double_delim($re, $repl_text);
+#     my $args = [$var, $find_replace_re];
+#     my $args_spec = [0, 1];
+#     if ($binop) {
+# 	my $fmt = "%c =~ $core_s%c$flags";
+# 	return $self->info_from_template("=~ s///", $op, $fmt, $args_spec, $args,
+# 					 {maybe_parens => [$self, $cx, 20]});
+#     } else {
+# 	my $fmt = "$core_s%c$flags";
+# 	return $self->info_from_template("s///", $op, $fmt, $args_spec, $args, {});
+#     }
+#     Carp::confess("unhandled condition in pp_subst");
+# }
 
 # FIXME:
 # Different in 5.20. Go over differences to see if okay in 5.20.
