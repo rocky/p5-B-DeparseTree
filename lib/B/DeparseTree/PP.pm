@@ -72,6 +72,7 @@ use B qw(
     pp_aslice
     pp_atan2
     pp_avalues
+    pp_backtick
     pp_boolkeys
     pp_chmod
     pp_chomp
@@ -107,6 +108,7 @@ use B qw(
     pp_grepwhile
     pp_gt
     pp_gv
+    pp_gvsv
     pp_helem
     pp_hex
     pp_hslice
@@ -288,6 +290,18 @@ sub pp_avalues { unop(@_, "values") }
 
 sub pp_aassign { binop(@_, "=", 7, SWAP_CHILDREN | LIST_CONTEXT, 'array assign') }
 sub pp_abs   { maybe_targmy(@_, \&unop, "abs") }
+
+sub pp_backtick
+{
+    my($self, $op, $cx) = @_;
+    # skip pushmark if it exists (readpipe() vs ``)
+    my $child = $op->first->sibling->isa('B::NULL')
+	? $op->first : $op->first->sibling;
+    if ($self->pure_string($child)) {
+	return $self->single_delim($op, "qx", '`', $self->dq($child, 1)->{text});
+    }
+    unop($self, $op, $cx, "readpipe");
+}
 
 sub pp_boolkeys
 {
@@ -968,6 +982,16 @@ sub pp_gv
     my $gv = $self->gv_or_padgv($op);
     my $name = $self->gv_name($gv);
     return $self->info_from_string("global variable $name", $op, $name);
+}
+
+# FIXME: adjust use of maybe_local_str
+sub pp_gvsv
+{
+    my($self, $op, $cx) = @_;
+    my $gv = $self->gv_or_padgv($op);
+    return $self->maybe_local_str($op, $cx,
+				  $self->stash_variable("\$",
+							$self->gv_name($gv), $cx));
 }
 
 sub pp_null

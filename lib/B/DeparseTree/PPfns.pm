@@ -45,6 +45,7 @@ $VERSION = '3.1.1';
 @EXPORT = qw(
     %strict_bits
     POSTFIX
+    ambient_pragmas
     anon_hash_or_list
     baseop
     binop
@@ -54,6 +55,7 @@ $VERSION = '3.1.1';
     dedup_parens_func
     deparse_binop_left
     deparse_binop_right
+    deparse_format
     deparse_op_siblings
     double_delim
     dq_unop
@@ -151,6 +153,119 @@ BEGIN { for (qw[ pushmark ]) {
 }
 
 my(%left, %right);
+
+sub ambient_pragmas {
+    my $self = shift;
+    my ($arybase, $hint_bits, $warning_bits, $hinthash) = (0, 0);
+
+    while (@_ > 1) {
+	my $name = shift();
+	my $val  = shift();
+
+	if ($name eq 'strict') {
+	    require strict;
+
+	    if ($val eq 'none') {
+		$hint_bits &= $strict_bits{$_} for qw/refs subs vars/;
+		next();
+	    }
+
+	    my @names;
+	    if ($val eq "all") {
+		@names = qw/refs subs vars/;
+	    }
+	    elsif (ref $val) {
+		@names = @$val;
+	    }
+	    else {
+		@names = split' ', $val;
+	    }
+	    $hint_bits |= $strict_bits{$_} for @names;
+	}
+
+	elsif ($name eq '$[') {
+	    if (OPpCONST_ARYBASE) {
+		$arybase = $val;
+	    } else {
+		croak "\$[ can't be non-zero on this perl" unless $val == 0;
+	    }
+	}
+
+	elsif ($name eq 'integer'
+	    || $name eq 'bytes'
+	    || $name eq 'utf8') {
+	    require "$name.pm";
+	    if ($val) {
+		$hint_bits |= ${$::{"${name}::"}{"hint_bits"}};
+	    }
+	    else {
+		$hint_bits &= ~${$::{"${name}::"}{"hint_bits"}};
+	    }
+	}
+
+	elsif ($name eq 're') {
+	    require re;
+	    if ($val eq 'none') {
+		$hint_bits &= ~re::bits(qw/taint eval/);
+		next();
+	    }
+
+	    my @names;
+	    if ($val eq 'all') {
+		@names = qw/taint eval/;
+	    }
+	    elsif (ref $val) {
+		@names = @$val;
+	    }
+	    else {
+		@names = split' ',$val;
+	    }
+	    $hint_bits |= re::bits(@names);
+	}
+
+	elsif ($name eq 'warnings') {
+	    if ($val eq 'none') {
+		$warning_bits = $warnings::NONE;
+		next();
+	    }
+
+	    my @names;
+	    if (ref $val) {
+		@names = @$val;
+	    }
+	    else {
+		@names = split/\s+/, $val;
+	    }
+
+	    $warning_bits = $warnings::NONE if !defined ($warning_bits);
+	    $warning_bits |= warnings::bits(@names);
+	}
+
+	elsif ($name eq 'warning_bits') {
+	    $warning_bits = $val;
+	}
+
+	elsif ($name eq 'hint_bits') {
+	    $hint_bits = $val;
+	}
+
+	elsif ($name eq '%^H') {
+	    $hinthash = $val;
+	}
+
+	else {
+	    croak "Unknown pragma type: $name";
+	}
+    }
+    if (@_) {
+	croak "The ambient_pragmas method expects an even number of args";
+    }
+
+    $self->{'ambient_arybase'} = $arybase;
+    $self->{'ambient_warnings'} = $warning_bits;
+    $self->{'ambient_hints'} = $hint_bits;
+    $self->{'ambient_hinthash'} = $hinthash;
+}
 
 sub anon_hash_or_list($$$)
 {
@@ -321,7 +436,7 @@ sub concat {
     my $lhs = $self->deparse_binop_left($op, $left, $prec);
     my $rhs  = $self->deparse_binop_right($op, $right, $prec);
     return $self->bin_info_join_maybe_parens($op, $lhs, $rhs, ".$eq", " ", $cx, $prec,
-					     'real_concat');
+					     'concat');
 }
 
 # Handle pp_dbstate, and pp_nextstate and COP ops.
@@ -482,6 +597,55 @@ BEGIN {
 	      'andassign' => 7,
 	      'orassign' => 7,
 	     );
+}
+
+sub deparse_format($$$)
+{
+    my ($self, $form, $parent) = @_;
+    my @texts;
+    local($self->{'curcv'}) = $form;
+    local($self->{'curcvlex'});
+    local($self->{'in_format'}) = 1;
+    local(@$self{qw'curstash warnings hints hinthash'})
+		= @$self{qw'curstash warnings hints hinthash'};
+    my $op = $form->ROOT;
+    local $B::overlay = {};
+    $self->pessimise($op, $form->START);
+    my $info = {
+	op  => $op,
+	parent => $parent,
+	cop => $self->{'curcop'}
+    };
+    $self->{optree}{$$op} = $info;
+
+    if ($op->first->name eq 'stub' || $op->first->name eq 'nextstate') {
+	my $info->{text} = "\f.";
+	return $info;
+    }
+
+    $op->{other_ops} = [$op->first];
+    $op = $op->first->first; # skip leavewrite, lineseq
+    my $kid;
+    while (not B::Deparse::null $op) {
+	push @{$op->{other_ops}}, $op;
+	$op = $op->sibling; # skip nextstate
+	my @body;
+	push @{$op->{other_ops}}, $op->first;
+	$kid = $op->first->sibling; # skip a pushmark
+	push @texts, "\f".$self->const_sv($kid)->PV;
+	push @{$op->{other_ops}}, $kid;
+	$kid = $kid->sibling;
+	for (; not B::Deparse::null $kid; $kid = $kid->sibling) {
+	    push @body, $self->deparse($kid, -1, $op);
+	    $body[-1] =~ s/;\z//;
+	}
+	push @texts, "\f".$self->combine2str("\n", \@body) if @body;
+	$op = $op->sibling;
+    }
+
+    $info->{text} = $self->combine2str(\@texts) . "\f.";
+    $info->{texts} = \@texts;
+    return $info;
 }
 
 sub dedup_parens_func($$$)
