@@ -1,3 +1,16 @@
+I will be giving a talk on `B::DeparseTree` and its use
+in a debugger `Devel::Trepan` at the upcoming YAPC 2018
+in Glasgow. As a result I have been working quote a bit
+on `B::DeparseTree` and have a number of thoughts.
+
+Here are some of them. This is the first part. The
+second part if I get around to writing it will be about the
+cool features of B::DeparseTree from an application.
+
+This part focuses on some of the issues of `B::Deparse` and how it
+could be (or in a sense _is_ being rewritten in `B::DeparseTree`.
+
+
 # Introduction
 
 As someone who make a lot of mistakes, I've long wanted to improve the
@@ -38,17 +51,20 @@ and B::Deparse?
 
 When a program is big and monolithic, it is often not modular. When it
 is not modular, it's hard to test it. That is most likely why both
-tests for `B::Deparse` that require a lot of setup. The tests can also
-be frail if the formatting changes slightly. A formatting change to
-the setup boilerplate will cause all tests to fail.
+tests for `B::Deparse` that require a lot of setup.
+
+The tests are also frail in the face of the formatting changes to
+`B::Deparse`. and can cause many if not all of the hundreds of tests
+to fail.
 
 How we do better? I've mentioned unit tests. Later I'll describe
-something else that elimintates the fragilness of testing against a
+something else that eliminates the frailness of testing against a
 particular kind of formatting.
 
 # Testing
 
-When `B::Deparse fails`, it's hard to understand what it is talking about:
+When `B::Deparse fails`, it's can take a little bit of study to
+understand what it is talking about:
 
 Here is an example:
 
@@ -64,7 +80,7 @@ Here is an example:
 #     doesn't match '(?^:^\s*\{\s*\s+\{\s+\'\?\?\?\'\;\s+2\s+)'
 ```
 
-Is this clear to you what's wrong? And line 114 is the line number of
+Is this clear to you what's wrong? Line 114 is the line number of
 code that is reading data. What you really want to know is the line
 number of the data that it is reading. The best it does is give
 'Constants in a block' so you can search for that.
@@ -94,34 +110,34 @@ above message, a diff of two compared texts:
 #
 ```
 
-Visually, it is easily to ignore differences in what spaces to see
+Visually, it is easily to ignore differences in spacing to see
 what's wrong.
 
 Going future, when I hit an error, the test program that failed is written
 out to disk. This way that test can be run in isolation to the other tests.
 
-What is further needed though is to start grouping the simple tests of
-a `B::Deparse` function that handles it and split that off into a
-sparate file. For example there might be a test data file of tests for
-the method `binop` which handles for binary operators, another test
-data file for `listop`, which handles the list-like operators and so
-on.
+What is further needed though is to start grouping simple tests that
+trigger the use of a `B::Deparse` function and to split that those
+tests into a separate data file. For example there might be a test
+data file of tests for the method `binop` which handles for binary
+operators, another test data file for `listop`, which handles the
+list-like operators and so on.
 
-## Roundtrip tests
+## Round trip tests
 
 I have ameliorated somewhat of the difficulty in figuring out what
 went wrong when a test fails by improving the error message and
 writing out the test. However, there still is the problem that the
-tests are frail, even though a regular expressions is used in
+tests are frail, even though a regular expression is used in
 comparison. We have this conundrum: if you want something that a
-person can easily detect difference you woull compare using a string
-or the simplest of regular expressions. But as you move to making the
-test less fragile, less subject to the whim of how `B::Deparse` chose to
-format Perl, you move onto more complicated regular expressions,
-which harder to suss when there is a difference. So how do we do better?
+person can easily detect difference you would compare using a string
+or a very simple regular expressions. But as you move to making tests
+less fragile and less subject to the whim of how `B::Deparse` format
+Perls, you move onto more complicated regular expressions. But this is
+harder to suss when there is a difference. So how do we do better?
 
-We can avoid all of the frailty associated comparions or pattern
-matching by doing roundtrip testing. In the Perl source code
+We can avoid all of the frailty associated comparisons or pattern
+matching by doing round trip testing. In the Perl source code
 distribution there already are a number of Perl programs that check
 themselves when run. These are in Perl's `t` directory. Some files in
 that are `t/base/cond.t`, or `t/base.if.t`.
@@ -129,12 +145,16 @@ that are `t/base/cond.t`, or `t/base.if.t`.
 So all that is needed is have `B::Deparse` compile and decompile these
 programs (the somewhat magical invocation is `perl -MO=Deparse,sC
 ...`), and write the decompiled result to file. When we can then run
-Perl on the decompiled code and Perl will checks if the result is
-obviously invalid. And when there is an error, Perl reports the line
-number of the failure. When the error is a problem in Perl syntax,
-Perl's error is pretty exact and revealing. BUt Even when the error is
-not a syntax error, the the decompilation error and the runtime error
-are generally close.
+Perl on the decompiled code and Perl will indicate whether the result
+is invalid. Edsgar Dijkstra's quip about a test not proving
+correctness, but only demonstrating failure applies here. If the code
+doesn't fail that doesn't mean that it was deparsed correctly. Just
+that the running the program couldn't find an error.
+
+But when there is an error, Perl error message is often helpful in
+suggesting what decompiled incorrectly, especially when the error is a
+problem in Perl syntax. Even when the error is not a syntax error, the
+the decompilation error and the run-time error are generally close.
 
 By inspecting the resulting file, I can usually see what's wrong. And
 I have original source to compare against if the problem was not
@@ -147,14 +167,15 @@ apparent.
 ## Tracking changes across Perl Versions
 
 Currently `B::Deparse` is bundled with Perl and that means that the
-code that comes with Perl only needs to be concerened with that version.
+code that comes with Perl only needs to be concerned with that version.
 
 Although it is true that you'll find tests on the Perl versions like
 this:
 
     $self->{'hints'} &= 0xFF if $] < 5.009;
 
-in reality the code generally be used by another major Perl version.
+in reality the code generally cannot be used by from another major Perl
+version release.
 
 Here are some of the error messages I got when I tried to use the Perl
 5.26.2 version of `B::Deparse` from Perl 5.24.4:
@@ -162,13 +183,14 @@ Here are some of the error messages I got when I tried to use the Perl
     "OPpSPLIT_ASSIGN" is not exported by the B module
     "OPpSPLIT_LEX" is not exported by the B module
 
-So how would you understand for example, how has the OP tree changed
-between in 5.24.4 and 5.26.2 that required changes in the way
-`B::Deparse` works? Well, you could use either a diff between two
-files and/or use that with git commits. Depending on what changed,
-this might not be so bad, but generally I find it tedious.
+So how would you understand how the OP tree has changed between in
+5.24.4 and 5.26.2 that requires changes in the way `B::Deparse` works?
+Well, you could use either a file or git diff between two files in
+each of the released versions. And/or you could use that with git
+commits or ChangeLog entries. Depending on what changed, this might
+not be so bad, but generally I find it tedious.
 
-You want to separate each changes into one of three
+What you want is to separate each changes into one of three
 categories:
 
 1. Bug fixes in the newer version would also be beneficial in the older version
@@ -176,18 +198,32 @@ categories:
 3. Changes that reflect real changes between versions and so the
    two sets of code need be kept separately
 
+
+If the program were reorganized and modular though changes between
+versions and why would be more apparent. As an example of how this
+might look in Perl, I'll show how I've done this in Python. Suppose
+you want to now which opcodes are different between Python 3.4 and
+3.5. Well, look at:
+https://github.com/rocky/python-xdis/blob/master/xdis/opcodes/opcode_35.py
+
+And how does that effect decompilation? That's a harder question to
+answer simply, but that too to some degree of success has been
+isolated in code. For the semantic tree interpretation routines see:
+https://github.com/rocky/python-uncompyle6/blob/master/uncompyle6/semantics/customize3.py#L258-L276.
+
+
 ## The how-to-extend problem?
 
-I wanted to extend `B::Deparse` so I can use it at runtime to
-determine my position. So how do I do this.
+I wanted to extend `B::Deparse` so I can use it at run time to
+determine my position. So how do I do this?
 
-But given that B::Deparse isn't all modular and is a single file, I
-started in the most expedient way by copying the file and modifying
+Given that B::Deparse isn't all modular and is a single file, I
+started out in the most obvious way by copying the file and modifying
 it. Given my lack of understanding of how B::Deparse worked, this was
-probably unavoidable. However very quickly I realized that
-it just doesn't scale, I'd have to modularize the code, and I have
-spent a good deal time trying to refactor the code at least in the context
-of my new feature.
+extremely expedient and probably unavoidable. However very quickly I
+realized that it just doesn't scale, and that I'd *have *to modularize
+the code.  have spent a good deal time trying to refactor the code at
+least in the context of my new feature.
 
 I'm close to having this finished. This code could be used as the
 basis for a rewritten `B::Deparse`.
@@ -202,9 +238,9 @@ a lot of repetition in subroutine parsing routines.
 Compare this:
 
 
-sub pp_die { listop(@_, "die") }
-sub pp_each { unop(@_, "each") }
-sub pp_egrent { baseop(@_, "endgrent") }
+    sub pp_die { listop(@_, "die") }
+    sub pp_each { unop(@_, "each") }
+    sub pp_egrent { baseop(@_, "endgrent") }
 
 with
 
@@ -216,18 +252,20 @@ Was it obvious to you when looking at the subroutine call, that the
 name "egrent" got converted to "endgrent" which didn't happen in other
 shown entries?
 
-Also, it is easier to customize the entries as per Perl version nees.
-In some versions, some ops we need to surround an the text from an
-operation with a "my", while in other versions that is not the
-case. It is clearer and simpler just to change table entries than it
-is to muck with OO lookup or doing subroutine assignments.
+Having mappings from PP opcode to function makes it easier to
+customize the entries as required as the Perl version varies.  In some
+versions, some ops we need to surround an the text from an operation
+with a "my", while in other versions that is not the case. It is
+clearer and simpler just to change table entries than it is to muck
+with OO lookup or doing subroutine assignments.
 
 # Format-spec driven fragment creation
 
-Conceptially what B::Deparse does is conceptually simple: it walks the
-optree building and combining string fragments at a parent node from
-its children. When you get to finish at the top node after walking the
-entire string you have the final resulting program.
+How `B::Deparse` works is conceptually simple: it walks the optree
+building and combining string fragments at node from the nodes'
+children. When you return from root or top node after walking the
+tree, you have a string representing the entire function or module that
+the root represents.
 
 However understanding what goes on inside a given node, is very
 haphazard. So if you have a bug somewhere, figuring out where there
@@ -235,7 +273,7 @@ was a problem and why is difficult.
 
 This kind of thing you may have already encountered in a different
 guise, and a good solution to that problem applies here. Imagine you
-are trying to create a nicely formated report with lots of data
+are trying to create a nicely formatted report with lots of data
 values. You can try combining strings together interspersed with calls
 to conversion routines to different data items.
 
@@ -243,23 +281,10 @@ But instead what most people do is use some sort of format specifiers
 so that in a template you get a sense of what's going on, and then
 just fill in the values. And that's a good solution here.
 
-[Show how we can simply using format specifiers]
-
-Currently `B::Deparse` embeds control characters into the string
-`\cS`, `\cK`, and so on.
-
-I have not found a situation where you can break things by adding these characters inside
-a valid Perl program, but it still seems brittle.
-
-Separating formatting the string is also helful to understanding how a
-node got its way, and paves the way for more complex formatting descisions.
-
-
 # Swapping out Node and Syntax tree for String-oriented routines.
 
-The focus of code right now has been for handling this new feature. However I believe it would be a good
-replacement for `B::Deparse` because of its modularity, and ease with which you can see what's going on.
-The template specifiers assists separation in traversing code from building string.
-
-Although we produce a full program right now, we can speed thing up by not storing the additional tree information.
-For that you would use the OO aspect and replace SyntaxTree and Node with suitable stripped down replacements.
+The focus of code right now has been for handling this new fragment
+deparsing feature. However I believe `B::DeparseTree` would be a good
+replacement for `B::Deparse` because of its modularity, and ease with
+which you can see what's going on.  The template specifiers assists
+separation in traversing code from building string.

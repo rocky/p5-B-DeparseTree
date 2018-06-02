@@ -967,8 +967,12 @@ sub deparse
 sub deparse_sub($$$$)
 {
     my ($self, $cv, $start_op) = @_;
+
+    # Sanity checks..
     Carp::confess("NULL in deparse_sub") if !defined($cv) || $cv->isa("B::NULL");
     Carp::confess("SPECIAL in deparse_sub") if $cv->isa("B::SPECIAL");
+
+    # First get protype and sub attribute information
     local $self->{'curcop'} = $self->{'curcop'};
     my $proto = '';
     if ($cv->FLAGS & SVf_POK) {
@@ -984,12 +988,12 @@ sub deparse_sub($$$$)
     local($self->{'curcv'}) = $cv;
     local($self->{'curcvlex'});
     local(@$self{qw'curstash warnings hints hinthash'})
-		= @$self{qw'curstash warnings hints hinthash'};
+	= @$self{qw'curstash warnings hints hinthash'};
+
+    # Now deparse subroutine body
 
     my $root = $cv->ROOT;
-    my $body;
-
-    my $info = {};
+    my ($body, $node);
 
     local $B::overlay = {};
     if (not B::Deparse::null $root) {
@@ -1010,36 +1014,41 @@ sub deparse_sub($$$$)
 	}
 
 	my $type = "sub " . $cv->GV->NAME;
-	$info = $self->info_from_template($type, $root, "\n%|{\n%+%c\n%-}",
+	$node = $self->info_from_template("sub $type$proto",
+					  $root,
+					  "$proto\n%|{\n%+%c\n%-}",
 					  [0], [$body]);
 
-	$self->{optree}{$$lineseq} = $info;
+	$self->{optree}{$$lineseq} = $node;
 
     } else {
 	my $sv = $cv->const_sv;
 	if ($$sv) {
 	    # uh-oh. inlinable sub... format it differently
-	    my @texts = ("{", $self->const($sv, 0)->{text}, "}");
-	    unshift @texts, $proto if $proto;
-	    $info = $self->info_from_template('inline sub', $sv,
-					      "\n%|{\n%+%c\n%-}",
+	    $node = $self->info_from_template('inline sub', $sv,
+					      "$proto\n%|{\n%+%c\n%-}",
 					      [0], [$self->const($sv, 0)]);
-	} else { # XSUB? (or just a declaration)
-	    my @texts = ();
-	    @texts = push @texts, $proto if $proto;
-	    $info = info_from_list($root, $self, \@texts, '', 'sub_decl', {});
+	} else {
+	    # XSUB? (or just a declaration)
+	    $node = $self->info_from_string("XSUB or sub declaration", $proto);
 	}
     }
 
+
+    # Add additional DeparseTree tracking info
     if ($start_op) {
-	$info->{op} = $start_op;
-	$self->{'optree'}{$$start_op} = $info;
+	$node->{op} = $start_op;
+	$self->{'optree'}{$$start_op} = $node;
     }
-    $info->{cop} = undef;
-    $info->{'parent'}  = $cv;
-    return $info;
+    $node->{cop} = undef;
+    $node->{'parent'}  = $cv;
+    return $node;
 }
 
+# We have a TODO list of things that must be handled
+# at the top level. There are things like
+# format statements, "BEGIN" and "use" statements.
+# Here we handle the next one.
 sub next_todo
 {
     my ($self, $parent) = @_;
@@ -1048,26 +1057,20 @@ sub next_todo
     my $gv = $cv->GV;
     my $name = $self->gv_name($gv);
     if ($ent->[2]) {
-	my $info = $self->deparse_format($ent->[1], $cv);
-	my $texts = ["format $name", "=", $info->{text} + "\n"];
-	return {
-	    body => [$info],
-	    texts => $texts,
-	    type => 'format_todo',
-	    text => join(" ", @$texts),
-	};
+	my $node = $self->deparse_format($ent->[1], $cv);
+	return $self->info_from_template("format $name",
+					 "format $name = %c",
+					 undef, [$node])
     } else {
-	my @args_spec = ();
-	my @nodes = ();
 	my ($fmt, $type);
 	$self->{'subs_declared'}{$name} = 1;
 	if ($name eq "BEGIN") {
 	    my $use_dec = $self->begin_is_use($cv);
 	    if (defined ($use_dec) and $self->{'expand'} < 5) {
 		if (0 == length($use_dec)) {
-		    info_from_text($cv, $self, '', 'begin_todo', {});
+		    $self->info_from_string('BEGIN', $cv, '');
 		} else {
-		    info_from_text($cv, $self, $use_dec, 'begin_todo_use', {});
+		    $self->info_from_string('use', $cv, $use_dec);
 		}
 	    }
 	}
@@ -1089,9 +1092,9 @@ sub next_todo
 	    $fmt .= "sub $name";
 	    $type .= "sub $name";
 	}
-	my $info = $self->deparse_sub($cv, $parent);
+	my $node = $self->deparse_sub($cv, $parent);
 	$fmt .= '%c';
-	return $self->info_from_template($type, $cv, $fmt, [0], [$info]);
+	return $self->info_from_template($type, $cv, $fmt, [0], [$node]);
     }
 }
 

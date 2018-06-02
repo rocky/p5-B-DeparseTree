@@ -89,5 +89,5 @@ Note what's up with ~ vs -:
 
 When we can find the child node as a placeholder in its parent, the underline is '-'.
 However when we can't, but we have found it unambigously by doing a string search of
-one text within another we use ~. [We should also use a different symbol for artificially
+one text within another we use ~. We also use a different symbol for artificially
 created position |.
