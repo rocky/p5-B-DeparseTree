@@ -31,6 +31,7 @@ use B qw(
 use B::Deparse;
 
 # Copy unchanged functions from B::Deparse
+*balanced_delim = *B::Deparse::balanced_delim;
 *double_delim = *B::Deparse::double_delim;
 *escape_extended_re = *B::Deparse::escape_extended_re;
 *escape_re = *B::Deparse::escape_re;
@@ -39,12 +40,23 @@ use B::Deparse;
 
 use B::DeparseTree::SyntaxTree;
 
+# Various operator flag bits
+use constant POSTFIX => 1;        # operator can be used as postfix operator
+use constant SWAP_CHILDREN => 1;  # children of op should be reversed
+use constant ASSIGN =>  2;        # has OP= variant
+use constant LIST_CONTEXT => 4;   # Assignment is in list context
+
+
+
 our($VERSION, @EXPORT, @ISA);
 $VERSION = '3.1.1';
 @ISA = qw(Exporter);
 @EXPORT = qw(
     %strict_bits
+    ASSIGN
+    LIST_CONTEXT
     POSTFIX
+    SWAP_CHILDREN
     ambient_pragmas
     anon_hash_or_list
     baseop
@@ -66,9 +78,11 @@ $VERSION = '3.1.1';
     func_needs_parens
     givwhen
     indirop
+    is_list_newer
+    is_list_older
     listop
-    logop
     logassignop
+    logop
     loop_common
     loopex
     map_texts
@@ -84,13 +98,12 @@ $VERSION = '3.1.1';
     maybe_targmy
     null_newer
     null_older
-    is_list_newer
-    is_list_older
     pfixop
     range
     repeat
     rv2x
     scopeop
+    single_delim
     subst_newer
     subst_older
     unop
@@ -337,7 +350,7 @@ sub binop
 	$eq = "=";
 	$prec = 7;
     }
-    if ($flags & B::Deparse::SWAP_CHILDREN) {
+    if ($flags & SWAP_CHILDREN) {
 	($left, $right) = ($right, $left);
     }
     my $lhs = $self->deparse_binop_left($op, $left, $prec);
@@ -349,7 +362,7 @@ sub binop
     }
 
     my $rhs = $self->deparse_binop_right($op, $right, $prec);
-    if ($flags & B::Deparse::SWAP_CHILDREN) {
+    if ($flags & SWAP_CHILDREN) {
 	# Not sure why this is right
 	$lhs->{prev_expr} = $rhs;
     } else {
@@ -2407,8 +2420,6 @@ sub unop
     }
 }
 
-sub POSTFIX () { 1 }
-
 # This handles category of symbolic prefix and postfix unary operators,
 # e.g $x++, -r, +$x.
 sub pfixop
@@ -2543,6 +2554,43 @@ sub scopeop
 	}
     } else {
 	return $self->lineseq($op, $cx, @kids);
+    }
+}
+
+sub single_delim($$$$$) {
+    my($self, $op, $q, $default, $str) = @_;
+
+    return $self->info_from_template("string $default .. $default (default)", $op,
+				     "$default%c$default", [0],
+				     [$str])
+	if $default and index($str, $default) == -1;
+    my $coreq = $self->keyword($q); # maybe CORE::q
+    if ($q ne 'qr') {
+	(my $succeed, $str) = balanced_delim($str);
+	return $self->info_from_string("string $q", $op, "$coreq$str")
+	    if $succeed;
+    }
+    for my $delim ('/', '"', '#') {
+	$self->info_from_string("string $q $delim$delim", $op, "qr$delim$str$delim")
+	    if index($str, $delim) == -1;
+    }
+    if ($default) {
+	my $transform_fn = sub {
+	    s/$_[0]/\\$_[0]/g;
+	    return $_[0];
+	};
+
+	return $self->info_from_template("string $q $default$default",
+					 $op, "$default%F$default",
+					 [[0, $transform_fn]], [$str]);
+    } else {
+	my $transform_fn = sub {
+	    $_[0] =~ s[/][\\/]g;
+	    return $_[0];
+	};
+	return $self->info_from_template("string $q //",
+					 $op, "$coreq/%F/",
+					 [[0, $transform_fn]], [$str]);
     }
 }
 

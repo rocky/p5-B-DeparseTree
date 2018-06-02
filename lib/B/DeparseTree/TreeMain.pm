@@ -45,7 +45,6 @@ use B::DeparseTree::PP_OPtable;
 use B::DeparseTree::SyntaxTree;
 
 # Copy unchanged functions from B::Deparse
-*balanced_delim = *B::Deparse::balanced_delim;
 *find_scope_en = *B::Deparse::find_scope_en;
 *find_scope_st = *B::Deparse::find_scope_st;
 *gv_name = *B::Deparse::gv_name;
@@ -77,7 +76,6 @@ $VERSION = '3.1.1';
     pragmata
     print_protos
     seq_subs
-    single_delim
     style_opts
     );
 
@@ -1330,43 +1328,6 @@ sub seq_subs {
 	push @texts, $self->next_todo;
     }
     return @texts;
-}
-
-sub single_delim($$$$$) {
-    my($self, $op, $q, $default, $str) = @_;
-
-    return $self->info_from_template("string $default .. $default (default)", $op,
-				     "$default%c$default", [0],
-				     [$str])
-	if $default and index($str, $default) == -1;
-    my $coreq = $self->keyword($q); # maybe CORE::q
-    if ($q ne 'qr') {
-	(my $succeed, $str) = balanced_delim($str);
-	return $self->info_from_string("string $q", $op, "$coreq$str")
-	    if $succeed;
-    }
-    for my $delim ('/', '"', '#') {
-	$self->info_from_string("string $q $delim$delim", $op, "qr$delim$str$delim")
-	    if index($str, $delim) == -1;
-    }
-    if ($default) {
-	my $transform_fn = sub {
-	    s/$_[0]/\\$_[0]/g;
-	    return $_[0];
-	};
-
-	return $self->info_from_template("string $q $default$default",
-					 $op, "$default%F$default",
-					 [[0, $transform_fn]], [$str]);
-    } else {
-	my $transform_fn = sub {
-	    $_[0] =~ s[/][\\/]g;
-	    return $_[0];
-	};
-	return $self->info_from_template("string $q //",
-					 $op, "$coreq/%F/",
-					 [[0, $transform_fn]], [$str]);
-    }
 }
 
 # FIXME: this code has to be here. Find out why and fix.

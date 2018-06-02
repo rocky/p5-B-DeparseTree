@@ -245,10 +245,6 @@ sub feature_enabled {
 	return $hh && $hh->{"feature_$feature_keywords{$name}"}
 }
 
-sub SWAP_CHILDREN () { 1 }
-sub ASSIGN () { 2 } # has OP= variant
-sub LIST_CONTEXT () { 4 } # Assignment is in list context
-
 # Convert these to table entries...
 sub pp_aelem { maybe_local(@_, elem(@_, "[", "]", "padav")) }
 sub pp_aslice   { maybe_local(@_, slice(@_, "[", "]", "rv2av", "padav")) }
