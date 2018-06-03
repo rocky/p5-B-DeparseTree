@@ -35,26 +35,33 @@ my $error_count = 0;
 
 for my $file (@test_files) {
 
-    my ($data_fh, $line) = open_data($file);
+    my ($data_fh, $line_no) = open_data($file);
     while (<$data_fh>) {
 	# FIXME w need to count \n's in $_
-	# $line ++;
+	$line_no += (length split /\n/, $_);
 	chomp;
 	$tests ++;
-	# This code is pinched from the t/lib/common.pl for TODO.
-	# It's not clear how to avoid duplication
+
+	# This code was adapted from the t/lib/common.pl for TODO.
 	my %meta = (context => '');
+	my %orig_meta = ();
 	foreach my $what (qw(skip todo context options)) {
-	    s/^#\s*\U$what\E\s*(.*)\n//m and $meta{$what} = $1;
-	    # If the SKIP reason starts ? then it's taken as a code snippet to
-	    # evaluate. This provides the flexibility to have conditional SKIPs
-	    if ($meta{$what} && $meta{$what} =~ s/^\?//) {
-		my $temp = eval $meta{$what};
-		ok ! $@;
-		if ($@) {
-		    die "# In \U$what\E code reason:\n# $meta{$what}\n$@";
+	    if (s/^#\s*\U$what\E\s*(.*)\n//m) {
+		$orig_meta{$what} = $_;
+		$meta{$what} = $1;
+
+		# If the SKIP reason starts ? then it's taken as a code snippet to
+		# evaluate. This provides the flexibility to have conditional SKIPs
+		if ($meta{$what} =~ s/^\?//) {
+		    my $temp = eval $meta{$what};
+		    ok ! $@;
+		    if ($@) {
+			die "# In \U$what\E code reason:\n# $meta{$what}\n$@";
+		    }
+		    $meta{$what} = $temp;
 		}
-		$meta{$what} = $temp;
+		# We tolerate many "skip", "todo", and "context lines;
+		# last unless $what eq 'skip';
 	    }
 	}
 
@@ -83,6 +90,7 @@ for my $file (@test_files) {
 	: $deparse;
 
 	my $code_string = "$meta{context};\n" . <<'EOC' . "sub {$input}";
+
 # Tell B::Deparse about our ambient pragmas so it doesn't add pragmas to
 # its output.
 my ($hint_bits, $warning_bits, $hinthash);
@@ -121,15 +129,17 @@ EOC
 
 	    local $::TODO = $meta{todo};
 	    unless(like($deparsed, qr/$regex/, $desc)) {
-		# ::diag "file $file, line $line\n";
 		::diag "\n", '-' x 30, "\n";
 		::diag diff \$deparsed, \$expected, { STYLE => "Context" };
 		::diag "\n", '=' x 30, "\n";
+		::diag "Data file $file\n";
 		my ($fh, $filename) = tempfile( "deparse-bug-XXXX",
 						TMPDIR => 1,
 						UNLINK => 0,
 						SUFFIX => '.pl');
-		print $fh "# $desc\n";
+		foreach my $key (keys %orig_meta) {
+		    print $fh $orig_meta{$key};
+		}
 		print $fh "sub {$input\n}\n";
 		::diag "Wrote failed Perl program to $filename";
 		close($fh);

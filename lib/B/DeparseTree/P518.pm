@@ -470,46 +470,6 @@ sub pp_gelem
     return "*" . ($scope ? "{$glob}" : $glob) . "{$part}";
 }
 
-sub slice
-{
-    my ($self, $op, $cx, $left, $right, $regname, $padname) = @_;
-    my $last;
-    my(@elems, $kid, $array);
-    if (class($op) eq "LISTOP") {
-	$last = $op->last;
-    } else { # ex-hslice inside delete()
-	for ($kid = $op->first; !B::Deparse::null $kid->sibling; $kid = $kid->sibling) {}
-	$last = $kid;
-    }
-    $array = $last;
-    $array = $array->first
-	if $array->name eq $regname or $array->name eq "null";
-    my $array_info = $self->elem_or_slice_array_name($array, $left, $padname, 0);
-    $kid = $op->first->sibling; # skip pushmark
-
-    if ($kid->name eq "list") {
-	# skip list, pushmark
-	$kid = $kid->first->sibling;
-	for (; !B::Deparse::null $kid; $kid = $kid->sibling) {
-	    push @elems, $self->deparse($kid, 6, $op);
-	}
-    } else {
-	@elems = ($self->elem_or_slice_single_index($kid, $op));
-    }
-    my $list = join(', ', map($_->{text}, @elems));
-    my $lead = '@';
-    $lead = '%' if $op->name =~ /^kv/i;
-    my (@texts, $type);
-    if ($array_info) {
-	@texts = ($lead, $array_info, $left, $list, $right);
-	$type='slice1';
-    } else {
-	@texts = ($lead, $left, $list, $right);
-	$type='slice';
-    }
-    return info_from_list($op, $self, \@texts, '', $type, {body => \@elems});
-}
-
 sub pp_lslice
 {
     my ($self, $op, $cs) = @_;

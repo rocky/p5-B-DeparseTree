@@ -88,9 +88,11 @@ use warnings ();
 require feature;
 
 our(@EXPORT, @ISA);
-our $VERSION = '3.0.0';
+our $VERSION = '3.1.1';
 
-@ISA = qw(Exporter);
+@ISA = qw(Exporter B::DeparseTree::PP);
+
+@EXPORT = qw(slice);
 
 BEGIN {
     # List version-specific constants here.
@@ -597,51 +599,6 @@ sub pp_gelem
     $glob = $self->deparse($glob, 0);
     $part = $self->deparse($part, 1);
     return "*" . ($scope ? "{$glob}" : $glob) . "{$part}";
-}
-
-sub slice
-{
-    my ($self, $op, $cx, $left, $right, $regname, $padname) = @_;
-    my $last;
-    my(@elems, $kid, $array);
-    if (class($op) eq "LISTOP") {
-	$last = $op->last;
-    } else { # ex-hslice inside delete()
-	for ($kid = $op->first; !null $kid->sibling; $kid = $kid->sibling) {}
-	$last = $kid;
-    }
-    $array = $last;
-    $array = $array->first
-	if $array->name eq $regname or $array->name eq "null";
-    my $array_info = $self->elem_or_slice_array_name($array, $left, $padname, 0);
-    $kid = $op->first->sibling; # skip pushmark
-
-    if ($kid->name eq "list") {
-	# FIXME:
-	# skip list, pushmark
-	$kid = $kid->first->sibling;
-	for (; !null $kid; $kid = $kid->sibling) {
-	    push @elems, $self->deparse($kid, 6, $op);
-	}
-    } else {
-	@elems = ($self->elem_or_slice_single_index($kid, $op));
-    }
-    my $lead = '@';
-    $lead = '%' if $op->name =~ /^kv/i;
-    my ($fmt, $args_spec);
-    my (@texts, $type);
-    if ($array_info) {
-	unshift @elems, $array_info;
-	$fmt = "${lead}%c%$left%C$right";
-	$args_spec = [0, [1, $#elems, ', ']];
-	$type = "$lead<var>$left .. $right";
-    } else {
-	$fmt = "${lead}$left%C$right";
-	$args_spec = [0, $#elems, ', '];
-	$type = "${lead}$left .. $right";
-    }
-    return $self->info_from_template($type, $op, $fmt, $args_spec,
-				     \@elems),
 }
 
 sub pp_lslice
