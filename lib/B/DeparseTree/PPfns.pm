@@ -908,10 +908,10 @@ sub filetest
     }
 }
 
-sub func_needs_parens($$$$$)
+sub func_needs_parens($$$$)
 {
     my($self, $first_param, $cx, $prec) = @_;
-    return ($prec <= $cx or substr($first_param, 0, 1) eq "(" or $self->{'parens'});
+    return ($prec <= $cx and substr($first_param, 0, 1) ne "(") || $self->{'parens'};
 }
 
 sub givwhen
@@ -991,10 +991,15 @@ sub indirop
     my $prev_expr = $exprs[-1];
     for (; !B::Deparse::null($kid); $kid = $kid->sibling) {
 	# This prevents us from using deparse_op_siblings
-	my $high_prec = (!$fmt && $kid == $firstkid
-			 && $name eq "sort"
-			 && $firstkid->name =~ /^enter(xs)?sub/);
-	$expr = $self->deparse($kid, $high_prec ? 16 : 6, $op);
+	my $operator_context;
+	if (!$fmt && $kid == $firstkid
+	    && $name eq "sort"
+	    && $firstkid->name =~ /^enter(xs)?sub/) {
+	    $operator_context = 16;
+	} else {
+	    $operator_context = 6;
+	}
+	$expr = $self->deparse($kid, $operator_context, $op);
 	if (defined $expr) {
 	    $expr->{prev_expr} = $prev_expr;
 	    $prev_expr = $expr;
@@ -1012,6 +1017,7 @@ sub indirop
 
     if ($name eq "sort" && ($op->private & OPpSORT_INPLACE)) {
 	$fmt = "%c = $name2 $fmt %c";
+	# FIXME: do better with skipped ops
 	return $self->info_from_template($name2, $op,
 					     [0, 0], \@exprs, {other_ops => \@skipped_ops});
     }
@@ -1047,13 +1053,14 @@ sub indirop
 					  {other_ops => \@skipped_ops});
 
     } else {
-	# indir
 	if (@exprs) {
-	    # FIXME: figure out how to put back in %maybe_parens_func.
-	    # possibly with a format specifier?
-	    # @texts = ($self->maybe_parens_func($name2, $args, $cx, 5));
-	    $node = $self->info_from_template($name2, $first_op,
-					      "$name2(%C)",
+	    my $fmt;
+	    if ($self->func_needs_parens($exprs[0]->{text}, $cx, 5)) {
+		$fmt = "$name2(%C)"
+	    } else {
+		$fmt = "$name2 %C"
+	    }
+	    $node = $self->info_from_template($name2, $first_op, $fmt,
 					      [[0, $#exprs, ', ']],
 					      \@exprs,
 					      {other_ops => \@skipped_ops,

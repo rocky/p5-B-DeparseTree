@@ -187,7 +187,6 @@ use B qw(
     pp_sle
     pp_slt
     pp_sne
-    pp_socket
     pp_sockpair
     pp_slice
     pp_sprintf

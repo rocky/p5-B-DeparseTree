@@ -67,6 +67,7 @@ t/testdata/core-ops.pm
 t/testdata/subst.pm
 t/unit/01-test-pod.t
 t/unit/02-node.t
+t/unit/03-ppfns.t
 t/unit/03-treemain.t
 t/unit/04-fragment.t
 t/unit/05-load.t

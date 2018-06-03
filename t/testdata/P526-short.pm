@@ -325,7 +325,6 @@ my(@a) = ()[()];
 # sort(foo(bar)) is interpreted as sort &foo(bar)
 # sort foo(bar) is interpreted as sort foo bar
 # parentheses are not optional in this case
-# SKIP ?1
 print sort(foo('bar'));
 >>>>
 print sort(foo('bar'));
