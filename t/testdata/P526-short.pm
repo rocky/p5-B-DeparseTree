@@ -72,19 +72,16 @@ while (1) { my $k }
 # constants as method names without ()
 'Foo'->bar;
 ####
-# SKIP ?1
 # SKIP ?$] < 5.010 && "say not implemented on this Perl version"
 # CONTEXT use feature ':5.10';
 # say
 say 'foo'
 ####
-# SKIP ?1
 # SKIP ?$] < 5.010 && "say not implemented on this Perl version"
 # CONTEXT use 5.10.0;
 # say in the context of use 5.10.0
 say 'foo';
 ####
-# SKIP ?1
 # SKIP ?$] < 5.010 && "say not implemented on this Perl version"
 # say with use 5.10.0
 use 5.10.0;
@@ -94,7 +91,6 @@ no feature ':all';
 use feature ':5.10';
 say 'foo';
 ####
-# SKIP ?1
 # SKIP ?$] < 5.010 && "say not implemented on this Perl version"
 # say with use feature ':5.10';
 use feature ':5.10';
@@ -103,7 +99,6 @@ say 'foo';
 use feature 'say', 'state', 'switch';
 say 'foo';
 ####
-# SKIP ?1
 # SKIP ?$] < 5.010 && "say not implemented on this Perl version"
 # CONTEXT use feature ':5.10';
 # say with use 5.10.0 in the context of use feature
@@ -259,7 +254,6 @@ pop();
 # shift optimisation
 pop @_;
 ####
-# SKIP ?1
 #[perl #20444]
 "foo" =~ (1 ? /foo/ : /bar/);
 "foo" =~ (1 ? y/foo// : /bar/);
@@ -269,12 +263,11 @@ pop @_;
 'foo' =~ ($_ =~ /foo/);
 'foo' =~ ($_ =~ tr/fo//);
 'foo' =~ ($_ =~ tr/fo//r);
-'foo' =~ ($_ =~ s/foo//);
+'foo' =~ ($_ =~ s/foo//)
 # ####
 # # The fix for [perl #20444] broke this.
 # 'foo' =~ do { () };
 ####
-# SKIP ?1
 # [perl #81424] match against aelemfast_lex
 my @s;
 print /$s[1]/;
@@ -303,13 +296,12 @@ $b::a[0] = 1;
 my @a;
 $a[0] = 1;
 ####
-# SKIP ?1
 # $#- $#+ $#{%} etc.
 my @x;
 @x = ($#{`}, $#{~}, $#{!}, $#{@}, $#{$}, $#{%}, $#{^}, $#{&}, $#{*});
 @x = ($#{(}, $#{)}, $#{[}, $#{{}, $#{]}, $#{}}, $#{'}, $#{"}, $#{,});
 @x = ($#{<}, $#{.}, $#{>}, $#{/}, $#{?}, $#{=}, $#+, $#{\}, $#{|}, $#-);
-@x = ($#{;}, $#{:}, $#{1}), $#_;
+@x = ($#{;}, $#{:}, $#{1}), $#_
 # ####
 # # [perl #86060] $( $| $) in regexps need braces
 # /${(}/;
@@ -395,7 +387,6 @@ my($m7, undef, $m8) = (1, 2, 3);
 ($m7, undef, $m8) = (1, 2, 3);
 ####
 # 'state' works with padrange op
-# SKIP ?1
 # CONTEXT no strict; use feature 'state';
 state($z, @z);
 state $s1;
@@ -461,6 +452,5 @@ tr/X//d;
 tr/X//s;
 tr/X//r;
 ####
-# SKIP ?1
 use feature 'unicode_strings';
 s/X//d;

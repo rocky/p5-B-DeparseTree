@@ -28,12 +28,9 @@ my $test;
 my $test;
 $test /= 2 if ++$test;
 ####
-# SKIP ?1
 # list x
 -((1, 2) x 2);
 ####
-####
-# SKIP ?1
 # lexical and package scalars
 my $x;
 print $main::x;
@@ -74,19 +71,16 @@ while (1) { my $k }
 # constants as method names without ()
 'Foo'->bar;
 ####
-# SKIP ?1
 # SKIP ?$] < 5.010 && "say not implemented on this Perl version"
 # CONTEXT use feature ':5.10';
 # say
 say 'foo'
 ####
-# SKIP ?1
 # SKIP ?$] < 5.010 && "say not implemented on this Perl version"
 # CONTEXT use 5.10.0;
 # say in the context of use 5.10.0
 say 'foo';
 ####
-# SKIP ?1
 # SKIP ?$] < 5.010 && "say not implemented on this Perl version"
 # say with use 5.10.0
 use 5.10.0;
@@ -96,7 +90,6 @@ no feature ':all';
 use feature ':5.10';
 say 'foo';
 ####
-# SKIP ?1
 # SKIP ?$] < 5.010 && "say not implemented on this Perl version"
 # say with use feature ':5.10';
 use feature ':5.10';
@@ -105,7 +98,6 @@ say 'foo';
 use feature 'say', 'state', 'switch';
 say 'foo';
 ####
-# SKIP ?1
 # SKIP ?$] < 5.010 && "say not implemented on this Perl version"
 # CONTEXT use feature ':5.10';
 # say with use 5.10.0 in the context of use feature
@@ -261,7 +253,6 @@ pop();
 # shift optimisation
 pop @_;
 ####
-# SKIP ?1
 #[perl #20444]
 "foo" =~ (1 ? /foo/ : /bar/);
 "foo" =~ (1 ? y/foo// : /bar/);
@@ -271,12 +262,11 @@ pop @_;
 'foo' =~ ($_ =~ /foo/);
 'foo' =~ ($_ =~ tr/fo//);
 'foo' =~ ($_ =~ tr/fo//r);
-'foo' =~ ($_ =~ s/foo//);
+'foo' =~ ($_ =~ s/foo//)
 # ####
 # # The fix for [perl #20444] broke this.
 # 'foo' =~ do { () };
 ####
-# SKIP ?1
 # [perl #81424] match against aelemfast_lex
 my @s;
 print /$s[1]/;
@@ -305,13 +295,12 @@ $b::a[0] = 1;
 my @a;
 $a[0] = 1;
 ####
-# SKIP ?1
 # $#- $#+ $#{%} etc.
 my @x;
 @x = ($#{`}, $#{~}, $#{!}, $#{@}, $#{$}, $#{%}, $#{^}, $#{&}, $#{*});
 @x = ($#{(}, $#{)}, $#{[}, $#{{}, $#{]}, $#{}}, $#{'}, $#{"}, $#{,});
 @x = ($#{<}, $#{.}, $#{>}, $#{/}, $#{?}, $#{=}, $#+, $#{\}, $#{|}, $#-);
-@x = ($#{;}, $#{:}, $#{1}), $#_;
+@x = ($#{;}, $#{:}, $#{1}), $#_
 # ####
 # # [perl #86060] $( $| $) in regexps need braces
 # /${(}/;
@@ -327,7 +316,6 @@ my(@a) = ()[()];
 # sort(foo(bar)) is interpreted as sort &foo(bar)
 # sort foo(bar) is interpreted as sort foo bar
 # parentheses are not optional in this case
-# SKIP ?1
 print sort(foo('bar'));
 >>>>
 print sort(foo('bar'));
@@ -384,7 +372,6 @@ pipe local *FH, local *FH;
 require 'a' . $1;
 ####
 # 'my' works with padrange op
-# SKIP ?1
 my($z, @z);
 my $m1;
 $m1 = 1;
@@ -399,7 +386,6 @@ my($m7, undef, $m8) = (1, 2, 3);
 ($m7, undef, $m8) = (1, 2, 3);
 ####
 # 'state' works with padrange op
-# SKIP ?1
 # CONTEXT no strict; use feature 'state';
 state($z, @z);
 state $s1;
@@ -415,7 +401,6 @@ state($s3, $s4);
 #@z = ($s7, undef, $s8);
 ($s7, undef, $s8) = (1, 2, 3);
 ####
-# SKIP ?1
 # slices with padrange
 my($a, $b);
 my(@x, %y);
@@ -466,6 +451,5 @@ tr/X//d;
 tr/X//s;
 tr/X//r;
 ####
-# SKIP ?1
 use feature 'unicode_strings';
 s/X//d;
