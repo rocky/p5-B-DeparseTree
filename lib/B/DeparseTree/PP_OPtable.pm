@@ -238,7 +238,6 @@ use constant ASSIGN => 2; # operation OP has a =OP variant
     'ref'         => 'unop',
     'repeat'      => ['maybe_targmy', 'repeat'], # modified below
     'reset'       => 'unop',
-    'return'      => 'listop',
     'reverse'     => 'listop',
     'rewinddir'   => 'unop',
     'right_shift' => ['maybe_targmy', 'binop', ">>", 17, ASSIGN],

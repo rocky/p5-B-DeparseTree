@@ -357,7 +357,6 @@ $a++;
 # print $_;
 ####
 # Precedence conundrums with argument-less function calls
-# SKIP ?1
 () = (eof) + 1;
 () = (return) + 1;
 () = (return, 1);

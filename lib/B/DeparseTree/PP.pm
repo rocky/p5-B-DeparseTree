@@ -169,6 +169,7 @@ use B qw(
     pp_rename
     pp_repeat
     pp_require
+    pp_return
     pp_rindex
     pp_rv2cv
     pp_sassign
@@ -265,6 +266,10 @@ sub pp_kvhslice { slice(@_, "{", "}", "rv2hv", "padhv")  }
 sub pp_le { binop(@_, "<=", 15) }
 sub pp_lt { binop(@_, "<", 15) }
 sub pp_ne { binop(@_, "!=", 14) }
+
+# Note that we need to add undef and 1 (nollr)
+sub pp_return { listop(@_, "return", undef, 1) } # llafr does not apply
+
 sub pp_sassign { binop(@_, "=", 7, SWAP_CHILDREN) }
 sub pp_scmp { binop(@_, "cmp", 14) }
 sub pp_seekdir { listop(@_, "seekdir") }
