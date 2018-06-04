@@ -17,7 +17,7 @@ B::DeparseTree
 
 =head2 Synopsis
 
-   use B::DeparseTree::Fragment;
+   use B::DeparseTree;
    my $deparse = B::DeparseTree->new();
 
    # create a subroutine to deparse...
