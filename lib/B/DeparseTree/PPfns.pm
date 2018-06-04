@@ -1847,13 +1847,19 @@ sub maybe_local_str
 		Carp::confess("Unexpected our text $text");
 	    }
 
+	    if ($] >= 5.024) {
+		if ($type = $self->B::Deparse::find_our_type($text)) {
+		    $our_local .= ' ' . $type;
+		}
+	    }
+
 	    if (!B::Deparse::want_scalar($op)
 		&& $self->func_needs_parens($text, $cx, 16)) {
-		$type = "our ()";
-		$fmt = "our(%F)";
+		$type = "$our_local ()";
+		$fmt = "$our_local(%F)";
 	    } else {
-		$type = "our";
-		$fmt = "our %F";
+		$type = "$our_local";
+		$fmt = "$our_local %F";
 	    }
 	    my $transform_fn = sub {
 		my $text = $is_node ? $_[0]->{text} : $_[0];
@@ -1862,7 +1868,8 @@ sub maybe_local_str
 		return $text;
 	    };
 	    # $info could be either a string or a node, %c covers both.
-	    return $self->info_from_template($type, $op, $fmt, [[0, $transform_fn]], [$info]);
+	    return $self->info_from_template($type, $op, $fmt,
+					     [[0, $transform_fn]], [$info]);
 	}
 
 	# Not an "our" declaration.

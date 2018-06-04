@@ -42,6 +42,7 @@ use B::Deparse;
 *padname = *B::Deparse::padname;
 *padname_sv = *B::Deparse::padname_sv;
 *padval = *B::Deparse::padval;
+*populate_curcvlex = *B::Deparse::populate_curcvlex;
 *re_flags = *B::Deparse::re_flags;
 *rv2gv_or_string = *B::Deparse::rv2gv_or_string;
 *stash_variable = *B::Deparse::stash_variable;
@@ -94,35 +95,6 @@ sub DESTROY {}	#	Do not AUTOLOAD
 my %globalnames;
 BEGIN { map($globalnames{$_}++, "SIG", "STDIN", "STDOUT", "STDERR", "INC",
 	    "ENV", "ARGV", "ARGVOUT", "_"); }
-
-sub populate_curcvlex {
-    my $self = shift;
-    for (my $cv = $self->{'curcv'}; class($cv) eq "CV"; $cv = $cv->OUTSIDE) {
-	my $padlist = $cv->PADLIST;
-	# an undef CV still in lexical chain
-	next if class($padlist) eq "SPECIAL";
-	my @padlist = $padlist->ARRAY;
-	my @ns = $padlist[0]->ARRAY;
-
-	for (my $i=0; $i<@ns; ++$i) {
-	    next if class($ns[$i]) eq "SPECIAL";
-	    if (class($ns[$i]) eq "PV") {
-		# Probably that pesky lexical @_
-		next;
-	    }
-            my $name = $ns[$i]->PVX;
-	    next unless defined $name;
-	    my ($seq_st, $seq_en) =
-		($ns[$i]->FLAGS & SVf_FAKE)
-		    ? (0, 999999)
-		    : ($ns[$i]->COP_SEQ_RANGE_LOW, $ns[$i]->COP_SEQ_RANGE_HIGH);
-
-	    push @{$self->{'curcvlex'}{
-			($ns[$i]->FLAGS & SVpad_OUR ? 'o' : 'm') . $name
-		  }}, [$seq_st, $seq_en, $ns[$i]];
-	}
-    }
-}
 
 { no strict 'refs'; *{"pp_r$_"} = *{"pp_$_"} for qw< keys each values >; }
 
