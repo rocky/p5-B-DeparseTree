@@ -5,7 +5,7 @@ use rlib '../..';
 package B::DeparseTree::Printer;
 
 our($VERSION, @EXPORT, @ISA);
-$VERSION = '1.0.0';
+$VERSION = '3.2.0';
 @ISA = qw(Exporter);
 @EXPORT = qw(format_info format_info_walk);
 

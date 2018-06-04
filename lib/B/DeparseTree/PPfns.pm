@@ -49,7 +49,7 @@ use constant LIST_CONTEXT => 4;   # Assignment is in list context
 
 
 our($VERSION, @EXPORT, @ISA);
-$VERSION = '3.1.1';
+$VERSION = '3.2.0';
 @ISA = qw(Exporter);
 @EXPORT = qw(
     %strict_bits

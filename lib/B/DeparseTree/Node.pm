@@ -21,7 +21,7 @@ unless ($is_cperl) {
 }
 
 
-our $VERSION = '1.0.0';
+our $VERSION = '3.2.0';
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
     new($$$$)

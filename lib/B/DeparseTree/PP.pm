@@ -33,7 +33,7 @@ use B::DeparseTree::PPfns;
 use B::DeparseTree::Node;
 use B::Deparse;
 our($VERSION, @EXPORT, @ISA);
-$VERSION = '3.1.1';
+$VERSION = '3.2.0';
 
 @ISA = qw(Exporter B::Deparse );
 

@@ -8,7 +8,7 @@ package B::DeparseTree::PP_OPtable;
 
 use warnings; use strict;
 our($VERSION, @EXPORT, @ISA);
-$VERSION = '3.1.1';
+$VERSION = '3.2.0';
 @ISA = qw(Exporter);
 
 use vars qw(%PP_MAPFNS);
