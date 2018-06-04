@@ -970,13 +970,13 @@ sub deparse_sub($$$$)
     local $self->{'curcop'} = $self->{'curcop'};
     my $proto = '';
     if ($cv->FLAGS & SVf_POK) {
-	$proto .= "(". $cv->PV . ") ";
+	$proto .= "(". $cv->PV . ")";
     }
     if ($cv->CvFLAGS & (CVf_METHOD|CVf_LOCKED|CVf_LVALUE)) {
-        $proto .= ": ";
-        $proto .= "lvalue " if $cv->CvFLAGS & CVf_LVALUE;
-        $proto .= "locked " if $cv->CvFLAGS & CVf_LOCKED;
-        $proto .= "method " if $cv->CvFLAGS & CVf_METHOD;
+        $proto .= ":";
+        $proto .= " lvalue" if $cv->CvFLAGS & CVf_LVALUE;
+        $proto .= " locked" if $cv->CvFLAGS & CVf_LOCKED;
+        $proto .= " method" if $cv->CvFLAGS & CVf_METHOD;
     }
 
     local($self->{'curcv'}) = $cv;
@@ -1007,8 +1007,8 @@ sub deparse_sub($$$$)
 	    $body = $self->deparse($root->first, 0, $root);
 	}
 
-	my $type = "sub " . $cv->GV->NAME;
-	$node = $self->info_from_template("sub $type$proto",
+	my $fn_name = $cv->GV->NAME;
+	$node = $self->info_from_template("sub $fn_name$proto",
 					  $root,
 					  "$proto\n%|{\n%+%c\n%-}",
 					  [0], [$body]);

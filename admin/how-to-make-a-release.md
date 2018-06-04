@@ -25,12 +25,17 @@ Update ChangeLog:
 Update NEWS
 ------------
 
+    emacs NEWS
     git commit --amend
-	./check-short
-    cd admin
-    git push
 
-    make dist
+
+Final testing
+-------------
+
+  . ./admin/test-all.sh
+
+   git push
+   make dist
 
 Login to PAUSE:
 

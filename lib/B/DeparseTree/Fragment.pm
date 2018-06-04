@@ -374,7 +374,8 @@ sub extract_node_info($)
     }
 }
 
-# Dump out the entire list of texts
+# Dump out full information of a node in relation to its
+# parent
 sub dump($) {
     my ($deparse_tree) = @_;
     my @addrs = sort keys %{$deparse_tree->{optree}};
@@ -394,6 +395,30 @@ sub dump($) {
 		    print join("\n", @$texts), "\n";
 		}
 	    }
+	}
+	print $i, '-' x 50, "\n";
+    }
+}
+
+# Dump out essention information of a node in relation to its
+# parent
+sub dump_relations($) {
+    my ($deparse_tree) = @_;
+    my @addrs = sort keys %{$deparse_tree->{optree}};
+    for (my $i=0; $i < $#addrs; $i++) {
+	my $info = get_addr_info($deparse_tree, $addrs[$i]);
+	next unless $info && $info->{parent};
+	my $parent = get_parent_addr_info($info);
+	next unless $parent;
+	print $i, '-' x 50, "\n";
+	print "Child info:\n";
+	printf "\taddr: 0x%0x, parent: 0x%0x\n", $addrs[$i], $parent->{addr};
+	printf "\top: %s\n", $info->{op}->can('name') ? $info->{op}->name : $info->{op} ;
+	printf "\ttext: %s\n\n", $info->{text};
+	# p $parent ;
+	my $texts = extract_node_info($info);
+	if ($texts) {
+	    print join("\n", @$texts), "\n";
 	}
 	print $i, '-' x 50, "\n";
     }
