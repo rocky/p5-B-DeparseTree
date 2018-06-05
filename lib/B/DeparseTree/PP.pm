@@ -70,7 +70,6 @@ use B qw(
     pp_anonhash
     pp_anonlist
     pp_aslice
-    pp_atan2
     pp_avalues
     pp_backtick
     pp_boolkeys
@@ -86,7 +85,6 @@ use B qw(
     pp_const
     pp_cos
     pp_crypt
-    pp_dbmopen
     pp_delete
     pp_dofile
     pp_dor
@@ -98,13 +96,10 @@ use B qw(
     pp_exp
     pp_flock
     pp_flop
-    pp_formline
     pp_ge
     pp_getppid
     pp_getpriority
     pp_glob
-    pp_gnbyaddr
-    pp_gpbynumber
     pp_grepwhile
     pp_gt
     pp_gv
@@ -125,7 +120,6 @@ use B qw(
     pp_index
     pp_int
     pp_introcv
-    pp_ioctl
     pp_join
     pp_kill
     pp_kvaslice
@@ -144,7 +138,6 @@ use B qw(
     pp_mapstart
     pp_mapwhile
     pp_mkdir
-    pp_msgsnd
     pp_ne
     pp_negate
     pp_not
@@ -155,7 +148,6 @@ use B qw(
     pp_or
     pp_padcv
     pp_pos
-    pp_pos
     pp_postdec
     pp_postinc
     pp_predec
@@ -164,12 +156,9 @@ use B qw(
     pp_prtf
     pp_push
     pp_rand
-    pp_ref
     pp_refgen
     pp_rename
-    pp_repeat
     pp_require
-    pp_return
     pp_rindex
     pp_rv2cv
     pp_sassign
@@ -178,7 +167,6 @@ use B qw(
     pp_schop
     pp_scmp
     pp_scope
-    pp_seekdir
     pp_seq
     pp_setpgrp
     pp_setpriority
@@ -192,21 +180,16 @@ use B qw(
     pp_smartmatch
     pp_sprintf
     pp_sqrt
-    pp_sselect
-    pp_ssockopt
     pp_stub
     pp_subst
     pp_substr
     pp_symlink
-    pp_sysread
-    pp_sysseek
     pp_system
     pp_time
     pp_trans
     pp_transr
     pp_truncate
     pp_unlink
-    pp_unpack
     pp_unshift
     pp_unstack
     pp_utime
@@ -267,12 +250,8 @@ sub pp_le { binop(@_, "<=", 15) }
 sub pp_lt { binop(@_, "<", 15) }
 sub pp_ne { binop(@_, "!=", 14) }
 
-# Note that we need to add undef and 1 (nollr)
-sub pp_return { listop(@_, "return", undef, 1) } # llafr does not apply
-
 sub pp_sassign { binop(@_, "=", 7, SWAP_CHILDREN) }
 sub pp_scmp { binop(@_, "cmp", 14) }
-sub pp_seekdir { listop(@_, "seekdir") }
 sub pp_seq { binop(@_, "eq", 14) }
 sub pp_sge { binop(@_, "ge", 15) }
 sub pp_sgt { binop(@_, "gt", 15) }
