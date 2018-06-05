@@ -13,9 +13,11 @@ $VERSION = '3.2.0';
 
 use vars qw(%PP_MAPFNS);
 
+# FIXME put these in PP_Flags
 use constant SWAP_CHILDREN => 1;
-use constant ASSIGN => 2; # operation OP has a =OP variant
-use constant LIST_CONTEXT => 4; # Assignment is in list context
+use constant ASSIGN => 2;         # operation OP has a =OP variant
+use constant LIST_CONTEXT => 4;   # Assignment is in list context
+use constant POSTFIX => 1;        # operator can be used as postfix operator
 
 
 # In the HASH below, the key is the operation name with the leading pp_ stripped.
@@ -75,12 +77,14 @@ use constant LIST_CONTEXT => 4; # Assignment is in list context
 
 
 %PP_MAPFNS = (
-     # 'avalues'    => ['unop', 'value'],
-     # 'values'     => 'unop', # FIXME
-     # 'sselect'    => 'listop',  FIXME: is used in PPfns
-     # 'sockpair'   => 'listop', ""
-     # 'exec'       => ['maybe_targmy', 'unop'],
-     # 'exp'        => ['maybe_targmy', 'listop'],
+    # 'avalues'    => ['unop', 'value'],
+    # 'values'     => 'unop', # FIXME
+    # 'sselect'    => 'listop',  FIXME: is used in PPfns
+    # 'sockpair'   => 'listop', ""
+    # 'exec'       => ['maybe_targmy', 'unop'],
+    # 'exp'        => ['maybe_targmy', 'listop'],
+    # 'print'       => ['indirop'],
+    # 'prtf'        => ['indirop', 'printf'],
 
     'aassign'     => ['binop', '=', 7, SWAP_CHILDREN | LIST_CONTEXT, 'array assign'],
     'abs'         => ['maybe_targmy', 'unop'],
@@ -111,6 +115,7 @@ use constant LIST_CONTEXT => 4; # Assignment is in list context
     'close'       => 'unop',
     'closedir'    => 'unop',
     'connect'     => 'listop',
+    'complement'  => ['maybe_targmy', 'pfixop', '~', 21],
     'concat'      => ['maybe_targmy', 'concat'],
     'continue'    => 'unop',
     'cos'         => ['maybe_targmy', 'unop'],
@@ -252,12 +257,15 @@ use constant LIST_CONTEXT => 4; # Assignment is in list context
     'pack'        => 'listop',
     'pipe_op'     => ['listop', 'pipe'],
     'pop'         => 'unop',
+    'postdec'     => ['maybe_targmy', 'pfixop', "--", 23, POSTFIX],
+    'postinc'     => ['maybe_targmy', 'pfixop', "++", 23, POSTFIX],
     'pow'         => ['maybe_targmy', 'binop', "**", 22, ASSIGN],
     'prototype'   => 'unop',
     'push'        => ['maybe_targmy', 'listop'],
 
     'quotemeta'   => ['maybe_targmy', 'dq_unop'],
 
+    'rand'        => ['maybe_targmy', 'unop'],
     'read'        => 'listop',
     'readdir'     => 'unop',
     'readlink'    => 'unop',
@@ -325,6 +333,7 @@ use constant LIST_CONTEXT => 4; # Assignment is in list context
     'telldir'     => 'unop',
     'tie'         => 'listop',
     'tied'        => 'unop',
+    'time'        => ['maybe_targmy', 'baseop'],
     'tms'         => ['baseop', 'times'],
 
     'uc'          => 'dq_unop',

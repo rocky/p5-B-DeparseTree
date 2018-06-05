@@ -73,7 +73,6 @@ use B qw(
     pp_boolkeys
     pp_clonecv
     pp_cmp
-    pp_complement
     pp_cond_expr
     pp_connect
     pp_const
@@ -128,13 +127,10 @@ use B qw(
     pp_or
     pp_padcv
     pp_pos
-    pp_postdec
-    pp_postinc
     pp_predec
     pp_preinc
     pp_print
     pp_prtf
-    pp_rand
     pp_refgen
     pp_require
     pp_rv2cv
@@ -153,7 +149,6 @@ use B qw(
     pp_stub
     pp_subst
     pp_substr
-    pp_time
     pp_trans
     pp_transr
     pp_truncate
@@ -227,6 +222,8 @@ sub pp_sne { binop(@_, "ne", 14) }
 sub pp_avalues { unop(@_, "values") }
 sub pp_exec { maybe_targmy(@_, \&listop, "exec") }
 sub pp_exp { maybe_targmy(@_, \&unop, "exp") }
+sub pp_print { indirop(@_, "print") }
+sub pp_prtf { indirop(@_, "printf") }
 sub pp_sockpair { listop(@_, "socketpair") }
 sub pp_values { unop(@_, "values") }
 
@@ -921,21 +918,11 @@ sub pp_once
     return $self->deparse($true, $cx);
 }
 
-sub pp_print { indirop(@_, "print") }
-sub pp_prtf { indirop(@_, "printf") }
-
-sub pp_rand { maybe_targmy(@_, \&unop, "rand") }
-
 sub pp_or  { logop(@_, "or",  2, "||", 10, "unless") }
 sub pp_dor { logop(@_, "//", 10) }
 
 sub pp_mapwhile { mapop(@_, "map") }
 sub pp_grepwhile { mapop(@_, "grep") }
-
-sub pp_complement { maybe_targmy(@_, \&pfixop, "~", 21) }
-sub pp_postdec { maybe_targmy(@_, \&pfixop, "--", 23, POSTFIX) }
-sub pp_postinc { maybe_targmy(@_, \&pfixop, "++", 23, POSTFIX) }
-sub pp_time { maybe_targmy(@_, \&baseop, "time") }
 
 sub pp_preinc { pfixop(@_, "++", 23) }
 sub pp_predec { pfixop(@_, "--", 23) }
