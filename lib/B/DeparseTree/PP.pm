@@ -29,6 +29,7 @@ use rlib '../..';
 package B::DeparseTree::PP;
 
 use B::DeparseTree::SyntaxTree;
+use B::DeparseTree::OPflags;
 use B::DeparseTree::PPfns;
 use B::DeparseTree::Node;
 use B::Deparse;
@@ -78,7 +79,6 @@ use B qw(
     pp_const
     pp_delete
     pp_dofile
-    pp_dor
     pp_entereval
     pp_entersub
     pp_eq
@@ -88,7 +88,6 @@ use B qw(
     pp_flop
     pp_ge
     pp_glob
-    pp_grepwhile
     pp_gt
     pp_gv
     pp_gvsv
@@ -102,8 +101,6 @@ use B qw(
     pp_i_lt
     pp_i_ne
     pp_i_negate
-    pp_i_predec
-    pp_i_preinc
     pp_introcv
     pp_kvaslice
     pp_kvhslice
@@ -117,7 +114,6 @@ use B qw(
     pp_list
     pp_lt
     pp_mapstart
-    pp_mapwhile
     pp_ne
     pp_negate
     pp_not
@@ -127,7 +123,6 @@ use B qw(
     pp_or
     pp_padcv
     pp_pos
-    pp_predec
     pp_preinc
     pp_print
     pp_prtf
@@ -186,6 +181,20 @@ sub feature_enabled {
 	return $hh && $hh->{"feature_$feature_keywords{$name}"}
 }
 
+# FIXME: These don't seem to be able to go into the table.
+# PPfns calls pp_sockpair for example?
+sub pp_avalues  { unop(@_, "values") }
+sub pp_exec     { maybe_targmy(@_, \&listop, "exec") }
+sub pp_exp      { maybe_targmy(@_, \&unop, "exp") }
+sub pp_leave    { scopeop(1, @_); }
+sub pp_lineseq  { scopeop(0, @_); }
+sub pp_or       { logop(@_, "or",  2, "||", 10, "unless") }
+sub pp_preinc   { pfixop(@_, "++", 23) }
+sub pp_print    { indirop(@_, "print") }
+sub pp_prtf     { indirop(@_, "printf") }
+sub pp_sockpair { listop(@_, "socketpair") }
+sub pp_values   { unop(@_, "values") }
+
 # Convert these to table entries...
 sub pp_aelem { maybe_local(@_, elem(@_, "[", "]", "padav")) }
 sub pp_aslice   { maybe_local(@_, slice(@_, "[", "]", "rv2av", "padav")) }
@@ -216,18 +225,6 @@ sub pp_sgt { binop(@_, "gt", 15) }
 sub pp_sle { binop(@_, "le", 15) }
 sub pp_slt { binop(@_, "lt", 15) }
 sub pp_sne { binop(@_, "ne", 14) }
-
-# FIXME: These don't seem to be able to go into the table.
-# PPfns calls pp_sockpair for example?
-sub pp_avalues { unop(@_, "values") }
-sub pp_exec { maybe_targmy(@_, \&listop, "exec") }
-sub pp_exp { maybe_targmy(@_, \&unop, "exp") }
-sub pp_print { indirop(@_, "print") }
-sub pp_prtf { indirop(@_, "printf") }
-sub pp_sockpair { listop(@_, "socketpair") }
-sub pp_values { unop(@_, "values") }
-
-
 
 sub pp_backtick
 {
@@ -432,7 +429,6 @@ sub pp_introcv
     return info_from_text($op, $self, '', 'introcv', {});
 }
 
-sub pp_leave { scopeop(1, @_); }
 sub pp_leaveloop { shift->loop_common(@_, undef); }
 
 sub pp_leavetry {
@@ -441,8 +437,6 @@ sub pp_leavetry {
     return $self->info_from_template('eval {}', $op, "eval {\n%+%c\n%-}",
 				     undef, [$leave_info]);
 }
-
-sub pp_lineseq { scopeop(0, @_); }
 
 sub pp_list
 {
@@ -918,17 +912,6 @@ sub pp_once
     return $self->deparse($true, $cx);
 }
 
-sub pp_or  { logop(@_, "or",  2, "||", 10, "unless") }
-sub pp_dor { logop(@_, "//", 10) }
-
-sub pp_mapwhile { mapop(@_, "map") }
-sub pp_grepwhile { mapop(@_, "grep") }
-
-sub pp_preinc { pfixop(@_, "++", 23) }
-sub pp_predec { pfixop(@_, "--", 23) }
-sub pp_i_preinc { pfixop(@_, "++", 23) }
-sub pp_i_predec { pfixop(@_, "--", 23) }
-
 sub pp_subst {
 {
     $] < 5.022 ? subst_older(@_) : subst_newer(@_);
@@ -952,8 +935,6 @@ sub pp_stub {
     my ($self, $op) = @_;
     $self->info_from_string('stub ()', $op, '()')
 };
-
-sub pp_symlink { maybe_targmy(@_, \&listop, "symlink") }
 
 sub pp_trans {
     my $self = shift;

@@ -29,6 +29,7 @@ use B qw(
     );
 
 use B::Deparse;
+use B::DeparseTree::OPflags;
 
 # Copy unchanged functions from B::Deparse
 *balanced_delim = *B::Deparse::balanced_delim;
@@ -40,23 +41,11 @@ use B::Deparse;
 
 use B::DeparseTree::SyntaxTree;
 
-# Various operator flag bits
-use constant POSTFIX => 1;        # operator can be used as postfix operator
-use constant SWAP_CHILDREN => 1;  # children of op should be reversed
-use constant ASSIGN =>  2;        # has OP= variant
-use constant LIST_CONTEXT => 4;   # Assignment is in list context
-
-
-
 our($VERSION, @EXPORT, @ISA);
 $VERSION = '3.2.0';
 @ISA = qw(Exporter);
 @EXPORT = qw(
     %strict_bits
-    ASSIGN
-    LIST_CONTEXT
-    POSTFIX
-    SWAP_CHILDREN
     ambient_pragmas
     anon_hash_or_list
     baseop
@@ -356,7 +345,7 @@ sub binop
 	($left, $right) = ($right, $left);
     }
     my $lhs = $self->deparse_binop_left($op, $left, $prec);
-    if ($flags & B::Deparse::LIST_CONTEXT
+    if ($flags & LIST_CONTEXT
 	&& $lhs->{text} !~ /^(my|our|local|)[\@\(]/) {
 	$lhs->{maybe_parens} ||= {};
 	$lhs->{maybe_parens}{force} = 'true';

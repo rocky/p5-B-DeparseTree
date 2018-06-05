@@ -236,8 +236,6 @@ sub pp_rcatline {
 			  '', 'rcatline', {});
 }
 
-sub ASSIGN () { 2 } # has OP= variant
-
 sub bin_info_join($$$$$$$) {
     my ($self, $op, $lhs, $rhs, $mid, $sep, $type) = @_;
     my $texts = [$lhs->{text}, $mid, $rhs->{text}];

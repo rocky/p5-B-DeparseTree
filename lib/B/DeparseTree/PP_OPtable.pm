@@ -6,19 +6,14 @@
 
 package B::DeparseTree::PP_OPtable;
 
+use B::DeparseTree::OPflags;
+
 use warnings; use strict;
 our($VERSION, @EXPORT, @ISA);
 $VERSION = '3.2.0';
 @ISA = qw(Exporter);
 
 use vars qw(%PP_MAPFNS);
-
-# FIXME put these in PP_Flags
-use constant SWAP_CHILDREN => 1;
-use constant ASSIGN => 2;         # operation OP has a =OP variant
-use constant LIST_CONTEXT => 4;   # Assignment is in list context
-use constant POSTFIX => 1;        # operator can be used as postfix operator
-
 
 # In the HASH below, the key is the operation name with the leading pp_ stripped.
 # so "die" refers to function "pp_die". The value can be several things.
@@ -77,14 +72,17 @@ use constant POSTFIX => 1;        # operator can be used as postfix operator
 
 
 %PP_MAPFNS = (
-    # 'avalues'    => ['unop', 'value'],
-    # 'values'     => 'unop', # FIXME
-    # 'sselect'    => 'listop',  FIXME: is used in PPfns
-    # 'sockpair'   => 'listop', ""
-    # 'exec'       => ['maybe_targmy', 'unop'],
-    # 'exp'        => ['maybe_targmy', 'listop'],
+    # 'avalues'     => ['unop', 'value'],
+    # 'values'      => 'unop', # FIXME
+    # 'sselect'     => 'listop',  FIXME: is used in PPfns
+    # 'sockpair'    => 'listop', ""
+    # 'exec'        => ['maybe_targmy', 'unop'],
+    # 'exp'         => ['maybe_targmy', 'listop'],
+    # 'or'          => ['logop', 'or', 2, '//', 10, "unless"],
+    # 'preinc'      => ['maybe_targmy', 'pfixop', "++", 23],
     # 'print'       => ['indirop'],
     # 'prtf'        => ['indirop', 'printf'],
+    # 'xor'         => ['logop', 'xor', 2, '', 0, ''],
 
     'aassign'     => ['binop', '=', 7, SWAP_CHILDREN | LIST_CONTEXT, 'array assign'],
     'abs'         => ['maybe_targmy', 'unop'],
@@ -128,6 +126,7 @@ use constant POSTFIX => 1;        # operator can be used as postfix operator
     'defined'     => 'unop',
     'die'         => 'listop',
     'divide'      => ['maybe_targmy', 'binop', "/", 19, ASSIGN],
+    'dor'         => ['logop', 'or', '//', 10],
     'dorassign'   => ['logassignop', '//='],
     'dump'        => ['loopex', "CORE::dump"],
 
@@ -200,6 +199,7 @@ use constant POSTFIX => 1;        # operator can be used as postfix operator
     'gpwnam'      => ['unop',   "getpwnam"],
     'gpwuid'      => ['unop',   "getpwuid"],
     'grepstart'   => ['baseop', "grep"],
+    'grepwhile'   => ['mapop', 'grep'],
     'gsbyname'    => ['listop', 'getservbyname'],
     'gsbyport'    => ['listop', 'getservbyport'],
     'gservent'    => ['baseop', "getservent"],
@@ -211,6 +211,8 @@ use constant POSTFIX => 1;        # operator can be used as postfix operator
     'i_divide'    => ['maybe_targmy', 'binop', "/", 19, ASSIGN],
     'i_modulo'    => ['maybe_targmy', 'binop', "%", 19, ASSIGN],
     'i_multiply'  => ['maybe_targmy', 'binop', "*", 19, ASSIGN],
+    'i_predec'    => ['maybe_targmy', 'pfixop', "--", 23],
+    'i_preinc'    => ['maybe_targmy', 'pfixop', "++", 23],
     'i_subtract'  => ['maybe_targmy', 'binop', "-", 18, ASSIGN],
     'index'       => ['maybe_targmy', 'listop'],
     'int'         => ['maybe_targmy', 'unop'],
@@ -232,6 +234,7 @@ use constant POSTFIX => 1;        # operator can be used as postfix operator
     'log'         => ['maybe_targmy', 'unop'],
     'lstat'       => 'filetest',
 
+    'mapwhile'    => ['mapop', 'map'],
     'mkdir'       => ['maybe_targmy', 'listop'],
     'modulo'      => ['maybe_targmy', 'binop', "%", 19, ASSIGN],
     'msgctl'      => 'listop',
