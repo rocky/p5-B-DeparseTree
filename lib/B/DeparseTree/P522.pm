@@ -200,16 +200,6 @@ sub pp_rcatline {
 			  '', 'rcatline', {});
 }
 
-sub pp_smartmatch {
-    my ($self, $op, $cx) = @_;
-    if ($op->flags & OPf_SPECIAL) {
-	return $self->deparse($op->last, $cx, $op);
-    }
-    else {
-	binop(@_, "~~", 14);
-    }
-}
-
 sub bin_info_join($$$$$$$) {
     my ($self, $op, $lhs, $rhs, $mid, $sep, $type) = @_;
     my $texts = [$lhs->{text}, $mid, $rhs->{text}];

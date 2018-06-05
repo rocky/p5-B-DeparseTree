@@ -43,7 +43,7 @@ Login to PAUSE:
 
 Upload a file to CPAN on left-hand-side
 
-upload `/src/external-vcs/Perl-Devel-Trepan-${BDT_VERSION}.tar.gz`
+upload `/src/external-vcs/github/rocky/p5-B-DeparseTree/B-DeparseTree-${BDT_VERSION}.tar.gz`
 
 	echo git tag release-${BDT_VERSION}
 	git tag release-${BDT_VERSION}

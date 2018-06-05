@@ -189,7 +189,7 @@ use B qw(
     pp_slt
     pp_sne
     pp_sockpair
-    pp_slice
+    pp_smartmatch
     pp_sprintf
     pp_sqrt
     pp_sselect
@@ -384,6 +384,18 @@ sub pp_scalar
 sub pp_setpgrp { maybe_targmy(@_, \&listop, "setpgrp") }
 sub pp_setpriority { maybe_targmy(@_, \&listop, "setpriority") }
 sub pp_sin { maybe_targmy(@_, \&unop, "sin") }
+
+sub pp_smartmatch {
+    my ($self, $op, $cx) = @_;
+    if ($op->flags & OPf_SPECIAL) {
+	my $child = $self->deparse($op->last, $cx, $op);
+	return $self->info_from_template('~~ special',
+					 '%c', undef, [$child]);
+    } else {
+	binop(@_, "~~", 14);
+    }
+}
+
 sub pp_sprintf { maybe_targmy(@_, \&listop, "sprintf") }
 sub pp_sqrt { maybe_targmy(@_, \&unop, "sqrt") }
 sub pp_symlink { maybe_targmy(@_, \&listop, "symlink") }

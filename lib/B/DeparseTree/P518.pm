@@ -96,32 +96,6 @@ my %globalnames;
 BEGIN { map($globalnames{$_}++, "SIG", "STDIN", "STDOUT", "STDERR", "INC",
 	    "ENV", "ARGV", "ARGVOUT", "_"); }
 
-sub gv_name {
-    my $self = shift;
-    my $gv = shift;
-    my $raw = shift;
-    Carp::confess() unless ref($gv) eq "B::GV";
-    my $stash = $gv->STASH->NAME;
-    my $name = $raw ? $gv->NAME : $gv->SAFENAME;
-    if ($stash eq 'main' && $name =~ /^::/) {
-	$stash = '::';
-    }
-    elsif (($stash eq 'main'
-	    && ($globalnames{$name} || $name =~ /^[^A-Za-z_:]/))
-	or ($stash eq $self->{'curstash'} && !$globalnames{$name}
-	    && ($stash eq 'main' || $name !~ /::/))
-	  )
-    {
-	$stash = "";
-    } else {
-	$stash = $stash . "::";
-    }
-    if (!$raw and $name =~ /^(\^..|{)/) {
-        $name = "{$name}";       # ${^WARNING_BITS}, etc and ${
-    }
-    return $stash . $name;
-}
-
 my %feature_keywords = (
   # keyword => 'feature',
     state   => 'state',
@@ -200,16 +174,6 @@ sub pp_rcatline {
     my($op) = @_;
     return info_from_list($op, $self, ["<", $self->gv_name($self->gv_or_padgv($op)), ">"],
 			  '', 'rcatline', {});
-}
-
-sub pp_smartmatch {
-    my ($self, $op, $cx) = @_;
-    if ($op->flags & OPf_SPECIAL) {
-	return $self->deparse($op->last, $cx, $op);
-    }
-    else {
-	binop(@_, "~~", 14);
-    }
 }
 
 sub bin_info_join($$$$$$$) {
