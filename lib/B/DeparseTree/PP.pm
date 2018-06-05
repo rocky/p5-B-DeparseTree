@@ -187,15 +187,10 @@ use B qw(
     pp_trans
     pp_transr
     pp_truncate
-    pp_unlink
-    pp_unshift
     pp_unstack
-    pp_utime
     pp_values
     pp_vec
-    pp_wait
     pp_waitpid
-    pp_wantarray
     pp_xor
     );
 
@@ -401,12 +396,7 @@ sub pp_truncate
     }
 }
 
-sub pp_unlink { maybe_targmy(@_, \&listop, "unlink") }
-sub pp_unshift { maybe_targmy(@_, \&listop, "unshift") }
-sub pp_utime { maybe_targmy(@_, \&listop, "utime") }
-
 sub pp_vec { maybe_local(@_, listop(@_, "vec")) }
-sub pp_waitpid { maybe_targmy(@_, \&listop, "waitpid") }
 
 sub pp_glob
 {
@@ -1071,18 +1061,17 @@ sub pp_transr {
     my $self = $_[0];
     my $op = $_[1];
     my $info = pp_trans(@_);
-    return info_from_text($op, $self, $info->{text} . 'r', 'pp_transr',
-			  {body => [$info]});
+    # FIXME: thrn into template as below
+    return $self->info_from_string('pp_transr', $op, $info->{text} . 'r',
+				   {other_ops => [$info]});
+    # return $self->info_from_template("trans r", "%cr", undef, [$info]);
 }
 
 sub pp_unstack {
     my ($self, $op) = @_;
     # see also leaveloop
-    return info_from_text($op, $self, '', 'unstack', {});
+    return $self->info_from_string("unstack", $op, '');
 }
-
-sub pp_wait { maybe_targmy(@_, \&baseop, "wait") }
-sub pp_wantarray { baseop(@_, "wantarray") }
 
 # xor is syntactically a logop, but it's really a binop (contrary to
 # old versions of opcode.pl). Syntax is what matters here.

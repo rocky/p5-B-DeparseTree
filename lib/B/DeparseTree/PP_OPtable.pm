@@ -296,9 +296,15 @@ use constant LIST_CONTEXT => 4; # Assignment is in list context
     'ucfirst'     => 'dq_unop',
     'umask'       => 'unop',
     'undef'       => 'unop',
+    'unlink'      => ['maybe_targmy', 'listop', 'unlink'],
     'unpack'      => 'listop',
+    'unshift'     => ['maybe_targmy', 'listop', 'unshift'],
     'untie'       => 'unop',
+    'utime'       => ['maybe_targmy', 'listop', 'utime'],
 
+    'wait'        => ['maybe_targmy', 'baseop', 'wait'],
+    'waitpid'     => ['maybe_targmy', 'listop', 'waitpid'],
+    'wantarray'   => ['baseop', 'wantarray'],
     'warn'        => 'listop',
     );
 
