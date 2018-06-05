@@ -1814,7 +1814,7 @@ sub maybe_local_str
 {
     my($self, $op, $cx, $info) = @_;
     my ($text, $is_node);
-    if (ref $info && $info->isa("B::DeparseTree::Node")) {
+    if (ref $info && $info->isa("B::DeparseTree::TreeNode")) {
 	$text = $self->info2str($info);
 	$is_node = 1;
     } else {
@@ -1877,7 +1877,7 @@ sub maybe_local_str
 	    return $self->info_from_template($type, $op, $fmt, undef, [$info]);
 	}
     } else {
-	if (ref $info && $info->isa("B::DeparseTree::Node")) {
+	if (ref $info && $info->isa("B::DeparseTree::TreeNode")) {
 	    return $info;
 	} else {
 	    return $self->info_from_string('not local', $op, $text);
@@ -1909,7 +1909,7 @@ sub maybe_my {
 sub maybe_parens($$$$)
 {
     my($self, $text, $cx, $prec) = @_;
-    if (B::DeparseTree::Node::parens_test($self, $cx, $prec)) {
+    if (B::DeparseTree::TreeNode::parens_test($self, $cx, $prec)) {
 	$text = "($text)";
 	# In a unop, let parent reuse our parens; see maybe_parens_unop
 	# FIXME:

@@ -166,8 +166,8 @@ sub new {
     # Extra opcode information: parent_op
     $self->{ops} = {};
 
-    # For B::DeparseTree::Node's that are created and don't have real OPs associated
-    # with them, we assign a fake address;
+    # For B::DeparseTree::TreeNode's that are created and don't have
+    # real OPs associated with them, we assign a fake address;
     $self->{'last_fake_addr'} = 0;
 
     $self->init();
@@ -924,7 +924,7 @@ sub deparse
 
     Carp::confess("nonref return for $meth deparse: $info") if !ref($info);
     Carp::confess("not B::DeparseTree:Node returned for $meth: $info")
-	if !$info->isa("B::DeparseTree::Node");
+	if !$info->isa("B::DeparseTree::TreeNode");
     $info->{parent} = $$parent if $parent;
     $info->{cop} = $self->{'curcop'};
     my $got_op = $info->{op};
@@ -942,7 +942,7 @@ sub deparse
 	foreach my $other (@{$info->{other_ops}}) {
 	    if (!ref $other) {
 		Carp::confess "$meth returns invalid other $other";
-	    } elsif ($other->isa("B::DeparseTree::Node")) {
+	    } elsif ($other->isa("B::DeparseTree::TreeNode")) {
 		# "$other" has been set up to mark a particular portion
 		# of the info.
 		$self->{optree}{$other->{addr}} = $other;

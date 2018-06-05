@@ -265,7 +265,7 @@ sub extract_node_info($)
 
     if (!exists $parent_info->{fmt}
 	and scalar(@texts) == 1
-	and eval{$texts[0]->isa("B::DeparseTree::Node")}) {
+	and eval{$texts[0]->isa("B::DeparseTree::TreeNode")}) {
 	$parent_info = $texts[0];
     }
     if (exists $parent_info->{fmt} || exists $parent_info->{position}) {
@@ -434,7 +434,7 @@ sub dump_tree($$) {
 	    if (ref($child_info)) {
 		if (ref($child_info) eq 'ARRAY') {
 		    p $child_info;
-		} elsif (ref($child_info) eq 'B::DeparseTree::Node') {
+		} elsif (ref($child_info) eq 'B::DeparseTree::TreeNode') {
 		    dump_tree($deparse_tree, $child_info)
 		} else {
 		    printf "Unknown child_info type %s\n", ref($child_info);

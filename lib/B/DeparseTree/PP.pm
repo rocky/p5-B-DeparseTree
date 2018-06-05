@@ -31,7 +31,7 @@ package B::DeparseTree::PP;
 use B::DeparseTree::SyntaxTree;
 use B::DeparseTree::OPflags;
 use B::DeparseTree::PPfns;
-use B::DeparseTree::Node;
+use B::DeparseTree::TreeNode;
 use B::Deparse;
 our($VERSION, @EXPORT, @ISA);
 $VERSION = '3.2.0';
@@ -800,9 +800,9 @@ sub pp_entersub
         if (!$declared) {
 	    $type = 'call (no prior declaration)';
 	    @texts = dedup_parens_func($self, $subname_info, \@body);
-	    my $node = B::DeparseTree::Node->new($op, $self, \@texts,
-						 '', $type,
-						 {other_ops => $other_ops});
+	    my $node = B::DeparseTree::TreeNode->new($op, $self, \@texts,
+						     '', $type,
+						     {other_ops => $other_ops});
 
 	    # Take the subname_info portion of $node and use that as the
 	    # part of the parent, null, pushmark ops.
@@ -828,19 +828,21 @@ sub pp_entersub
 	    # really, we should be comparing to the precedence of the
 	    # top operator of $exprs[0] (ala unop()), but that would
 	    # take some major code restructuring to do right.
-	    @texts = $self->maybe_parens_func($sub_name, $self->combine2str(', ', \@body), $cx, 16);
+	    @texts = $self->maybe_parens_func($sub_name,
+					      $self->combine2str(', ', \@body), $cx, 16);
 	} elsif ($dproto ne '$' and defined($proto) || $simple) { #'
 	    $type = "call $sub_name having prototype";
-	    @texts = $self->maybe_parens_func($sub_name, $self->combine2str(', ', \@body), $cx, 5);
-	    return B::DeparseTree::Node->new($op, $self, \@texts,
-					     '', $type,
-					     {other_ops => $other_ops});
+	    @texts = $self->maybe_parens_func($sub_name,
+					      $self->combine2str(', ', \@body), $cx, 5);
+	    return B::DeparseTree::TreeNode->new($op, $self, \@texts,
+						 '', $type,
+						 {other_ops => $other_ops});
 	} else {
 	    $type = 'call';
 	    @texts = dedup_parens_func($self, $subname_info, \@body);
-	    return B::DeparseTree::Node->new($op, $self, \@texts,
-					     '', $type,
-					     {other_ops => $other_ops});
+	    return B::DeparseTree::TreeNode->new($op, $self, \@texts,
+						 '', $type,
+						 {other_ops => $other_ops});
 	}
     }
     my $node = $self->info_from_template($type, $op,

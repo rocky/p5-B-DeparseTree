@@ -16,7 +16,6 @@ example/multiline.pl
 lib/B/DeparseTree.pm
 lib/B/DeparseTree.pod
 lib/B/DeparseTree/Fragment.pm
-lib/B/DeparseTree/Node.pm
 lib/B/DeparseTree/OPflags.pm
 lib/B/DeparseTree/PP_OPtable.pm
 lib/B/DeparseTree/P518.pm
@@ -30,6 +29,7 @@ lib/B/DeparseTree/PPfns.pm
 lib/B/DeparseTree/Printer.pm
 lib/B/DeparseTree/SyntaxTree.pm
 lib/B/DeparseTree/TreeMain.pm
+lib/B/DeparseTree/TreeNode.pm
 scripts/Makefile
 scripts/README.md
 scripts/benchtests.pl
