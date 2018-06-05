@@ -71,8 +71,6 @@ use B qw(
     pp_avalues
     pp_backtick
     pp_boolkeys
-    pp_chomp
-    pp_chop
     pp_clonecv
     pp_cmp
     pp_complement
@@ -118,16 +116,13 @@ use B qw(
     pp_leavewhen
     pp_lineseq
     pp_list
-    pp_log
     pp_lt
     pp_mapstart
     pp_mapwhile
-    pp_mkdir
     pp_ne
     pp_negate
     pp_not
     pp_null
-    pp_oct
     pp_once
     pp_open_dir
     pp_or
@@ -139,37 +134,25 @@ use B qw(
     pp_preinc
     pp_print
     pp_prtf
-    pp_push
     pp_rand
     pp_refgen
-    pp_rename
     pp_require
-    pp_rindex
     pp_rv2cv
     pp_sassign
     pp_scalar
-    pp_schomp
-    pp_schop
     pp_scmp
     pp_scope
     pp_seq
-    pp_setpgrp
-    pp_setpriority
     pp_sge
     pp_sgt
-    pp_sin
     pp_sle
     pp_slt
     pp_sne
     pp_sockpair
     pp_smartmatch
-    pp_sprintf
-    pp_sqrt
     pp_stub
     pp_subst
     pp_substr
-    pp_symlink
-    pp_system
     pp_time
     pp_trans
     pp_transr
@@ -276,9 +259,7 @@ sub pp_dofile
 
 sub pp_leavegiven { givwhen(@_, $_[0]->keyword("given")); }
 sub pp_leavewhen  { givwhen(@_, $_[0]->keyword("when")); }
-
-sub pp_log { maybe_targmy(@_, \&unop, "log") }
-sub pp_mkdir { maybe_targmy(@_, \&listop, "mkdir") }
+sub pp_pos { maybe_local(@_, unop(@_, "pos")) }
 
 sub pp_not
 {
@@ -290,13 +271,6 @@ sub pp_not
     }
 }
 
-
-sub pp_oct { maybe_targmy(@_, \&unop, "oct") }
-sub pp_open_dir { listop(@_, "opendir") }
-sub pp_pos { maybe_local(@_, unop(@_, "pos")) }
-sub pp_push { maybe_targmy(@_, \&listop, "push") }
-sub pp_rename { maybe_targmy(@_, \&listop, "rename") }
-sub pp_rindex { maybe_targmy(@_, \&listop, "rindex") }
 
 # skip down to the old, ex-rv2cv
 sub pp_rv2cv {
@@ -323,10 +297,6 @@ sub pp_scalar
     $self->unop($op, $cx, "scalar");
 }
 
-sub pp_setpgrp { maybe_targmy(@_, \&listop, "setpgrp") }
-sub pp_setpriority { maybe_targmy(@_, \&listop, "setpriority") }
-sub pp_sin { maybe_targmy(@_, \&unop, "sin") }
-
 sub pp_smartmatch {
     my ($self, $op, $cx) = @_;
     if ($op->flags & OPf_SPECIAL) {
@@ -337,11 +307,6 @@ sub pp_smartmatch {
 	binop(@_, "~~", 14);
     }
 }
-
-sub pp_sprintf { maybe_targmy(@_, \&listop, "sprintf") }
-sub pp_sqrt { maybe_targmy(@_, \&unop, "sqrt") }
-sub pp_symlink { maybe_targmy(@_, \&listop, "symlink") }
-sub pp_system { maybe_targmy(@_, \&listop, "system") }
 
 sub pp_truncate
 {
@@ -391,28 +356,28 @@ sub pp_glob
 	    $text = $kid_info->{text};
 	    $opts->{body} = $body;
 	    if ($cx >= 5 || $self->{'parens'}) {
+		# FIXME: turn into template
 		return info_from_list($op, $self, [$keyword, '(', $text, ')'], '',
 				      'glob_paren', $opts);
 	    } else {
+		# FIXME: turn into template
 		return info_from_list($op, $self, [$keyword, $text], ' ',
 				      'glob_space', $opts);
 	    }
 	} else {
-	    return info_from_list($op, $self, ['<', $text, '>'], '', 'glob_angle', $opts);
+	    return $self->info_from_template('<FH>', $op, '<%c>', undef,
+					     [$kid_info], $opts);
 	}
     }
-    return info_from_list($op, $self, ['<', '>'], '', 'glob_angle', $opts);
+    return $self->info_from_string("<>", $op, $opts);
 }
-
-sub pp_chomp { maybe_targmy(@_, \&unop, "chomp") }
-sub pp_chop { maybe_targmy(@_, \&unop, "chop") }
 
 sub pp_clonecv {
     my $self = shift;
     my($op, $cx) = @_;
     my $sv = $self->padname_sv($op->targ);
     my $name = substr $sv->PVX, 1; # skip &/$/@/%, like $self->padany
-    return info_from_list($op, $self, ['my', 'sub', $name], ' ', 'clonev', {});
+    return $self->info_from_string("clonev my sub",  $op, "my sub  $name");
 }
 
 sub pp_delete($$$)
@@ -639,10 +604,7 @@ sub pp_require
 }
 
 
-sub pp_schomp { maybe_targmy(@_, \&unop, "chomp") }
-sub pp_schop { maybe_targmy(@_, \&unop, "chop") }
 sub pp_scope { scopeop(0, @_); }
-
 sub pp_and { logop(@_, "and", 3, "&&", 11, "if") }
 
 sub pp_cond_expr
