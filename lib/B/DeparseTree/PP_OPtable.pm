@@ -13,7 +13,9 @@ $VERSION = '3.2.0';
 
 use vars qw(%PP_MAPFNS);
 
+use constant SWAP_CHILDREN => 1;
 use constant ASSIGN => 2; # operation OP has a =OP variant
+use constant LIST_CONTEXT => 4; # Assignment is in list context
 
 
 # In the HASH below, the key is the operation name with the leading pp_ stripped.
@@ -78,6 +80,8 @@ use constant ASSIGN => 2; # operation OP has a =OP variant
      # 'sselect'    => 'listop',  FIXME: is used in PPfns
      # 'sockpair'   => 'listop', ""
 
+    'aassign'     => ['binop', '=', 7, SWAP_CHILDREN | LIST_CONTEXT, 'array assign'],
+    'abs'         => ['maybe_targmy', 'unop', 'abs'],
     'accept'      => 'listop',
     'add'         => ['maybe_targmy', 'binop', '+', 18, ASSIGN],
     'aeach'       => ['unop', 'each'],

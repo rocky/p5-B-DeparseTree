@@ -63,8 +63,6 @@ use B qw(
 
 @EXPORT = qw(
     feature_enabled
-    pp_aassign
-    pp_abs
     pp_aelem
     pp_and
     pp_anonhash
@@ -266,9 +264,6 @@ sub pp_values { unop(@_, "values") }
 sub pp_avalues { unop(@_, "values") }
 
 
-
-sub pp_aassign { binop(@_, "=", 7, SWAP_CHILDREN | LIST_CONTEXT, 'array assign') }
-sub pp_abs   { maybe_targmy(@_, \&unop, "abs") }
 
 sub pp_backtick
 {
