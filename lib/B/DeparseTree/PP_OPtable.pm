@@ -101,12 +101,16 @@ use constant LIST_CONTEXT => 4; # Assignment is in list context
     'caller'      => 'unop',
     'chdir'       => ['maybe_targmy', 'unop'], # modified below
     'chr'         => ['maybe_targmy', 'unop'],
+    'chmod'       => ['maybe_targmy', 'listop', 'chmod'],
+    'chown'       => ['maybe_targmy', 'listop', 'chown'],
     'chroot'      => ['maybe_targmy', 'unop'],
     'close'       => 'unop',
     'closedir'    => 'unop',
     'connect'     => 'listop',
     'concat'      => ['maybe_targmy', 'concat'],
     'continue'    => 'unop',
+    'cos'         => ['maybe_targmy', 'unop', 'cos'],
+    'crypt'       => ['maybe_targmy', 'listop', 'crypt'],
 
     'db_open'     => 'listop',
     'dbmclose'    => 'unop',

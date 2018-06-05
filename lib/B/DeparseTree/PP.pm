@@ -71,18 +71,14 @@ use B qw(
     pp_avalues
     pp_backtick
     pp_boolkeys
-    pp_chmod
     pp_chomp
     pp_chop
-    pp_chown
     pp_clonecv
     pp_cmp
     pp_complement
     pp_cond_expr
     pp_connect
     pp_const
-    pp_cos
-    pp_crypt
     pp_delete
     pp_dofile
     pp_dor
@@ -277,11 +273,6 @@ sub pp_boolkeys
     # no name because its an optimisation op that has no keyword
     unop(@_,"");
 }
-
-sub pp_chmod { maybe_targmy(@_, \&listop, "chmod") }
-sub pp_chown { maybe_targmy(@_, \&listop, "chown") }
-sub pp_cos { maybe_targmy(@_, \&unop, "cos") }
-sub pp_crypt { maybe_targmy(@_, \&listop, "crypt") }
 
 sub pp_dofile
 {
