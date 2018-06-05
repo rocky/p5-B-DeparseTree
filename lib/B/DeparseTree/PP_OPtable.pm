@@ -79,9 +79,11 @@ use constant LIST_CONTEXT => 4; # Assignment is in list context
      # 'values'     => 'unop', # FIXME
      # 'sselect'    => 'listop',  FIXME: is used in PPfns
      # 'sockpair'   => 'listop', ""
+     # 'exec'       => ['maybe_targmy', 'unop'],
+     # 'exp'        => ['maybe_targmy', 'listop'],
 
     'aassign'     => ['binop', '=', 7, SWAP_CHILDREN | LIST_CONTEXT, 'array assign'],
-    'abs'         => ['maybe_targmy', 'unop', 'abs'],
+    'abs'         => ['maybe_targmy', 'unop'],
     'accept'      => 'listop',
     'add'         => ['maybe_targmy', 'binop', '+', 18, ASSIGN],
     'aeach'       => ['unop', 'each'],
@@ -101,16 +103,16 @@ use constant LIST_CONTEXT => 4; # Assignment is in list context
     'caller'      => 'unop',
     'chdir'       => ['maybe_targmy', 'unop'], # modified below
     'chr'         => ['maybe_targmy', 'unop'],
-    'chmod'       => ['maybe_targmy', 'listop', 'chmod'],
-    'chown'       => ['maybe_targmy', 'listop', 'chown'],
+    'chmod'       => ['maybe_targmy', 'listop'],
+    'chown'       => ['maybe_targmy', 'listop'],
     'chroot'      => ['maybe_targmy', 'unop'],
     'close'       => 'unop',
     'closedir'    => 'unop',
     'connect'     => 'listop',
     'concat'      => ['maybe_targmy', 'concat'],
     'continue'    => 'unop',
-    'cos'         => ['maybe_targmy', 'unop', 'cos'],
-    'crypt'       => ['maybe_targmy', 'listop', 'crypt'],
+    'cos'         => ['maybe_targmy', 'unop'],
+    'crypt'       => ['maybe_targmy', 'listop'],
 
     'db_open'     => 'listop',
     'dbmclose'    => 'unop',
@@ -135,6 +137,7 @@ use constant LIST_CONTEXT => 4; # Assignment is in list context
     'fc'          => 'unop',
     'fcntl'       => 'listop',
     'fileno'      => 'unop',
+    'flock'       => ['maybe_targmy', 'listop'],
     'fork'        => 'baseop',
     'formline'    => 'listop', # see also deparse_format
     'ftatime'     => ['filetest', "-A"],
@@ -169,6 +172,8 @@ use constant LIST_CONTEXT => 4; # Assignment is in list context
     'getlogin'    => 'baseop',
     'getpeername' => 'unop',
     'getpgrp'     => ['maybe_targmy', 'unop'],
+    'getppid'     => ['maybe_targmy', 'baseop'],
+    'getpriority' => ['maybe_targmy', 'listop'],
     'getsockname' => 'unop',
     'ggrent'      => ['baseop', "getgrent"],
     'ggrgid'      => ['unop',   "getgrgid"],
@@ -193,19 +198,27 @@ use constant LIST_CONTEXT => 4; # Assignment is in list context
     'gservent'    => ['baseop', "getservent"],
     'gsockopt'    => ['listop', 'getsockopt'],
 
+    'hex'         => ['maybe_targmy', 'unop'],
+
     'i_add'       => ['maybe_targmy', 'binop', "+", 18, ASSIGN],
     'i_divide'    => ['maybe_targmy', 'binop', "/", 19, ASSIGN],
     'i_modulo'    => ['maybe_targmy', 'binop', "%", 19, ASSIGN],
     'i_multiply'  => ['maybe_targmy', 'binop', "*", 19, ASSIGN],
     'i_subtract'  => ['maybe_targmy', 'binop', "-", 18, ASSIGN],
+    'index'       => ['maybe_targmy', 'listop'],
+    'int'         => ['maybe_targmy', 'unop'],
     'ioctl'       => 'listop',
+
+    'join'        => ['maybe_targmy', 'listop'],
     'keys'        => 'unop',
+    'kill'        => ['maybe_targmy', 'listop'],
 
     'last'        => 'loopex',
     'lc'          => 'dq_unop',
     'lcfirst'     => 'dq_unop',
     'left_shift'  => ['maybe_targmy', 'binop', "<<", 17, ASSIGN],
     'length'      => ['maybe_targmy', 'unop'],
+    'link'        => ['maybe_targmy', 'listop'],
     'listen'      => 'listop',
     'localtime'   => 'unop',
     'lock'        => 'unop',
@@ -300,15 +313,15 @@ use constant LIST_CONTEXT => 4; # Assignment is in list context
     'ucfirst'     => 'dq_unop',
     'umask'       => 'unop',
     'undef'       => 'unop',
-    'unlink'      => ['maybe_targmy', 'listop', 'unlink'],
+    'unlink'      => ['maybe_targmy', 'listop'],
     'unpack'      => 'listop',
-    'unshift'     => ['maybe_targmy', 'listop', 'unshift'],
+    'unshift'     => ['maybe_targmy', 'listop'],
     'untie'       => 'unop',
-    'utime'       => ['maybe_targmy', 'listop', 'utime'],
+    'utime'       => ['maybe_targmy', 'listop'],
 
-    'wait'        => ['maybe_targmy', 'baseop', 'wait'],
-    'waitpid'     => ['maybe_targmy', 'listop', 'waitpid'],
-    'wantarray'   => ['baseop', 'wantarray'],
+    'wait'        => ['maybe_targmy', 'baseop'],
+    'waitpid'     => ['maybe_targmy', 'listop'],
+    'wantarray'   => 'baseop',
     'warn'        => 'listop',
     );
 

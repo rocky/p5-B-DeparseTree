@@ -88,18 +88,14 @@ use B qw(
     pp_exec
     pp_exists
     pp_exp
-    pp_flock
     pp_flop
     pp_ge
-    pp_getppid
-    pp_getpriority
     pp_glob
     pp_grepwhile
     pp_gt
     pp_gv
     pp_gvsv
     pp_helem
-    pp_hex
     pp_hslice
     pp_i_cmp
     pp_i_eq
@@ -111,11 +107,7 @@ use B qw(
     pp_i_negate
     pp_i_predec
     pp_i_preinc
-    pp_index
-    pp_int
     pp_introcv
-    pp_join
-    pp_kill
     pp_kvaslice
     pp_kvhslice
     pp_le
@@ -125,7 +117,6 @@ use B qw(
     pp_leavetry
     pp_leavewhen
     pp_lineseq
-    pp_link
     pp_list
     pp_log
     pp_lt
@@ -250,9 +241,11 @@ sub pp_sne { binop(@_, "ne", 14) }
 
 # FIXME: These don't seem to be able to go into the table.
 # PPfns calls pp_sockpair for example?
+sub pp_avalues { unop(@_, "values") }
+sub pp_exec { maybe_targmy(@_, \&listop, "exec") }
+sub pp_exp { maybe_targmy(@_, \&unop, "exp") }
 sub pp_sockpair { listop(@_, "socketpair") }
 sub pp_values { unop(@_, "values") }
-sub pp_avalues { unop(@_, "values") }
 
 
 
@@ -280,17 +273,6 @@ sub pp_dofile
     if ($code =~ s/^((?:CORE::)?do) \{/$1({/) { $code .= ')' }
     $code;
 }
-
-sub pp_exec { maybe_targmy(@_, \&listop, "exec") }
-sub pp_exp { maybe_targmy(@_, \&unop, "exp") }
-sub pp_flock { maybe_targmy(@_, \&listop, "flock") }
-sub pp_getpriority { maybe_targmy(@_, \&listop, "getpriority") }
-sub pp_hex { maybe_targmy(@_, \&unop, "hex") }
-sub pp_index { maybe_targmy(@_, \&listop, "index") }
-sub pp_int { maybe_targmy(@_, \&unop, "int") }
-sub pp_join { maybe_targmy(@_, \&listop, "join") }
-sub pp_kill { maybe_targmy(@_, \&listop, "kill") }
-sub pp_link { maybe_targmy(@_, \&listop, "link") }
 
 sub pp_leavegiven { givwhen(@_, $_[0]->keyword("given")); }
 sub pp_leavewhen  { givwhen(@_, $_[0]->keyword("when")); }
@@ -989,7 +971,6 @@ sub pp_mapwhile { mapop(@_, "map") }
 sub pp_grepwhile { mapop(@_, "grep") }
 
 sub pp_complement { maybe_targmy(@_, \&pfixop, "~", 21) }
-sub pp_getppid { maybe_targmy(@_, \&baseop, "getppid") }
 sub pp_postdec { maybe_targmy(@_, \&pfixop, "--", 23, POSTFIX) }
 sub pp_postinc { maybe_targmy(@_, \&pfixop, "++", 23, POSTFIX) }
 sub pp_time { maybe_targmy(@_, \&baseop, "time") }
