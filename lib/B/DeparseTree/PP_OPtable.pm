@@ -365,8 +365,7 @@ if ($] >= 5.015000) {
     $PP_MAPFNS{'srefgen'} = 'pp_refgen';
 
     if ($] <= 5.023 && $] >= 5.020) {
-	# Something is up with unop where 'r' gets added as prefix
-	# in 5.22
+	# Something is up in 5.20 - 5.22 where there is reach and rkeys
 	$PP_MAPFNS{'reach'} = ['unop', 'each'];
 	$PP_MAPFNS{'rkeys'} = ['unop', 'keys'];
     }
