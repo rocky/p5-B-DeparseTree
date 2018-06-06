@@ -369,6 +369,10 @@ if ($] >= 5.015000) {
 	$PP_MAPFNS{'reach'} = ['unop', 'each'];
 	$PP_MAPFNS{'rkeys'} = ['unop', 'keys'];
     }
+    if ($] >= 5.022) {
+	$PP_MAPFNS{'scomplement'} = ['maybe_targmy', 'pfixop', "~.", 21];
+	$PP_MAPFNS{'ncomplement'} = ['maybe_targmy', 'pfixop', '~', 21];
+    }
 }
 
 if ($is_cperl) {

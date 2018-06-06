@@ -1606,8 +1606,4 @@ sub pp_chdir {
     }
 }
 
-# Not in Perl 5.20 and presumeably < 5.20. No harm in adding to 5.20?
-*pp_ncomplement = *pp_complement;
-sub pp_scomplement { maybe_targmy(@_, \&pfixop, "~.", 21) }
-
 1;

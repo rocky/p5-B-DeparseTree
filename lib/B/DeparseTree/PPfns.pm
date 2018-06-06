@@ -381,8 +381,10 @@ BEGIN {
 	     'subtract' => 18, 'i_subtract' => 18,
 	     'concat' => 18,
 	     'left_shift' => 17, 'right_shift' => 17,
-	     'bit_and' => 13,
+	     'bit_and' => 13, 'nbit_and' => 13, 'sbit_and' => 13,
 	     'bit_or' => 12, 'bit_xor' => 12,
+	     'sbit_or' => 12, 'sbit_xor' => 12,
+	     'nbit_or' => 12, 'nbit_xor' => 12,
 	     'and' => 3,
 	     'or' => 2, 'xor' => 2,
 	    );

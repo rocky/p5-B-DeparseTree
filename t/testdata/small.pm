@@ -457,3 +457,22 @@ tr/X//r;
 ####
 use feature 'unicode_strings';
 s/X//d;
+####
+# 5.22 bitops
+# SKIP ?1 && "start fixing here"
+# SKIP ?$] < 5.022
+# CONTEXT use feature "bitwise"; no warnings "experimental::bitwise";
+$_ = $_ | $_;
+$_ = $_ & $_;
+$_ = $_ ^ $_;
+$_ = ~$_;
+$_ = $_ |. $_;
+$_ = $_ &. $_;
+$_ = $_ ^. $_;
+$_ = ~.$_;
+$_ |= $_;
+$_ &= $_;
+$_ ^= $_;
+$_ |.= $_;
+$_ &.= $_;
+$_ ^.= $_;

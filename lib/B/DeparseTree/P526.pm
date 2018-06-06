@@ -1081,7 +1081,6 @@ unless (caller) {
 
 # Not in Perl 5.20 and presumably < 5.20. No harm in adding to 5.20?
 *pp_ncomplement = *pp_complement;
-sub pp_scomplement { maybe_targmy(@_, \&pfixop, "~.", 21) }
 
 unless (caller) {
     eval "use Data::Printer;";

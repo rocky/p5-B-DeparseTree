@@ -124,17 +124,6 @@ sub bin_info_join_maybe_parens($$$$$$$$$) {
     return $info;
 }
 
-sub range {
-    my $self = shift;
-    my ($op, $cx, $type) = @_;
-    my $left = $op->first;
-    my $right = $left->sibling;
-    $left = $self->deparse($left, 9, $op);
-    $right = $self->deparse($right, 9, $op);
-    return info_from_list($op, $self, [$left, $type, $right], ' ', 'range',
-			  {maybe_parens => [$self, $cx, 9]});
-}
-
 sub pp_substr {
     my ($self,$op,$cx) = @_;
     if ($op->private & OPpSUBSTR_REPL_FIRST) {
