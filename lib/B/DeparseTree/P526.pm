@@ -168,13 +168,6 @@ sub pp_readline {
     return $self->unop($op, $cx, "readline");
 }
 
-sub pp_rcatline {
-    my $self = shift;
-    my($op) = @_;
-    return info_from_list($op, $self, ["<", $self->gv_name($self->gv_or_padgv($op)), ">"],
-			  '', 'rcatline', {});
-}
-
 sub bin_info_join($$$$$$$) {
     my ($self, $op, $lhs, $rhs, $mid, $sep, $type) = @_;
     my $texts = [$lhs->{text}, $mid, $rhs->{text}];

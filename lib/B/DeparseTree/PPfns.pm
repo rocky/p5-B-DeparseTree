@@ -451,7 +451,7 @@ sub cops
 {
     my ($self, $op, $cx, $name) = @_;
     $self->{'curcop'} = $op;
-    my @texts;
+    my @texts = ();
     my $opts = {};
     my @args_spec = ();
     my $fmt = '%;';

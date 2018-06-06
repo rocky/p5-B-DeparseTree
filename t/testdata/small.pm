@@ -47,6 +47,8 @@ print $main::x;
 my %x;
 $x{warn()};
 ####
+# readline and rcatline
+# SKIP ?$] < 5.023
 # <>
 my $foo;
 $_ .= <> . <ARGV> . <$foo>;
@@ -280,7 +282,7 @@ tr/X//s;
 tr/X//r;
 ####
 # [perl #91008]
-# SKIP ?$] >= 5.023 && "autoderef deleted in this Perl version"
+# SKIP ?($] >= 5.023 || $] < 5.019) && "autoderef deleted in this Perl version"
 # CONTEXT no warnings 'experimental::autoderef';
 each $@;
 keys $~;
@@ -297,6 +299,7 @@ my @a;
 $a[0] = 1;
 ####
 # $#- $#+ $#{%} etc.
+# SKIP ?$] < 5.023
 my @x;
 @x = ($#{`}, $#{~}, $#{!}, $#{@}, $#{$}, $#{%}, $#{^}, $#{&}, $#{*});
 @x = ($#{(}, $#{)}, $#{[}, $#{{}, $#{]}, $#{}}, $#{'}, $#{"}, $#{,});
@@ -402,6 +405,7 @@ state($s3, $s4);
 ($s7, undef, $s8) = (1, 2, 3);
 ####
 # slices with padrange
+# SKIP ?$] < 5.023
 my($a, $b);
 my(@x, %y);
 @x = @x[$a, $b];

@@ -126,6 +126,8 @@ use B qw(
     pp_preinc
     pp_print
     pp_prtf
+    pp_rcatline
+    pp_readline
     pp_refgen
     pp_require
     pp_rv2cv
@@ -914,10 +916,61 @@ sub pp_once
     return $self->deparse($true, $cx);
 }
 
-sub pp_subst {
-{
-    $] < 5.022 ? subst_older(@_) : subst_newer(@_);
+sub pp_or  { logop(@_, "or",  2, "||", 10, "unless") }
+sub pp_dor { logop(@_, "//", 10) }
+
+sub pp_mapwhile { mapop(@_, "map") }
+sub pp_grepwhile { mapop(@_, "grep") }
+
+sub pp_preinc { pfixop(@_, "++", 23) }
+sub pp_predec { pfixop(@_, "--", 23) }
+sub pp_i_preinc { pfixop(@_, "++", 23) }
+sub pp_i_predec { pfixop(@_, "--", 23) }
+
+sub pp_rcatline {
+    my ($self, $op) = @_;
+    return $self->info_from_string('rcatline <$fh>', $op,
+				   sprintf "<%s>", $self->gv_name($self->gv_or_padgv($op)));
 }
+
+sub pp_readline {
+    my $self = shift;
+    my($op, $cx) = @_;
+    my $first_kid = $op->first;
+    my $kid = $first_kid;
+    my @other_ops;
+    # Do we have <$fh>?
+    if ($first_kid->name eq "rv2gv") {
+	push @other_ops, $kid;
+	$kid  = $first_kid->first;
+    }
+    if (B::Deparse::is_scalar($kid) and
+	($] < 5.021 or
+	 ($op->flags & OPf_SPECIAL))) {
+	my $kid_node = $self->deparse($kid, 1, $op);
+	if ($kid_node->{text} eq 'ARGV') {
+	    if (@other_ops) {
+		# skipped first node, also add $kid_node.
+		push @other_ops, $kid_node;
+	    } else {
+		# upgrade @other_ops from an op to a node
+		@other_ops = ($kid_node);
+	    }
+	    return $self->info_from_string('readline <<>>', $op, '<<>>',
+					   {other_ops => [$first_kid, $kid_node]});
+	} else {
+	    return $self->info_from_template('readline <$fh>', $op, "<%c>",
+					     undef, [$kid_node],
+					     {other_ops => @other_ops});
+	}
+    }
+    my $node = $self->unop($op, $cx, "readline");
+    push @{$node->{other_ops}}, $first_kid;
+    return $node
+}
+
+sub pp_subst {
+    $] < 5.022 ? subst_older(@_) : subst_newer(@_);
 }
 
 sub pp_substr {

@@ -363,7 +363,15 @@ my $is_cperl = $Config::Config{usecperl};
 if ($] >= 5.015000) {
     # FIXME is it starting in cperl 5.26+ which add this?
     $PP_MAPFNS{'srefgen'} = 'pp_refgen';
+
+    if ($] <= 5.023 && $] >= 5.020) {
+	# Something is up with unop where 'r' gets added as prefix
+	# in 5.22
+	$PP_MAPFNS{'reach'} = ['unop', 'each'];
+	$PP_MAPFNS{'rkeys'} = ['unop', 'keys'];
+    }
 }
+
 if ($is_cperl) {
     # FIXME reconcile differences in cperl. Maybe cperl is right?
     delete $PP_MAPFNS{'chdir'};

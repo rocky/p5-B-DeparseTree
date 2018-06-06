@@ -23,12 +23,7 @@ my %deparse;
 $/ = "\n####\n";
 my $eval_but_skip = $tests+1;
 
-my @test_files;
-if ($] >= 5.018 && $] <= 5.0249) {
-    @test_files = ('subst.pm', 'P524-short.pm');
-} else {
-    @test_files = ('subst.pm', 'P526-short.pm');
-}
+my @test_files = ('subst.pm', 'small.pm');
 
 use constant MAX_ERROR_COUNT => 2;
 my $error_count = 0;

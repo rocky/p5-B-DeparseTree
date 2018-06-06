@@ -180,26 +180,6 @@ sub keyword {
 
 { no strict 'refs'; *{"pp_r$_"} = *{"pp_$_"} for qw< keys each values >; }
 
-sub pp_readline {
-    my $self = shift;
-    my($op, $cx) = @_;
-    my $kid = $op->first;
-    $kid = $kid->first if $kid->name eq "rv2gv"; # <$fh>
-    if (B::Deparse::is_scalar($kid)) {
-	my $body = [$self->deparse($kid, 1, $op)];
-	return info_from_list($op, $self, ['<', $body->[0]{text}, '>'], '',
-			      'readline_scalar', {body=>$body});
-    }
-    return $self->unop($op, $cx, "readline");
-}
-
-sub pp_rcatline {
-    my $self = shift;
-    my($op) = @_;
-    return info_from_list($op, $self, ["<", $self->gv_name($self->gv_or_padgv($op)), ">"],
-			  '', 'rcatline', {});
-}
-
 sub bin_info_join($$$$$$$) {
     my ($self, $op, $lhs, $rhs, $mid, $sep, $type) = @_;
     my $texts = [$lhs->{text}, $mid, $rhs->{text}];
