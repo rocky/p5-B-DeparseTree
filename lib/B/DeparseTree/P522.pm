@@ -193,16 +193,6 @@ sub bin_info_join_maybe_parens($$$$$$$$$) {
     return $info;
 }
 
-sub pp_substr {
-    my ($self,$op,$cx) = @_;
-    if ($op->private & OPpSUBSTR_REPL_FIRST) {
-	my $left = listop($self, $op, 7, "substr", $op->first->sibling->sibling);
-	my $right = $self->deparse($op->first->sibling, 7, $op);
-	return info_from_list($op, $self,[$left, '=', $right], ' ',
-			      'substr_repl_first', {});
-    }
-    return maybe_local(@_, listop(@_, "substr"))
-}
 # Truncate is special because OPf_SPECIAL makes a bareword first arg
 # be a filehandle. This could probably be better fixed in the core
 # by moving the GV lookup into ck_truc.
