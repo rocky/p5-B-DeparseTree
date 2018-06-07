@@ -380,7 +380,7 @@ sub dump($) {
     my ($deparse_tree) = @_;
     my @addrs = sort keys %{$deparse_tree->{optree}};
     for (my $i=0; $i < $#addrs; $i++) {
-	print $i, '-' x 50, "\n";
+	printf("%d: %s\n", $i, ('=' x 50));
 	my $info = get_addr_info($deparse_tree, $addrs[$i]);
 	if ($info) {
 	    printf "0x%0x\n", $addrs[$i];
@@ -396,7 +396,7 @@ sub dump($) {
 		}
 	    }
 	}
-	print $i, '-' x 50, "\n";
+	printf("%d: %s\n", $i, ('=' x 50));
     }
 }
 
@@ -410,7 +410,7 @@ sub dump_relations($) {
 	next unless $info && $info->{parent};
 	my $parent = get_parent_addr_info($info);
 	next unless $parent;
-	print $i, '-' x 50, "\n";
+	printf("%d: %s\n", $i, ('=' x 50));
 	print "Child info:\n";
 	printf "\taddr: 0x%0x, parent: 0x%0x\n", $addrs[$i], $parent->{addr};
 	printf "\top: %s\n", $info->{op}->can('name') ? $info->{op}->name : $info->{op} ;
@@ -420,7 +420,7 @@ sub dump_relations($) {
 	if ($texts) {
 	    print join("\n", @$texts), "\n";
 	}
-	print $i, '-' x 50, "\n";
+	printf("%d: %s\n", $i, ('=' x 50));
     }
 }
 
