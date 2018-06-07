@@ -50,6 +50,7 @@ use B::DeparseTree::SyntaxTree;
 *gv_name = *B::Deparse::gv_name;
 *lex_in_scope = *B::Deparse::lex_in_scope;
 *padname = *B::Deparse::padname;
+*print_protos = *B::Deparse::print_protos;
 *rv2gv_or_string = *B::Deparse::rv2gv_or_string;
 *stash_subs = *B::Deparse::stash_subs;
 *stash_variable = *B::Deparse::stash_variable;
@@ -409,9 +410,10 @@ sub const_dumper
     $dumper->Purity(1)->Terse(1)->Deparse(1)->Indent(0)->Useqq(1)->Sortkeys(1);
     my $str = $dumper->Dump();
     if ($str =~ /^\$v/) {
+	# FIXME: ???
         return info_from_text($sv, $self, ['${my', $str, '\$v}'], 'const_dumper_my', {});
     } else {
-        return info_from_text($sv, $self, $str, 'constant dumper', {});
+        return $self->info_from_string("constant string", $sv, $str);
     }
 }
 
@@ -684,22 +686,6 @@ sub pessimise {
     my %visited;
     # walk tree in execution order
     $self->_pessimise_walk_exe($start, \%visited);
-}
-
-sub print_protos {
-    my $self = shift;
-    my $ar;
-    my @ret;
-    foreach $ar (@{$self->{'protos_todo'}}) {
-	my $proto = defined $ar->[1]
-		? ref $ar->[1]
-		    ? " () {\n    " . $self->const($ar->[1]->RV,0) . ";\n}"
-		    : " (". $ar->[1] . ");"
-		: ";";
-	push @ret, "sub " . $ar->[0] .  "$proto\n";
-    }
-    delete $self->{'protos_todo'};
-    return @ret;
 }
 
 sub style_opts

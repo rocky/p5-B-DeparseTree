@@ -248,30 +248,6 @@ sub pp_threadsv {
     return $self->maybe_local_str($op, $cx, "\$" .  $threadsv_names[$op->targ]);
 }
 
-sub pp_aelemfast_lex
-{
-    my($self, $op, $cx) = @_;
-    my $name = $self->padname($op->targ);
-    $name =~ s/^@/\$/;
-    return info_from_list($op, $self, [$name, "[", ($op->private + $self->{'arybase'}), "]"],
-		      '', 'pp_aelemfast_lex', {});
-}
-
-sub pp_aelemfast
-{
-    my($self, $op, $cx) = @_;
-    # optimised PADAV, pre 5.15
-    return $self->pp_aelemfast_lex(@_) if ($op->flags & OPf_SPECIAL);
-
-    my $gv = $self->gv_or_padgv($op);
-    my($name,$quoted) = $self->stash_variable_name('@',$gv);
-    $name = $quoted ? "$name->" : '$' . $name;
-    my $i = $op->private;
-    $i -= 256 if $i > 127;
-    return info_from_list($op, $self, [$name, "[", ($op->private + $self->{'arybase'}), "]"],
-		      '', 'pp_aelemfast', {});
-}
-
 sub pp_rv2sv { maybe_local(@_, rv2x(@_, "\$")) }
 sub pp_rv2hv { maybe_local(@_, rv2x(@_, "%")) }
 sub pp_rv2gv { maybe_local(@_, rv2x(@_, "*")) }

@@ -66,6 +66,8 @@ use B qw(
     feature_enabled
     gv_or_padgv
     pp_aelem
+    pp_aelemfast
+    pp_aelemfast_lex
     pp_and
     pp_anonhash
     pp_anonlist
@@ -228,6 +230,30 @@ sub pp_sgt { binop(@_, "gt", 15) }
 sub pp_sle { binop(@_, "le", 15) }
 sub pp_slt { binop(@_, "lt", 15) }
 sub pp_sne { binop(@_, "ne", 14) }
+
+sub pp_aelemfast
+{
+    my($self, $op, $cx) = @_;
+    # optimised PADAV, pre 5.15
+    return $self->pp_aelemfast_lex(@_) if ($op->flags & OPf_SPECIAL);
+
+    my $gv = $self->gv_or_padgv($op);
+    my($name,$quoted) = $self->stash_variable_name('@',$gv);
+    $name = $quoted ? "$name->" : '$' . $name;
+    my $i = $op->private;
+    $i -= 256 if $i > 127;
+    return info_from_list($op, $self, [$name, "[", ($op->private + $self->{'arybase'}), "]"],
+		      '', 'pp_aelemfast', {});
+}
+
+sub pp_aelemfast_lex
+{
+    my($self, $op, $cx) = @_;
+    my $name = $self->padname($op->targ);
+    $name =~ s/^@/\$/;
+    return info_from_list($op, $self, [$name, "[", ($op->private + $self->{'arybase'}), "]"],
+		      '', 'pp_aelemfast_lex', {});
+}
 
 sub pp_backtick
 {
