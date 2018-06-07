@@ -247,16 +247,6 @@ sub pp_threadsv {
     return $self->maybe_local_str($op, $cx, "\$" .  $threadsv_names[$op->targ]);
 }
 
-sub gv_or_padgv {
-    my $self = shift;
-    my $op = shift;
-    if (class($op) eq "PADOP") {
-	return $self->padval($op->padix);
-    } else { # class($op) eq "SVOP"
-	return $op->gv;
-    }
-}
-
 sub pp_aelemfast_lex
 {
     my($self, $op, $cx) = @_;

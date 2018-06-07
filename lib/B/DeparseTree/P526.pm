@@ -153,21 +153,6 @@ sub pp_chdir {
     }
 }
 
-sub pp_readline {
-    my $self = shift;
-    my($op, $cx) = @_;
-    my $kid = $op->first;
-    $kid = $kid->first if $kid->name eq "rv2gv"; # <$fh>
-    if (B::Deparse::is_scalar($kid)
-	and $op->flags & OPf_SPECIAL
-	and $self->deparse($kid, 1) eq 'ARGV') {
-	my $body = [$self->deparse($kid, 1, $op)];
-	return info_from_list($op, $self, ['<', $body->[0]{text}, '>'], '',
-			      'readline_scalar', {body=>$body});
-    }
-    return $self->unop($op, $cx, "readline");
-}
-
 sub bin_info_join($$$$$$$) {
     my ($self, $op, $lhs, $rhs, $mid, $sep, $type) = @_;
     my $texts = [$lhs->{text}, $mid, $rhs->{text}];
@@ -202,16 +187,6 @@ sub pp_threadsv {
     my $self = shift;
     my($op, $cx) = @_;
     return $self->maybe_local_str($op, $cx, "\$" .  $threadsv_names[$op->targ]);
-}
-
-sub gv_or_padgv {
-    my $self = shift;
-    my $op = shift;
-    if (class($op) eq "PADOP") {
-	return $self->padval($op->padix);
-    } else { # class($op) eq "SVOP"
-	return $op->gv;
-    }
 }
 
 sub pp_aelemfast_lex

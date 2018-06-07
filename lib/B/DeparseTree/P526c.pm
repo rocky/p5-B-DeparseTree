@@ -113,6 +113,7 @@ use B::Deparse;
 *padany = *B::Deparse::padany;
 *padname = *B::Deparse::padname;
 *padname_sv = *B::Deparse::padname_sv;
+*populate_curcvlex = *B::Deparse::populate_curcvlex;
 *re_flags = *B::Deparse::re_flags;
 *stash_variable = *B::Deparse::stash_variable;
 *stash_variable_name = *B::Deparse::stash_variable_name;
@@ -214,28 +215,6 @@ sub pp_require
     Carp::confess("unhandled condition in pp_require");
 }
 
-sub pp_readline {
-    my $self = shift;
-    my($op, $cx) = @_;
-    my $kid = $op->first;
-    $kid = $kid->first if $kid->name eq "rv2gv"; # <$fh>
-    if (B::Deparse::is_scalar($kid)
-	and $op->flags & OPf_SPECIAL
-	and $self->deparse($kid, 1) eq 'ARGV') {
-	my $body = [$self->deparse($kid, 1, $op)];
-	return info_from_list($op, $self, ['<', $body->[0]{text}, '>'], '',
-			      'readline_scalar', {body=>$body});
-    }
-    return $self->unop($op, $cx, "readline");
-}
-
-sub pp_rcatline {
-    my $self = shift;
-    my($op) = @_;
-    return info_from_list($op, $self, ["<", $self->gv_name($self->gv_or_padgv($op)), ">"],
-			  '', 'rcatline', {});
-}
-
 sub bin_info_join($$$$$$$) {
     my ($self, $op, $lhs, $rhs, $mid, $sep, $type) = @_;
     my $texts = [$lhs->{text}, $mid, $rhs->{text}];
@@ -247,17 +226,6 @@ sub bin_info_join_maybe_parens($$$$$$$$$) {
     my $info = bin_info_join($self, $op, $lhs, $rhs, $mid, $sep, $type);
     $info->{text} = $self->maybe_parens($info->{text}, $cx, $prec);
     return $info;
-}
-
-sub range {
-    my $self = shift;
-    my ($op, $cx, $type) = @_;
-    my $left = $op->first;
-    my $right = $left->sibling;
-    $left = $self->deparse($left, 9, $op);
-    $right = $self->deparse($right, 9, $op);
-    return info_from_list($op, $self, [$left, $type, $right], ' ', 'range',
-			  {maybe_parens => [$self, $cx, 9]});
 }
 
 sub for_loop {
@@ -281,16 +249,6 @@ sub pp_threadsv {
     my $self = shift;
     my($op, $cx) = @_;
     return $self->maybe_local_str($op, $cx, "\$" .  $threadsv_names[$op->targ]);
-}
-
-sub gv_or_padgv {
-    my $self = shift;
-    my $op = shift;
-    if (class($op) eq "PADOP") {
-	return $self->padval($op->padix);
-    } else { # class($op) eq "SVOP"
-	return $op->gv;
-    }
 }
 
 sub pp_aelemfast_lex

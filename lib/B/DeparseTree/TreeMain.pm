@@ -53,6 +53,7 @@ use B::DeparseTree::SyntaxTree;
 *rv2gv_or_string = *B::Deparse::rv2gv_or_string;
 *stash_subs = *B::Deparse::stash_subs;
 *stash_variable = *B::Deparse::stash_variable;
+*todo = *B::Deparse::todo;
 
 our($VERSION, @EXPORT, @ISA);
 $VERSION = '3.2.0';
@@ -76,6 +77,7 @@ $VERSION = '3.2.0';
     print_protos
     seq_subs
     style_opts
+    todo
     );
 
 use Config;
@@ -566,23 +568,6 @@ sub lineseq {
 	push @$exprs, $info;
     };
     return $self->walk_lineseq($root, \@ops, $fn);
-}
-
-sub todo
-{
-    my $self = shift;
-    my($cv, $is_form, $name) = @_;
-    my $cvfile = $cv->FILE//'';
-    return unless ($cvfile eq $0 || exists $self->{files}{$cvfile});
-    my $seq;
-    if ($cv->OUTSIDE_SEQ) {
-	$seq = $cv->OUTSIDE_SEQ;
-    } elsif (!B::Deparse::null($cv->START) and B::Deparse::is_state($cv->START)) {
-	$seq = $cv->START->cop_seq;
-    } else {
-	$seq = 0;
-    }
-    push @{$self->{'subs_todo'}}, [$seq, $cv, $is_form, $name];
 }
 
 # _pessimise_walk(): recursively walk the optree of a sub,

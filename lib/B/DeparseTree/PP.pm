@@ -40,6 +40,7 @@ $VERSION = '3.2.0';
 
 # Copy unchanged functions from B::Deparse
 *lex_in_scope = *B::Deparse::lex_in_scope;
+*gv_or_padgv = *B::Deparse::gv_or_padgv;
 *padany = *B::Deparse::padany;
 *padname = *B::Deparse::padname;
 *pp_anonhash = *B::Deparse::pp_anonhash;
@@ -47,7 +48,6 @@ $VERSION = '3.2.0';
 *pp_i_negate = *B::Deparse::pp_i_negate;
 *pp_negate = *B::Deparse::pp_negate;
 *real_negate = *B::Deparse::real_negate;
-
 use B qw(
     OPf_MOD OPpENTERSUB_AMPER
     OPf_SPECIAL
@@ -64,6 +64,7 @@ use B qw(
 
 @EXPORT = qw(
     feature_enabled
+    gv_or_padgv
     pp_aelem
     pp_and
     pp_anonhash
