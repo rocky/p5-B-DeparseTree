@@ -18,17 +18,17 @@ See [Exact Perl location with B::Deparse (and Devel::Callsite)](http://blogs.per
 EXAMPLE
 -------
 
-   use B::DeparseTree;
-   my $deparse = B::DeparseTree->new();
+    use B::DeparseTree;
+    my $deparse = B::DeparseTree->new();
 
-   # create a subroutine to deparse...
-   sub my_abs($) {
-       return $a < 0 ? -$a : $a;
-   };
+    # create a subroutine to deparse...
+    sub my_abs($) {
+        return $a < 0 ? -$a : $a;
+    };
 
-   my $deparse_tree = B::DeparseTree->new();
-   my $tree_node = $deparse_tree->coderef2info(\&my_abs);
-   print $tree_node->{text};
+    my $deparse_tree = B::DeparseTree->new();
+    my $tree_node = $deparse_tree->coderef2info(\&my_abs);
+    print $tree_node->{text};
 
 The above produces:
 
