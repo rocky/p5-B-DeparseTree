@@ -156,15 +156,6 @@ sub keyword {
 
 { no strict 'refs'; *{"pp_r$_"} = *{"pp_$_"} for qw< keys each values >; }
 
-sub for_loop {
-    my $self = shift;
-    my($op, $cx, $parent) = @_;
-    my $init = $self->deparse($op, 1, $parent);
-    my $s = $op->sibling;
-    my $ll = $s->name eq "unstack" ? $s->sibling : $s->first->sibling;
-    return $self->loop_common($ll, $cx, $init);
-}
-
 sub pp_padsv {
     my $self = shift;
     my($op, $cx, $forbid_parens) = @_;

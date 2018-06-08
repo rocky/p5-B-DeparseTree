@@ -65,6 +65,7 @@ $VERSION = '3.2.0';
     e_anoncode
     elem
     filetest
+    for_loop
     func_needs_parens
     givwhen
     indirop
@@ -440,7 +441,7 @@ sub concat {
 	$prec = 7;
     }
     my $lhs = $self->deparse_binop_left($op, $left, $prec);
-    my $rhs  = $self->deparse_binop_right($op, $right, $prec);
+    my $rhs = $self->deparse_binop_right($op, $right, $prec);
     return $self->info_from_template(".$eq", $op,
 				     "%c .$eq %c", undef, [$lhs, $rhs],
 				     {maybe_parens => [$self, $cx, $prec]});
@@ -898,6 +899,14 @@ sub filetest
 	# I don't think baseop filetests ever survive ck_filetest, but...
 	return info_from_text($op, $self, $name, 'unop', {});
     }
+}
+
+sub for_loop($$$$) {
+    my ($self, $op, $cx, $parent) = @_;
+    my $init = $self->deparse($op, 1, $parent);
+    my $s = $op->sibling;
+    my $ll = $s->name eq "unstack" ? $s->sibling : $s->first->sibling;
+    return $self->loop_common($ll, $cx, $init);
 }
 
 sub func_needs_parens($$$$)

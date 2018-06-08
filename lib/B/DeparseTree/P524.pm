@@ -212,22 +212,6 @@ sub pp_truncate
     }
 }
 
-sub for_loop {
-    my $self = shift;
-    my($op, $cx, $parent) = @_;
-    my $init = $self->deparse($op, 1, $parent);
-    my $s = $op->sibling;
-    my $ll = $s->name eq "unstack" ? $s->sibling : $s->first->sibling;
-    return $self->loop_common($ll, $cx, $init);
-}
-
-sub pp_padsv {
-    my $self = shift;
-    my($op, $cx, $forbid_parens) = @_;
-    return $self->maybe_my($op, $cx, $self->padname($op->targ),
-			   $forbid_parens);
-}
-
 my @threadsv_names = B::threadsv_names;
 sub pp_threadsv {
     my $self = shift;
