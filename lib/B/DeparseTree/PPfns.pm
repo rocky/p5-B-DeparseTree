@@ -441,8 +441,9 @@ sub concat {
     }
     my $lhs = $self->deparse_binop_left($op, $left, $prec);
     my $rhs  = $self->deparse_binop_right($op, $right, $prec);
-    return $self->bin_info_join_maybe_parens($op, $lhs, $rhs, ".$eq", " ", $cx, $prec,
-					     'concat');
+    return $self->info_from_template(".$eq", $op,
+				     "%c .$eq %c", undef, [$lhs, $rhs],
+				     {maybe_parens => [$self, $cx, $prec]});
 }
 
 # Handle pp_dbstate, and pp_nextstate and COP ops.

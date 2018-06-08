@@ -153,19 +153,6 @@ sub pp_chdir {
     }
 }
 
-sub bin_info_join($$$$$$$) {
-    my ($self, $op, $lhs, $rhs, $mid, $sep, $type) = @_;
-    my $texts = [$lhs->{text}, $mid, $rhs->{text}];
-    return info_from_list($op, $self, $texts, ' ', $type, {})
-}
-
-sub bin_info_join_maybe_parens($$$$$$$$$) {
-    my ($self, $op, $lhs, $rhs, $mid, $sep, $cx, $prec, $type) = @_;
-    my $info = bin_info_join($self, $op, $lhs, $rhs, $mid, $sep, $type);
-    $info->{text} = $self->maybe_parens($info->{text}, $cx, $prec);
-    return $info;
-}
-
 sub for_loop {
     my $self = shift;
     my($op, $cx, $parent) = @_;
