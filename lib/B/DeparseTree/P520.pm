@@ -480,8 +480,6 @@ sub check_proto {
     return ('', \@reals);
 }
 
-sub pp_enterwrite { unop(@_, "write") }
-
 my $max_prec;
 BEGIN { $max_prec = int(0.999 + 8*length(pack("F", 42))*log(2)/log(10)); }
 

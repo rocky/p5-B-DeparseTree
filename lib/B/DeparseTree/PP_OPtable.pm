@@ -134,6 +134,7 @@ use vars qw(%PP_MAPFNS);
     'egrent'      => ['baseop', 'endgrent'],
     'ehostent'    => ['baseop', "endhostent"],
     'enetent'     => ['baseop', "endnetent"],
+    'enterwrite'  => ['unop', "write"],
     'eof'         => 'unop',
     'eprotoent'   => ['baseop', "endprotoent"],
     'epwent'      => ['baseop', "endpwent"],

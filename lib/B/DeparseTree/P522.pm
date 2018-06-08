@@ -695,8 +695,6 @@ sub check_proto {
     return ('', \@reals);
 }
 
-sub pp_enterwrite { unop(@_, "write") }
-
 # Split a floating point number into an integer mantissa and a binary
 # exponent. Assumes you've already made sure the number isn't zero or
 # some weird infinity or NaN.
