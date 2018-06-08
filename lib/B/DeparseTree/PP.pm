@@ -80,7 +80,7 @@ use B qw(
     pp_cond_expr
     pp_connect
     pp_const
-    pp_delete($$$)
+    pp_delete
     pp_dofile
     pp_entereval
     pp_entersub
@@ -124,8 +124,7 @@ use B qw(
     pp_once
     pp_open_dir
     pp_or
-    pp_padcv($$$)
-    pp_padsv($$$)
+    pp_padcv
     pp_pos
     pp_preinc
     pp_print
@@ -564,12 +563,6 @@ sub pp_list
 sub pp_padcv($$$) {
     my($self, $op, $cx) = @_;
     return info_from_text($op, $self, $self->padany($op), 'padcv', {});
-}
-
-sub pp_padsv($$$) {
-    my ($self, $op, $cx, $forbid_parens) = @_;
-    return $self->maybe_my($op, $cx, $self->padname($op->targ),
-			   $forbid_parens);
 }
 
 sub pp_refgen

@@ -90,6 +90,7 @@ $VERSION = '3.2.0';
     null_newer
     null_older
     pfixop
+    pp_padsv
     range
     repeat
     rv2x
@@ -2208,6 +2209,13 @@ sub null_newer
 	return $node;
     }
     Carp::confess("unhandled condition in null");
+}
+
+sub pp_padsv
+{
+    my ($self, $op, $cx, $forbid_parens) = @_;
+    return $self->maybe_my($op, $cx, $self->padname($op->targ),
+			   $forbid_parens);
 }
 
 # This is the 5.26 version. It is different from earlier versions.
