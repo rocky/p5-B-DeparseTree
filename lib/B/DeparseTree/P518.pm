@@ -156,13 +156,6 @@ sub keyword {
 
 { no strict 'refs'; *{"pp_r$_"} = *{"pp_$_"} for qw< keys each values >; }
 
-sub pp_padsv {
-    my $self = shift;
-    my($op, $cx, $forbid_parens) = @_;
-    return $self->maybe_my($op, $cx, $self->padname($op->targ),
-			   $forbid_parens);
-}
-
 my @threadsv_names = B::threadsv_names;
 sub pp_threadsv {
     my $self = shift;
