@@ -1257,18 +1257,16 @@ sub declare_warnings
     my ($self, $from, $to) = @_;
     if (($to & WARN_MASK) eq (warnings::bits("all") & WARN_MASK)) {
 	my $type = $self->keyword("use") . " warnings";
-	return $self->info_from_template($type, undef, "$type;\n",
-					 [], []);
+	return $self->info_from_string($type, undef, "$type");
     }
     elsif (($to & WARN_MASK) eq ("\0"x length($to) & WARN_MASK)) {
 	my $type = $self->keyword("no") . " warnings";
-	return $self->info_from_template($type, undef, "$type;\n",
-					 [], []);
+	return $self->info_from_string($type, undef, "$type");
     }
     my $bit_expr = join('', map { sprintf("\\x%02x", ord $_) } split "", $to);
     my $str = "BEGIN {\n%+\${^WARNING_BITS} = \"$bit_expr;\n%-";
     return $self->info_from_template('warning bits begin', undef,
-				     "%|$str\n", [], [], {omit_next_semicolon=>1});
+				   "$str", [], [], {omit_next_semicolon=>1});
 }
 
 # Iterate over $self->{subs_todo} picking up the

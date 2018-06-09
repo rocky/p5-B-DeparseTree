@@ -2673,7 +2673,7 @@ sub rv2x
 	    $fmt = '%F';
 	    @args_spec = (0, $transform);
 	}
-	return $self->info_from_template("scalar $str", $op, $fmt, \@args_spec, {})
+	return $self->info_from_template("scalar $str", $op, $fmt, undef, \@args_spec, {})
     } else {
 	my $str = "$type" . '{}';
 	return info_from_text($op, $self, $str, $str, {other_ops => [$kid_info]});
