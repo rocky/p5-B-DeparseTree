@@ -1117,6 +1117,10 @@ sub declare_hinthash {
 	my $is_feature = $key =~ /^feature_/ && $^V ge 5.15.6;
 	next if $is_feature and not $doing_features;
 	if (!exists $from->{$key} or $from->{$key} ne $to->{$key}) {
+	    if ($is_cperl){
+		next if $key eq 'feature_lexsubs';
+		next if $key eq 'feature_signatures';
+	    }
 	    push(@features, $key), next if $is_feature;
 	    push @decls,
 		qq(\$^H{) . single_delim($self, "q", "'", $key, "'") . qq(} = )

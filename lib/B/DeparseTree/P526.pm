@@ -19,43 +19,78 @@ use rlib '../..';
 package B::DeparseTree::P526;
 use Carp;
 
-use B qw(class main_root main_start main_cv svref_2object opnumber perlstring
-	 OPf_KIDS OPf_REF OPf_STACKED OPf_SPECIAL OPf_MOD OPf_PARENS
-	 OPf_WANT OPf_WANT_VOID OPf_WANT_SCALAR OPf_WANT_LIST
-	 OPpEXISTS_SUB OPpSORT_NUMERIC OPpSORT_INTEGER
-	 OPpLVAL_INTRO OPpOUR_INTRO OPpENTERSUB_AMPER OPpSLICE OPpCONST_BARE
-	 OPpSORT_REVERSE OPpMULTIDEREF_EXISTS OPpMULTIDEREF_DELETE
-	 OPpTARGET_MY
-	 PADNAMEt_OUTER
-	 PMf_KEEP PMf_GLOBAL PMf_CONTINUE PMf_EVAL PMf_ONCE
-	 PMf_MULTILINE PMf_SINGLELINE PMf_FOLD PMf_EXTENDED PMf_EXTENDED_MORE
-	 SVf_ROK SVpad_OUR SVf_FAKE SVs_RMG SVs_SMG
-	 SVpad_TYPED
-         CVf_METHOD
-         MDEREF_ACTION_MASK
-         MDEREF_AV_gvav_aelem
-         MDEREF_AV_gvsv_vivify_rv2av_aelem
-         MDEREF_AV_padav_aelem
-         MDEREF_AV_padsv_vivify_rv2av_aelem
-         MDEREF_AV_pop_rv2av_aelem
-         MDEREF_AV_vivify_rv2av_aelem
-         MDEREF_FLAG_last
-         MDEREF_HV_gvhv_helem
-         MDEREF_HV_gvsv_vivify_rv2hv_helem
-         MDEREF_HV_padhv_helem
-         MDEREF_HV_padsv_vivify_rv2hv_helem
-         MDEREF_HV_pop_rv2hv_helem
-         MDEREF_HV_vivify_rv2hv_helem
-         MDEREF_INDEX_MASK
-         MDEREF_INDEX_const
-         MDEREF_INDEX_gvsv
-         MDEREF_INDEX_none
-         MDEREF_INDEX_padsv
-         MDEREF_MASK
-         MDEREF_SHIFT
-         MDEREF_reload
-         OPpPADRANGE_COUNTSHIFT
-         OPpSPLIT_ASSIGN OPpSPLIT_LEX
+use B qw(
+    CVf_METHOD
+    MDEREF_ACTION_MASK
+    MDEREF_AV_gvav_aelem
+    MDEREF_AV_gvsv_vivify_rv2av_aelem
+    MDEREF_AV_padav_aelem
+    MDEREF_AV_padsv_vivify_rv2av_aelem
+    MDEREF_AV_pop_rv2av_aelem
+    MDEREF_AV_vivify_rv2av_aelem
+    MDEREF_FLAG_last
+    MDEREF_HV_gvhv_helem
+    MDEREF_HV_gvsv_vivify_rv2hv_helem
+    MDEREF_HV_padhv_helem
+    MDEREF_HV_padsv_vivify_rv2hv_helem
+    MDEREF_HV_pop_rv2hv_helem
+    MDEREF_HV_vivify_rv2hv_helem
+    MDEREF_INDEX_MASK
+    MDEREF_INDEX_const
+    MDEREF_INDEX_gvsv
+    MDEREF_INDEX_none
+    MDEREF_INDEX_padsv
+    MDEREF_MASK
+    MDEREF_SHIFT
+    MDEREF_reload
+    OPf_KIDS
+    OPf_MOD
+    OPf_PARENS
+    OPf_REF
+    OPf_SPECIAL
+    OPf_STACKED
+    OPf_WANT
+    OPf_WANT_LIST
+    OPf_WANT_SCALAR
+    OPf_WANT_VOID
+    OPpCONST_BARE
+    OPpENTERSUB_AMPER
+    OPpEXISTS_SUB
+    OPpLVAL_INTRO
+    OPpMULTIDEREF_DELETE
+    OPpMULTIDEREF_EXISTS
+    OPpOUR_INTRO
+    OPpPADRANGE_COUNTSHIFT
+    OPpSLICE
+    OPpSORT_
+    OPpSORT_INTEGER
+    OPpSORT_NUMERIC
+    OPpSPLIT_ASSIGN OPpSPLIT_LEX
+    OPpTARGET_MY
+    PADNAMEt_OUTER
+    PMf_CONTINUE
+    PMf_EVAL
+    PMf_EXTENDED
+    PMf_EXTENDED_MORE
+    PMf_FOLD
+    PMf_GLOBAL
+    PMf_KEEP
+    PMf_MULTILINE
+    PMf_ONCE
+    PMf_SINGLELINE
+    REVERSE
+    SVf_FAKE
+    SVf_ROK SVpad_OUR
+    SVpad_TYPED
+    SVs_RMG
+    SVs_SMG
+    class
+    main_cv
+    main_root
+    main_start
+    opnumber
+    perlstring
+    svref_2object
     );
 
 use B::DeparseTree::PPfns;

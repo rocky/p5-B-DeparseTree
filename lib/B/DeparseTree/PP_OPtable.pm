@@ -377,6 +377,13 @@ if ($] >= 5.015000) {
 }
 
 if ($is_cperl) {
+    $PP_MAPFNS{'s_cmp'} = ['maybe_targmy', 'binop', "cmp", 14];
+    $PP_MAPFNS{'s_eq'} = ['binop', "eq", 14];
+    $PP_MAPFNS{'s_ge'} = ['binop', "ge", 15];
+    $PP_MAPFNS{'s_gt'} = ['binop', "gt", 15];
+    $PP_MAPFNS{'s_le'} = ['binop', "le", 15];
+    $PP_MAPFNS{'s_lt'} = ['binop', "lt", 15];
+    $PP_MAPFNS{'s_ne'} = ['binop', "ne", 14];
     # FIXME reconcile differences in cperl. Maybe cperl is right?
     delete $PP_MAPFNS{'chdir'};
 }

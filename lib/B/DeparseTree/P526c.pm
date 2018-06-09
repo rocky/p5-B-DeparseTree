@@ -19,8 +19,7 @@ use rlib '../..';
 package B::DeparseTree::P526c;
 use Carp;
 
-use B qw(class main_root main_start main_cv svref_2object opnumber perlstring
-
+use B qw(
     CVf_METHOD
     MDEREF_ACTION_MASK
     MDEREF_AV_gvav_aelem
@@ -51,13 +50,13 @@ use B qw(class main_root main_start main_cv svref_2object opnumber perlstring
     OPf_STACKED
     OPpCONST_BARE
     OPpENTERSUB_AMPER
-    OPpSLICE
     OPpLVAL_INTRO
     OPpMULTIDEREF_DELETE
     OPpMULTIDEREF_EXISTS
     OPpOUR_INTRO
     OPpPADRANGE_COUNTSHIFT
     OPpSIGNATURE_FAKE
+    OPpSLICE
     OPpSPLIT_ASSIGN
     OPpSPLIT_LEX
     OPpTRANS_COMPLEMENT
@@ -93,6 +92,13 @@ use B qw(class main_root main_start main_cv svref_2object opnumber perlstring
     SVf_ROK SVpad_OUR
     SVpad_TYPED
     SVs_SMG
+    class
+    main_cv
+    main_root
+    main_start
+    opnumber
+    perlstring
+    svref_2object
     );
 
 use B::DeparseTree::PPfns;
@@ -113,6 +119,7 @@ use B::Deparse;
 *padany = *B::Deparse::padany;
 *padname = *B::Deparse::padname;
 *padname_sv = *B::Deparse::padname_sv;
+*padval = *B::Deparse::padval;
 *populate_curcvlex = *B::Deparse::populate_curcvlex;
 *re_flags = *B::Deparse::re_flags;
 *stash_variable = *B::Deparse::stash_variable;
@@ -1289,11 +1296,6 @@ sub regcomp
 sub pp_match { matchop(@_, "m", "/") }
 sub pp_pushre { matchop(@_, "m", "/") }
 sub pp_qr { matchop(@_, "qr", "") }
-
-# FIXME: I guessed these. Are they right?
-sub pp_s_cmp { binop(@_, "cmp", 14) }
-sub pp_s_eq { binop(@_, "cmp", 14) }
-sub pp_s_ne { binop(@_, "cmp", 14) }
 
 sub pp_split
 {
