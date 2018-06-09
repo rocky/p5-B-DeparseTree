@@ -14,6 +14,7 @@ chdir  $base_dir || die "can't cd to ${base_dir}: $!";
 chomp($base_dir = `pwd`);
 rmtree("tmp");
 mkdir("tmp");
+system('cp test.pl tmp');
 
 use Cwd 'abs_path';
 my $libdir = abs_path(File::Spec->catfile('..', '..', 'lib'));
@@ -63,5 +64,6 @@ foreach my $dir (glob '*') {
 	# To run some of the tests we need to in the directory of the test.
 	system("prove  .");
     }
+    chdir  "$base_dir" || die "can't cd to ${base_dir}: $!";
 
 }

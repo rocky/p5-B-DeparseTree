@@ -52,7 +52,9 @@ t/roundtrip/base/term.t
 t/roundtrip/base/translate.t
 t/roundtrip/base/while.t
 t/roundtrip/deparse.sh
+t/roundtrip/mro/basic_04_dfs.t
 t/roundtrip/runtests.pl
+t/roundtrip/test.pl
 t/testdata/P520.pm
 t/testdata/P522.pm
 t/testdata/P524.pm
@@ -69,4 +71,5 @@ t/unit/03-ppfns.t
 t/unit/03-treemain.t
 t/unit/04-fragment.t
 t/unit/05-load.t
+
 Makefile.PL

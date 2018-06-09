@@ -289,17 +289,17 @@ sub anon_hash_or_list($$$)
     $op = $op->first->sibling; # skip pushmark
     for (; !B::Deparse::null($op); $op = $op->sibling) {
 	$expr = $self->deparse($op, 6, $op);
-	push @exprs, [$expr, $op];
+	push @exprs, $expr;
     }
-    if ($pre eq "{" and $cx < 1) {
-	# Disambiguate that it's not a block
-	$pre = "+{";
-    }
-    my $texts = [$pre, $self->combine(", ", \@exprs), $post];
-    return info_from_list($op, $self, $texts, '', $name,
-			  {body => \@exprs,
-			   other_ops => $other_ops
-			  });
+    # if ($pre eq "{" and $cx < 1) {
+    # 	# Disambiguate that it's not a block
+    # 	$pre = "+{";
+    # }
+
+    return $self->info_from_template("$name $pre $post", $op,
+				     "$pre%C$post",
+				     [[0, $#exprs, ', ']], \@exprs,
+				     {other_ops => $other_ops});
 }
 
 sub assoc_class {
