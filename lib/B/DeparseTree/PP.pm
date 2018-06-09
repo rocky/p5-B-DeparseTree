@@ -90,6 +90,7 @@ use B qw(
     pp_exp
     pp_flop
     pp_ge
+    pp_gelem
     pp_glob
     pp_gt
     pp_gv
@@ -115,6 +116,7 @@ use B qw(
     pp_leavewhen
     pp_lineseq
     pp_list
+    pp_lslice
     pp_lt
     pp_mapstart
     pp_ne
@@ -280,8 +282,38 @@ sub pp_dofile
     $code;
 }
 
+sub pp_gelem
+{
+    my($self, $op, $cx) = @_;
+    my($rv2gv, $part) = ($op->first, $op->last);
+    my $glob = $rv2gv->first; # skip rv2gv
+    $glob = $glob->first if $glob->name eq "rv2gv"; # this one's a bug
+    my $scope = B::Deparse::is_scope($glob);
+    my $glob_node = $self->deparse($glob, 0);
+    my $part_node = $self->deparse($part, 1);
+    my $fmt = ($scope ? '*{%c}{%c}' : '*%c{%c}');
+    # FIXME: fill in $rv2gv and possibly other node skipped above.
+    return $self->info_from_template("gelem *", $fmt, undef,
+				     [$glob_node, $part_node],
+				     {other_ops => [$rv2gv]});
+}
+
 sub pp_leavegiven { givwhen(@_, $_[0]->keyword("given")); }
 sub pp_leavewhen  { givwhen(@_, $_[0]->keyword("when")); }
+
+sub pp_lslice
+{
+    my ($self, $op, $cs) = @_;
+    my $idx = $op->first;
+    my $list = $op->last;
+    my(@elems, $kid);
+    my $list_info = $self->deparse($list, 1, $op);
+    my $idx_info = $self->deparse($idx, 1, $op);
+    return $self->info_from_template('lslice ()[]',
+				     $op, '(%c)[%c]', undef,
+				     [$list_info, $idx_info]);
+}
+
 sub pp_pos { maybe_local(@_, unop(@_, "pos")) }
 
 sub pp_not

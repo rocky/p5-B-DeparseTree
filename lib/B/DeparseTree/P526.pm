@@ -465,30 +465,6 @@ sub pp_multideref
     return info_from_list($op, $self, \@texts, '', 'multideref', {});
 }
 
-sub pp_gelem
-{
-    my($self, $op, $cx) = @_;
-    my($glob, $part) = ($op->first, $op->last);
-    $glob = $glob->first; # skip rv2gv
-    $glob = $glob->first if $glob->name eq "rv2gv"; # this one's a bug
-    my $scope = B::Deparse::is_scope($glob);
-    $glob = $self->deparse($glob, 0);
-    $part = $self->deparse($part, 1);
-    return "*" . ($scope ? "{$glob}" : $glob) . "{$part}";
-}
-
-sub pp_lslice
-{
-    my ($self, $op, $cs) = @_;
-    my $idx = $op->first;
-    my $list = $op->last;
-    my(@elems, $kid);
-    my $list_info = $self->deparse($list, 1, $op);
-    my $idx_info = $self->deparse($idx, 1, $op);
-    return info_from_list($op, $self, ['(', $list_info->{text}, ')', '[', $idx_info->{text}, ']'],
-	'', 'lslice', {body=>[$list_info, $idx_info]});
-}
-
 sub _method
 {
     my($self, $op, $cx) = @_;
