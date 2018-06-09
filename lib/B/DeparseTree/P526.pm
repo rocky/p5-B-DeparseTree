@@ -62,9 +62,9 @@ use B qw(
     OPpOUR_INTRO
     OPpPADRANGE_COUNTSHIFT
     OPpSLICE
-    OPpSORT_
     OPpSORT_INTEGER
     OPpSORT_NUMERIC
+    OPpSORT_REVERSE
     OPpSPLIT_ASSIGN OPpSPLIT_LEX
     OPpTARGET_MY
     PADNAMEt_OUTER
@@ -78,7 +78,6 @@ use B qw(
     PMf_MULTILINE
     PMf_ONCE
     PMf_SINGLELINE
-    REVERSE
     SVf_FAKE
     SVf_ROK SVpad_OUR
     SVpad_TYPED
@@ -877,6 +876,7 @@ sub regcomp
 # osmic acid -- see osmium tetroxide
 
 sub pp_match { matchop(@_, "m", "/") }
+
 sub pp_pushre { matchop(@_, "m", "/") }
 sub pp_qr { matchop(@_, "qr", "") }
 

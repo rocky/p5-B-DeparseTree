@@ -31,6 +31,11 @@ use B qw(
 use B::Deparse;
 use B::DeparseTree::OPflags;
 
+# FIXME: DRY $is_cperl
+# Version specific modification are next...
+use Config;
+my $is_cperl = $Config::Config{usecperl};
+
 # Copy unchanged functions from B::Deparse
 *balanced_delim = *B::Deparse::balanced_delim;
 *double_delim = *B::Deparse::double_delim;
@@ -1898,7 +1903,51 @@ sub maybe_local_str
     }
 }
 
-sub maybe_my {
+sub maybe_my
+{
+    $] >= 5.026 ? goto &maybe_my_newer : goto &maybe_my_older;
+}
+
+sub maybe_my_newer
+{
+    my $self = shift;
+    my($op, $cx, $text, $padname, $forbid_parens) = @_;
+    # The @a in \(@a) isn't in ref context, but only when the
+    # parens are there.
+    my $need_parens = !$forbid_parens && $self->{'in_refgen'}
+		   && $op->name =~ /[ah]v\z/
+		   && ($op->flags & (B::OPf_PARENS|B::OPf_REF)) == B::OPf_PARENS;
+    # The @a in \my @a must not have parens.
+    if (!$need_parens && $self->{'in_refgen'}) {
+	$forbid_parens = 1;
+    }
+    if ($op->private & B::OPpLVAL_INTRO and not $self->{'avoid_local'}{$$op}) {
+	# Check $padname->FLAGS for statehood, rather than $op->private,
+	# because enteriter ops do not carry the flag.
+	unless (defined($padname)) {
+	    Carp::confess("undefine padname $padname");
+	}
+	my $my =
+	    $self->keyword($padname->FLAGS & B::SVpad_STATE ? "state" : "my");
+	if ($padname->FLAGS & B::SVpad_TYPED) {
+	    $my .= ' ' . $padname->SvSTASH->NAME;
+	}
+	if ($need_parens) {
+	    return $self->info_from_string("$my()", $op, "$my($text)");
+	} elsif ($forbid_parens || B::Deparse::want_scalar($op)) {
+	    return $self->info_from_string("$my", $op, "$my $text");
+	} elsif ($self->func_needs_parens($text, $cx, 16)) {
+	    return $self->info_from_string("$my()", $op, "$my($text)");
+	} else {
+	    return $self->info_from_string("$my", $op, "$my $text");
+	}
+    } else {
+	return $self->info_from_string("not my", $op, $need_parens ? "($text)" : $text);
+    }
+}
+
+sub maybe_my_older
+{
     my $self = shift;
     my($op, $cx, $text, $forbid_parens) = @_;
     if ($op->private & OPpLVAL_INTRO and not $self->{'avoid_local'}{$$op}) {
@@ -2211,7 +2260,20 @@ sub null_newer
     Carp::confess("unhandled condition in null");
 }
 
-sub pp_padsv
+sub pp_padsv {
+    $] >= 5.026 ? goto &pp_padsv_newer : goto &pp_padsv_older;
+}
+
+sub pp_padsv_newer {
+    my $self = shift;
+    my($op, $cx, $forbid_parens) = @_;
+    my $targ = $op->targ;
+    return $self->maybe_my($op, $cx, $self->padname($targ),
+			   $self->padname_sv($targ),
+			   $forbid_parens);
+}
+
+sub pp_padsv_older
 {
     my ($self, $op, $cx, $forbid_parens) = @_;
     return $self->maybe_my($op, $cx, $self->padname($op->targ),

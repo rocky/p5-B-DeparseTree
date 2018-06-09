@@ -1294,6 +1294,7 @@ sub regcomp
 }
 
 sub pp_match { matchop(@_, "m", "/") }
+
 sub pp_pushre { matchop(@_, "m", "/") }
 sub pp_qr { matchop(@_, "qr", "") }
 
