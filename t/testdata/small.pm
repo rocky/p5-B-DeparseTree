@@ -65,17 +65,16 @@ continue {
     123;
 }
 ####
-# SKIP ?1
 # lexical and package scalars
 my $x;
 print $main::x;
 ####
-# # FIXME:
-# # lexical and package arrays
-# my @x;
-# print $main::x[1];
-# print \my @a;
-# ####
+# lexical and package arrays
+# SKIP ?1
+my @x;
+print $main::x[1];
+print \my @a;
+####
 # lexical and package hashes
 my %x;
 $x{warn()};
@@ -144,8 +143,7 @@ no feature ':all';
 use feature ':5.10';
 say 'foo'
 ####
-# SKIP ?1
-CONTEXT use 5.10.0;
+# CONTEXT use 5.10.0;
 # say with use feature ':5.10' in the context of use 5.10.0
 use feature ':5.10';
 say 'foo';
