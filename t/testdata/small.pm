@@ -31,6 +31,39 @@ $test /= 2 if ++$test;
 # list x
 -((1, 2) x 2);
 ####
+# Assignment to list x
+# SKIP ?1
+((undef) x 3) = undef;
+####
+# lvalue sub
+{
+    my $test = sub : lvalue {
+	my $x
+    }
+    ;
+}
+####
+# method
+{
+    my $test = sub : method {
+	my $x
+    }
+    ;
+}
+####
+# SKIP ?1
+# anonsub attrs at statement start
+my $x = do { +sub : lvalue { my $y; } };
+my $z = do { foo: +sub : method { my $a; } };
+####
+# SKIP ?1
+# block with continue
+{
+    234;
+}
+continue {
+    123;
+}
 ####
 # SKIP ?1
 # lexical and package scalars
