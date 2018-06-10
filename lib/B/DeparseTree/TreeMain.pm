@@ -1018,10 +1018,50 @@ sub next_todo
 {
     my ($self, $parent) = @_;
     my $ent = shift @{$self->{'subs_todo'}};
-    my $cv = $ent->[1];
+    my ($seq, $cv, $is_form, $name) = @$ent;
+
+    # any 'use strict; package foo' that should come before the sub
+    # declaration to sync with the first COP of the sub
+
+    ## FIXME: $self->pragmata messes scoping up, although I don't know
+    ## how it does that.
+    # my $pragmata = '';
+    # if ($cv and !B::Deparse::null($cv->START) and B::Deparse::is_state($cv->START))  {
+    #     $pragmata = $self->B::Deparse::pragmata($cv->START);
+    # }
+
+    # if (ref $name) { # lexical sub
+    # 	# emit the sub.
+    # 	my @text;
+    # 	my $flags = $name->FLAGS;
+    # 	push @text,
+    # 	    !$cv || $seq <= $name->COP_SEQ_RANGE_LOW
+    # 		? $self->keyword($flags & B::SVpad_OUR
+    # 				    ? "our"
+    # 				    : $flags & B::SVpad_STATE
+    # 					? "state"
+    # 					: "my") . " "
+    # 		: "";
+    # 	# XXX We would do $self->keyword("sub"), but ‘my CORE::sub’
+    # 	#     doesn’t work and ‘my sub’ ignores a &sub in scope.  I.e.,
+    # 	#     we have a core bug here.
+    # 	push @text, "sub " . substr $name->PVX, 1;
+    # 	my $text = join('', @text);
+    # 	if ($cv) {
+    # 	    # my sub foo { }
+    # 	    my $cv_node = $self->deparse_sub($cv);
+    # 	    my $fmt = sprintf("%s%s%%c", $pragmata, $text);
+    # 	    return $self->info_from_template("sub", $cv,
+    # 					     $fmt, undef,
+    # 					     [$cv_node]);
+    # 	} else {
+    # 	    return $self->info_from_string("sub no body", $cv, $text);
+    # 	}
+    # }
+
     my $gv = $cv->GV;
-    my $name = $self->gv_name($gv);
-    if ($ent->[2]) {
+    $name //= $self->gv_name($gv);
+    if ($is_form) {
 	my $node = $self->deparse_format($ent->[1], $cv);
 	return $self->info_from_template("format $name",
 					 "format $name = %c",
