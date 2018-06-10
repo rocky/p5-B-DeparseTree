@@ -11,7 +11,7 @@ use constant SWAP_CHILDREN => 1;  # children of op should be reversed
 
 # Copied from B/const-xs.inc. Perl 5.16 doesn't have this
 use constant SVpad_STATE => 11;
-use constant SVpad_TYPED => 11;
+use constant SVpad_TYPED => 8;
 
 @EXPORT = qw(
     ASSIGN

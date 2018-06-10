@@ -287,8 +287,8 @@ sub anon_hash_or_list($$$)
     my($pre, $post) = @{{"anonlist" => ["[","]"],
 			 "anonhash" => ["{","}"]}->{$name}};
     my($expr, @exprs);
-    my $other_ops = [$op->first];
-    $op = $op->first->sibling; # skip pushmark
+    my $first_op = $op->first;
+    $op = $first_op->sibling; # skip pushmark
     for (; !B::Deparse::null($op); $op = $op->sibling) {
 	$expr = $self->deparse($op, 6, $op);
 	push @exprs, $expr;
@@ -298,10 +298,18 @@ sub anon_hash_or_list($$$)
     # 	$pre = "+{";
     # }
 
-    return $self->info_from_template("$name $pre $post", $op,
-				     "$pre%C$post",
-				     [[0, $#exprs, ', ']], \@exprs,
-				     {other_ops => $other_ops});
+    my $node = $self->info_from_template("$name $pre $post", $op,
+					 "$pre%C$post",
+					 [[0, $#exprs, ', ']], \@exprs);
+
+    # Set the skipped op as the opener of the list.
+    my $position = [0, 1];
+    my $first_node = $self->info_from_string($first_op->name, $first_op,
+					     $node->{text},
+					     {position => $position});
+    $node->update_other_ops($first_node);
+    return $node;
+
 }
 
 sub assoc_class {
