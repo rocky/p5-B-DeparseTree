@@ -506,10 +506,11 @@ sub pp_list
 
     my $pushmark_op = $op->first;
     my $kid = $pushmark_op->sibling; # skip a pushmark
+    my @other_ops = ($pushmark_op);
 
     if (class($kid) eq 'NULL') {
 	return info_from_text($op, $self, '', 'list_null',
-			      {other_ops => [$pushmark_op]});
+			      {other_ops => \@other_ops});
     }
     my $lop;
     my $local = "either"; # could be local(...), my(...), state(...) or our(...)
@@ -564,6 +565,7 @@ sub pp_list
     for (; !B::Deparse::null($kid); $kid = $kid->sibling) {
 	if ($local) {
 	    if (class($kid) eq "UNOP" and $kid->first->name eq "gvsv") {
+		push @other_ops, $kid;
 		$lop = $kid->first;
 	    } else {
 		$lop = $kid;
@@ -580,15 +582,14 @@ sub pp_list
     if ($local) {
 	return $self->info_from_template("$local ()", $op,
 					 "$local(%C)", [[0, $#exprs, ', ']],
-					 \@exprs,
-					 {other_ops => [$pushmark_op]});
+					 \@exprs, {other_ops => \@other_ops});
 
     } else {
 	return $self->info_from_template("list", $op,
 					 "%C", [[0, $#exprs, ', ']],
 					 \@exprs,
 					 {maybe_parens => [$self, $cx, 6],
-					 other_ops => [$pushmark_op]});
+					 other_ops => \@other_ops});
     }
 }
 
