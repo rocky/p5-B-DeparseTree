@@ -18,6 +18,7 @@ lib/B/DeparseTree.pod
 lib/B/DeparseTree/Fragment.pm
 lib/B/DeparseTree/OPflags.pm
 lib/B/DeparseTree/PP_OPtable.pm
+lib/B/DeparseTree/P516.pm
 lib/B/DeparseTree/P518.pm
 lib/B/DeparseTree/P520.pm
 lib/B/DeparseTree/P522.pm

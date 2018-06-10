@@ -34,14 +34,14 @@ use B::Deparse;
 *begin_is_use = *B::Deparse::begin_is_use;
 *const_sv = *B::Deparse::const_sv;
 *escape_extended_re = *B::Deparse::escape_extended_re;
+*find_our_type = *B::Deparse::find_our_type;
 *find_scope_en = *B::Deparse::find_scope_en;
+*gv_name = *B::Deparse::gv_name;
 *padany = *B::Deparse::padany;
 *padname = *B::Deparse::padname;
-*gv_name = *B::Deparse::gv_name;
 *padname_sv = *B::Deparse::padname_sv;
 *padval = *B::Deparse::padval;
 *populate_curcvlex = *B::Deparse::populate_curcvlex;
-*find_our_type = *B::Deparse::find_our_type;
 *re_flags = *B::Deparse::re_flags;
 *stash_variable = *B::Deparse::stash_variable;
 *stash_variable_name = *B::Deparse::stash_variable_name;
@@ -201,7 +201,7 @@ sub list_const($$$) {
 	    $prec = 9;
 	}
     }
-    return info_from_list($op, $self, \@texts,  '', $type,
+    return info_from_list('const', $self, \@texts,  '', $type,
 	{maybe_parens => [$self, $cx, $prec]});
 }
 
@@ -724,16 +724,16 @@ unless (caller) {
 	}
 	sub fileparse {
 	    no strict;
-  # my($fullname,@suffices) = @_;
+	    # my($fullname,@suffices) = @_;
 
-  my $tail   = '';
-  $tail = $1 . $tail;
+	    my $tail   = '';
+	    $tail = $1 . $tail;
 
-  # Ensure taint is propagated from the path to its pieces.
-  $tail .= $taint;
-  wantarray ? ($basename .= $taint, $dirpath .= $taint, $tail)
-            : ($basename .= $taint);
-}
+	    # Ensure taint is propagated from the path to its pieces.
+	    $tail .= $taint;
+	    wantarray ? ($basename .= $taint, $dirpath .= $taint, $tail)
+		: ($basename .= $taint);
+	}
 	sub baz {
 	    no strict;
 	    if ($basename =~ s/$pat//s) {

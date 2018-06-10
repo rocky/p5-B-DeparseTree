@@ -74,6 +74,7 @@ $VERSION = '3.2.0';
     func_needs_parens
     givwhen
     indirop
+    is_lexical_subs
     is_list_newer
     is_list_older
     listop
@@ -106,6 +107,7 @@ $VERSION = '3.2.0';
     subst_older
     unop
     );
+
 
 # The BEGIN {} is used here because otherwise this code isn't executed
 # when you run B::Deparse on itself.
@@ -1094,6 +1096,16 @@ sub indirop
     return $node;
     }
 
+# 5.16 doesn't have this so we include it, even though it's not
+# going to get used?
+sub is_lexical_subs {
+    my (@ops) = shift;
+    for my $op (@ops) {
+        return 0 if $op->name !~ /\A(?:introcv|clonecv)\z/;
+    }
+    return 1;
+}
+
 # The version of null_op_list after 5.22
 # Note: this uses "op" not "kid"
 sub is_list_newer($$) {
@@ -1928,8 +1940,8 @@ sub maybe_my_newer
 	    Carp::confess("undefine padname $padname");
 	}
 	my $my =
-	    $self->keyword($padname->FLAGS & B::SVpad_STATE ? "state" : "my");
-	if ($padname->FLAGS & B::SVpad_TYPED) {
+	    $self->keyword($padname->FLAGS & SVpad_STATE ? "state" : "my");
+	if ($padname->FLAGS & SVpad_TYPED) {
 	    $my .= ' ' . $padname->SvSTASH->NAME;
 	}
 	if ($need_parens) {
@@ -2723,7 +2735,7 @@ sub scopeop
 	# inside an expression, (a do {} while for lineseq)
 	my $body = $self->lineseq($op, 0, @kids);
 	my $text;
-	if (B::Deparse::is_lexical_subs(@kids)) {
+	if (is_lexical_subs(@kids)) {
 	    return $self->info_from_template("scoped do", $op,
 					     'do {\n%+%c\n%-}',
 					     [0], [$body]);

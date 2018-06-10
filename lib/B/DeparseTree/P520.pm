@@ -78,6 +78,8 @@ BEGIN { for (qw[rv2sv list]) {
     eval "sub OP_\U$_ () { " . opnumber($_) . "}"
 }}
 
+# The following OPs don't have functions:
+
 # pp_padany -- does not exist after parsing
 
 sub AUTOLOAD {
@@ -199,6 +201,7 @@ sub pp_rv2av {
 	my $av = $self->const_sv($kid);
 	return $self->list_const($kid, $cx, $av->ARRAY);
     } else {
+	# FIXME?
 	return $self->maybe_local($op, $cx, $self->rv2x($op, $cx, "\@"));
     }
  }
@@ -503,7 +506,7 @@ sub re_dq {
     my ($re_dq_info, $fmt);
 
     my $type = $op->name;
-    my ($re, @texts, $type);
+    my ($re, @texts);
     my $opts = {};
     if ($type eq "const") {
 	return info_from_text($op, $self, '$[', 're_dq_const', {})
@@ -548,7 +551,6 @@ sub re_dq {
 	$info->{text} =~ s/^\$([(|)])\z/\${$1}/; # $( $| $) need braces
 	return $info;
     }
-    $opts->{body} = [$re];
     return info_from_list($op, $self, \@texts, '', $type, $opts);
 }
 
@@ -759,16 +761,16 @@ unless (caller) {
 	}
 	sub fileparse {
 	    no strict;
-  # my($fullname,@suffices) = @_;
+	    # my($fullname,@suffices) = @_;
 
-  my $tail   = '';
-  $tail = $1 . $tail;
+	    my $tail   = '';
+	    $tail = $1 . $tail;
 
-  # Ensure taint is propagated from the path to its pieces.
-  $tail .= $taint;
-  wantarray ? ($basename .= $taint, $dirpath .= $taint, $tail)
-            : ($basename .= $taint);
-}
+	    # Ensure taint is propagated from the path to its pieces.
+	    $tail .= $taint;
+	    wantarray ? ($basename .= $taint, $dirpath .= $taint, $tail)
+		: ($basename .= $taint);
+	}
 	sub baz {
 	    no strict;
 	    if ($basename =~ s/$pat//s) {
@@ -785,9 +787,8 @@ unless (caller) {
     # print $deparse->($deparse->deparse_subname('fib')->{text});
     # print "\n", '=' x 30, "\n";
     # print "\n", '-' x 30, "\n";
-    my $parent_op_name;
     while (my($key, $value) = each %{$deparse->{optree}}) {
-
+	my $parent_op_name = 'undef';
 	if ($value->{parent}) {
 	    my $parent = $deparse->{optree}{$value->{parent}};
 	    $parent_op_name = $parent->{op}->name if $parent->{op};

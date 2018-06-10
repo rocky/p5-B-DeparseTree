@@ -41,6 +41,7 @@ use B qw(class
 
 use Carp;
 use B::Deparse;
+use B::DeparseTree::OPflags;
 use B::DeparseTree::PP_OPtable;
 use B::DeparseTree::SyntaxTree;
 
@@ -86,8 +87,7 @@ my $is_cperl = $Config::Config{usecperl};
 
 my $module;
 if ($] >= 5.016 and $] < 5.018) {
-    # 5.16 and 5.18 are the same for now
-    $module = "P518";
+    $module = "P516";
 } elsif ($] >= 5.018 and $] < 5.020) {
     $module = "P518";
 } elsif ($] >= 5.020 and $] < 5.022) {
@@ -1038,7 +1038,7 @@ sub next_todo
     # 	    !$cv || $seq <= $name->COP_SEQ_RANGE_LOW
     # 		? $self->keyword($flags & B::SVpad_OUR
     # 				    ? "our"
-    # 				    : $flags & B::SVpad_STATE
+    # 				    : $flags & SVpad_STATE
     # 					? "state"
     # 					: "my") . " "
     # 		: "";
