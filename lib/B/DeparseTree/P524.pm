@@ -672,27 +672,6 @@ sub check_proto {
     return ('', \@reals);
 }
 
-# Split a floating point number into an integer mantissa and a binary
-# exponent. Assumes you've already made sure the number isn't zero or
-# some weird infinity or NaN.
-sub split_float {
-    my($f) = @_;
-    my $exponent = 0;
-    if ($f == int($f)) {
-	while ($f % 2 == 0) {
-	    $f /= 2;
-	    $exponent++;
-	}
-    } else {
-	while ($f != int($f)) {
-	    $f *= 2;
-	    $exponent--;
-	}
-    }
-    my $mantissa = sprintf("%.0f", $f);
-    return ($mantissa, $exponent);
-}
-
 # OP_STRINGIFY is a listop, but it only ever has one arg
 sub pp_stringify {
     my ($self, $op, $cx) = @_;

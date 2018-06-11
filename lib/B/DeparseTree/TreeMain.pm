@@ -333,7 +333,7 @@ sub const {
 	    if ($str != $nv) {
 		# not representable in decimal with whatever sprintf()
 		# and atof() Perl is using here.
-		my($mant, $exp) = split_float($nv);
+		my($mant, $exp) = B::Deparse::split_float($nv);
 		return info_from_text($sv, $self, $self->maybe_parens("$mant * 2**$exp", $cx, 19),
 				 'constant float not-sprintf/atof-able', {});
 	    }

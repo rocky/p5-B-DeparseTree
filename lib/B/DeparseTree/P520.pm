@@ -462,27 +462,6 @@ sub check_proto {
 my $max_prec;
 BEGIN { $max_prec = int(0.999 + 8*length(pack("F", 42))*log(2)/log(10)); }
 
-# Split a floating point number into an integer mantissa and a binary
-# exponent. Assumes you've already made sure the number isn't zero or
-# some weird infinity or NaN.
-sub split_float {
-    my($f) = @_;
-    my $exponent = 0;
-    if ($f == int($f)) {
-	while ($f % 2 == 0) {
-	    $f /= 2;
-	    $exponent++;
-	}
-    } else {
-	while ($f != int($f)) {
-	    $f *= 2;
-	    $exponent--;
-	}
-    }
-    my $mantissa = sprintf("%.0f", $f);
-    return ($mantissa, $exponent);
-}
-
 sub pp_const {
     my $self = shift;
     my($op, $cx) = @_;
