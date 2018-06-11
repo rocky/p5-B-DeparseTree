@@ -731,7 +731,7 @@ sub pp_const {
     return $self->const($sv, $cx);;
 }
 
-# Handle subroutien calls. These are a bit complicated.
+# Handle subroutine calls. These are a bit complicated.
 # NOTE: this is not right for CPerl, so it needs to be split out.
 sub pp_entersub
 {
@@ -740,12 +740,13 @@ sub pp_entersub
         unless B::Deparse::null $op->first->sibling;
     my $prefix = "";
     my $amper = "";
-    my($kid, @exprs);
+    my($kid, @exprs, @args_spec);
     if ($op->flags & OPf_SPECIAL && !($op->flags & OPf_MOD)) {
 	$prefix = "do ";
     } elsif ($op->private & OPpENTERSUB_AMPER) {
 	$amper = "&";
     }
+
     $kid = $op->first;
 
     my $other_ops = [$kid, $kid->first];
@@ -847,10 +848,10 @@ sub pp_entersub
 	    $subname_info->{text} = join('', $subname_info->{texts});
 	}
 	if ($op->flags & OPf_STACKED) {
-	    $type = 'prefix- or &-stacked call()';
+	    $type = "$prefix$amper call()";
 	    @texts = ($prefix, $amper, $subname_info, "(", $self->combine2str(', ', \@body), ")");
 	} else {
-	    $type = 'prefix or &- call';
+	    $type = "$prefix$amper call";
 	    @texts = ($prefix, $amper, $subname_info);
 	}
     } else {
