@@ -236,6 +236,7 @@ use vars qw(%PP_MAPFNS);
     'lstat'       => 'filetest',
 
     'mapwhile'    => ['mapop', 'map'],
+    'match'       => ['matchop', 'm', "/"],
     'mkdir'       => ['maybe_targmy', 'listop'],
     'modulo'      => ['maybe_targmy', 'binop', "%", 19, ASSIGN],
     'msgctl'      => 'listop',
@@ -266,8 +267,10 @@ use vars qw(%PP_MAPFNS);
     'pow'         => ['maybe_targmy', 'binop', "**", 22, ASSIGN],
     'prototype'   => 'unop',
     'push'        => ['maybe_targmy', 'listop'],
+#    'pushre'      => ['matchop', 'm', '/'],
 
     'quotemeta'   => ['maybe_targmy', 'dq_unop'],
+#    'qr'          => ['matchop', 'qr', '/'],
 
     'rand'        => ['maybe_targmy', 'unop'],
     'read'        => 'listop',

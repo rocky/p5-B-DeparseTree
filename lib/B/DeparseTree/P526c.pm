@@ -1293,11 +1293,6 @@ sub regcomp
     return ($self->deparse($kid, $cx, $op), 0, $op);
 }
 
-sub pp_match { matchop(@_, "m", "/") }
-
-sub pp_pushre { matchop(@_, "m", "/") }
-sub pp_qr { matchop(@_, "qr", "") }
-
 sub pp_split
 {
     my($self, $op, $cx) = @_;

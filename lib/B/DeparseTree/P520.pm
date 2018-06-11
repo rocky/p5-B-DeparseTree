@@ -675,10 +675,6 @@ sub re_flags
     $flags;
 }
 
-sub pp_match { matchop(@_, "m", "/") }
-sub pp_pushre { matchop(@_, "m", "/") }
-sub pp_qr { matchop(@_, "qr", "") }
-
 sub pp_split
 {
     my($self, $op, $cx) = @_;
