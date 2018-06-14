@@ -48,7 +48,6 @@ use B qw(class opnumber
     MDEREF_INDEX_gvsv
     MDEREF_INDEX_MASK
     MDEREF_FLAG_last
-    MDEREF_MASK
     MDEREF_SHIFT
 );
 
@@ -60,7 +59,6 @@ use B::Deparse;
 # Copy unchanged functions from B::Deparse
 *begin_is_use = *B::Deparse::begin_is_use;
 *const_sv = *B::Deparse::const_sv;
-*find_scope_st = *B::Deparse::find_scope_st;
 *gv_name = *B::Deparse::gv_name;
 *meth_rclass_sv = *B::Deparse::meth_rclass_sv;
 *meth_sv = *B::Deparse::meth_sv;
@@ -148,7 +146,10 @@ my %strong_proto_keywords = map { $_ => 1 } qw(
     undef
 );
 
-# FIXME: we can't make this common just yet.
+# FIXME remove dup with 5.22 and 5.18
+# NOTE: This is the deparse 5.26 routine which
+# differs from 5.18 in that adds CORE:: when
+# appropriate.
 sub keyword {
     my $self = shift;
     my $name = shift;
@@ -919,7 +920,6 @@ sub split
 	push @exprs, $self->deparse($kid, 6, $op);
     }
 
-    push @body, @exprs;
     my $opts = {body => \@exprs};
 
     my @args_texts = map $_->{text}, @exprs;
@@ -1002,6 +1002,9 @@ sub pp_chdir {
 	maybe_targmy(@_, \&unop, "chdir")
     }
 }
+
+# Not in Perl 5.20 and presumeably < 5.20. No harm in adding to 5.20?
+*pp_ncomplement = *pp_complement;
 
 unless (caller) {
     eval "use Data::Printer;";

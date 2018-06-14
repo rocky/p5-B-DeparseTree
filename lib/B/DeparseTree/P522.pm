@@ -100,7 +100,7 @@ BEGIN {
 }
 
 BEGIN { for (qw[ rv2sv aelem
-		 rv2av rv2hv helem ]) {
+		 rv2av rv2hv helem custom]) {
     eval "sub OP_\U$_ () { " . opnumber($_) . "}"
 }}
 
@@ -108,7 +108,9 @@ BEGIN { for (qw[ rv2sv aelem
 
 sub AUTOLOAD {
     if ($AUTOLOAD =~ s/^.*::pp_//) {
-	warn "unexpected OP_".uc $AUTOLOAD;
+	warn "unexpected OP_".
+	    ($_[1]->type == OP_CUSTOM ? "CUSTOM ($AUTOLOAD)" : uc $AUTOLOAD);
+	return "XXX";
     } else {
 	Carp::confess "Undefined subroutine $AUTOLOAD called";
     }
@@ -178,6 +180,7 @@ sub keyword {
     return $name;
 }
 
+# Note: maybe_local things can't be moved to PP yet.
 { no strict 'refs'; *{"pp_r$_"} = *{"pp_$_"} for qw< keys each values >; }
 
 # Truncate is special because OPf_SPECIAL makes a bareword first arg
@@ -431,7 +434,7 @@ sub pp_multideref
             {
                 if (   ($op->flags & OPf_KIDS)
 		       && (   B::Deparse::_op_is_or_was($op->first, OP_RV2AV)
-			      || _op_is_or_was($op->first, OP_RV2HV))
+			      || B::Deparse::_op_is_or_was($op->first, OP_RV2HV))
 		       && ($op->first->flags & OPf_KIDS)
 		       && (   B::Deparse::_op_is_or_was($op->first->first, OP_AELEM)
 			      || B::Deparse::_op_is_or_was($op->first->first, OP_HELEM))
@@ -912,7 +915,8 @@ sub split
 
     # Skip the last kid when OPf_STACKED is set, since it is the array
     # on the left.
-    for (; !null($stacked ? $kid->sibling : $kid); $kid = $kid->sibling) {
+    for (; !B::Deparse::null($stacked ? $kid->sibling : $kid);
+	 $kid = $kid->sibling) {
 	push @exprs, $self->deparse($kid, 6, $op);
     }
 
