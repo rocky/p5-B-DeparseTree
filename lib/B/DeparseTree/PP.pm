@@ -752,6 +752,8 @@ sub pp_entersub
     my $other_ops = [$kid, $kid->first];
     $kid = $kid->first->sibling; # skip ex-list, pushmark
 
+    my $kid_start = $kid;
+    # FIXME: phase this out.
     for (; not B::Deparse::null $kid->sibling; $kid = $kid->sibling) {
 	push @exprs, $kid;
     }
@@ -827,18 +829,19 @@ sub pp_entersub
 	}
     }
 
-    my (@texts, @body, $type);
-    @body = ();
+    my (@texts, @nodes, $type);
+    @nodes = ();
     if ($declared and defined $proto and not $amper) {
 	my $args;
 	($amper, $args) = $self->check_proto($op, $proto, @exprs);
 	if ($amper eq "&") {
-	    @body = map($self->deparse($_, 6, $op), @exprs);
+	    $self->deparse_op_siblings(\@nodes, $kid_start, $op, 6);
 	} else {
-	    @body = @$args if @$args;
+	    @nodes = @$args if @$args;
 	}
     } else {
-	@body  = map($self->deparse($_, 6, $op), @exprs);
+	$self->deparse_op_siblings(\@nodes, $kid_start, $op, 6);
+	@nodes  = map($self->deparse($_, 6, $op), @exprs);
     }
 
     if ($prefix or $amper) {
@@ -849,7 +852,7 @@ sub pp_entersub
 	}
 	if ($op->flags & OPf_STACKED) {
 	    $type = "$prefix$amper call()";
-	    @texts = ($prefix, $amper, $subname_info, "(", $self->combine2str(', ', \@body), ")");
+	    @texts = ($prefix, $amper, $subname_info, "(", $self->combine2str(', ', \@nodes), ")");
 	} else {
 	    $type = "$prefix$amper call";
 	    @texts = ($prefix, $amper, $subname_info);
@@ -861,11 +864,21 @@ sub pp_entersub
 	$subname_info->{text} =~ s/^CORE::GLOBAL:://;
 	my $dproto = defined($proto) ? $proto : "undefined";
         if (!$declared) {
-	    $type = 'call (no prior declaration)';
-	    @texts = dedup_parens_func($self, $subname_info, \@body);
-	    my $node = B::DeparseTree::TreeNode->new($op, $self, \@texts,
-						     '', $type,
-						     {other_ops => $other_ops});
+	    $type = 'call (fn without prototype)';
+	    my ($fmt, $args_spec);
+	    my $first_param_text = (@nodes > 0) ? $nodes[0]->{text} : '';
+	    unshift @nodes, $subname_info;
+	    if ($self->dedup_func_parens(\@nodes)) {
+		$fmt = "%c %c";
+		$args_spec = undef;
+	    } else {
+		$fmt = "%c(%C)";
+		$args_spec = [0, [1, $#nodes, ', ']];
+	    }
+	    my $node = $self->info_from_template($type, $op, $fmt, $args_spec,
+						 \@nodes,
+						 {other_ops => $other_ops});
+
 
 	    # Take the subname_info portion of $node and use that as the
 	    # part of the parent, null, pushmark ops.
@@ -892,17 +905,17 @@ sub pp_entersub
 	    # top operator of $exprs[0] (ala unop()), but that would
 	    # take some major code restructuring to do right.
 	    @texts = $self->maybe_parens_func($sub_name,
-					      $self->combine2str(', ', \@body), $cx, 16);
+					      $self->combine2str(', ', \@nodes), $cx, 16);
 	} elsif ($dproto ne '$' and defined($proto) || $simple) { #'
 	    $type = "call $sub_name having prototype";
 	    @texts = $self->maybe_parens_func($sub_name,
-					      $self->combine2str(', ', \@body), $cx, 5);
+					      $self->combine2str(', ', \@nodes), $cx, 5);
 	    return B::DeparseTree::TreeNode->new($op, $self, \@texts,
 						 '', $type,
 						 {other_ops => $other_ops});
 	} else {
 	    $type = 'call';
-	    @texts = dedup_parens_func($self, $subname_info, \@body);
+	    @texts = dedup_parens_func($self, $subname_info, \@nodes);
 	    return B::DeparseTree::TreeNode->new($op, $self, \@texts,
 						 '', $type,
 						 {other_ops => $other_ops});

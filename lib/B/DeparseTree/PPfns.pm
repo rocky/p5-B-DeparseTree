@@ -58,6 +58,7 @@ $VERSION = '3.2.0';
     code_list
     concat
     cops
+    dedup_func_parens
     dedup_parens_func
     deparse_binop_left
     deparse_binop_right
@@ -670,6 +671,17 @@ sub deparse_format($$$)
     $info->{text} = $self->combine2str(\@texts) . "\f.";
     $info->{texts} = \@texts;
     return $info;
+}
+
+sub dedup_func_parens($$)
+{
+    my $self = shift;
+    my ($args_ref) = @_;
+    my @args = @$args_ref;
+    return (
+	scalar @args == 1 &&
+	substr($args[0]->{text}, 0, 1) eq '(' &&
+	substr($args[0]->{text}, 0, 1) eq ')');
 }
 
 sub dedup_parens_func($$$)
