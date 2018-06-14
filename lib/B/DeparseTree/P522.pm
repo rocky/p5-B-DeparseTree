@@ -841,39 +841,6 @@ sub regcomp
     return ($self->deparse($kid, $cx, $op), 0, $op);
 }
 
-sub re_flags
-{
-    my ($self, $op) = @_;
-    my $flags = '';
-    my $pmflags = $op->pmflags;
-    $flags .= "g" if $pmflags & PMf_GLOBAL;
-    $flags .= "i" if $pmflags & PMf_FOLD;
-    $flags .= "m" if $pmflags & PMf_MULTILINE;
-    $flags .= "o" if $pmflags & PMf_KEEP;
-    $flags .= "s" if $pmflags & PMf_SINGLELINE;
-    $flags .= "x" if $pmflags & PMf_EXTENDED;
-    $flags .= "p" if $pmflags & RXf_PMf_KEEPCOPY;
-    if (my $charset = $pmflags & RXf_PMf_CHARSET) {
-	# Hardcoding this is fragile, but B does not yet export the
-	# constants we need.
-	$flags .= qw(d l u a aa)[$charset >> 5]
-    }
-    # The /d flag is indicated by 0; only show it if necessary.
-    elsif ($self->{hinthash} and
-	     $self->{hinthash}{reflags_charset}
-	    || $self->{hinthash}{feature_unicode}
-	or $self->{hints} & $feature::hint_mask
-	  && ($self->{hints} & $feature::hint_mask)
-	       != $feature::hint_mask
-	  && do {
-		$self->{hints} & $feature::hint_uni8bit;
-	     }
-  ) {
-	$flags .= 'd';
-    }
-    $flags;
-}
-
 sub pp_split {
     maybe_targmy(@_, \&split, "split");
 }
