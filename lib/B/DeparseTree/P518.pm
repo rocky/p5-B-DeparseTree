@@ -41,6 +41,7 @@ use B::Deparse;
 *padval = *B::Deparse::padval;
 *populate_curcvlex = *B::Deparse::populate_curcvlex;
 *re_flags = *B::Deparse::re_flags;
+*rv2gv_or_string = *B::Deparse::rv2gv_or_string;
 *stash_variable = *B::Deparse::stash_variable;
 *stash_variable_name = *B::Deparse::stash_variable_name;
 *tr_chr = *B::Deparse::tr_chr;
