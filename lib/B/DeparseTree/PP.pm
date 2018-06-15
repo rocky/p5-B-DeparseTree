@@ -363,6 +363,10 @@ sub pp_smartmatch {
     }
 }
 
+# Truncate is special because OPf_SPECIAL makes a bareword first arg
+# be a filehandle. This could probably be better fixed in the core
+# by moving the GV lookup into ck_truc.
+
 sub pp_truncate
 {
     my($self, $op, $cx) = @_;
