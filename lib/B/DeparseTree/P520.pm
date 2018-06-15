@@ -28,6 +28,6 @@ use warnings ();
 our(@EXPORT, @ISA);
 our $VERSION = '3.2.0';
 
-@ISA = qw(Exporter B::DeparseTree::P518);
+@ISA = qw(B::DeparseTree::P518);
 
 1;

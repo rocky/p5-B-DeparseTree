@@ -124,7 +124,7 @@ require feature;
 our(@EXPORT, @ISA);
 our $VERSION = '3.2.0';
 
-@ISA = qw(Exporter B::DeparseTree::PP);
+@ISA = qw(B::DeparseTree::PP);
 
 @EXPORT = qw(slice);
 

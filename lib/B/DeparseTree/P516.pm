@@ -20,5 +20,5 @@ our $VERSION = '3.2.0';
 # Is the same as P518. Note however
 # we import from B::Deparse and there are differences
 # in those routines between 5.16 and 5.18
-@ISA = qw(Exporter B::DeparseTree::P518);
+@ISA = qw(B::DeparseTree::P518);
 1;

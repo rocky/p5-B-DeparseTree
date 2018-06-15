@@ -6,7 +6,7 @@ use warnings; use strict;
 use File::Temp qw/ tempfile tempdir /;
 
 if ($] < 5.018 || $] > 5.0269) {
-    plan skip_all => 'Customized to Perl 5.22 - 5.26 interpreters';
+    plan skip_all => 'Customized to Perl 5.18 - 5.26 interpreters';
 }
 
 if ($ENV{'CIRCLECI'}) {

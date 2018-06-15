@@ -78,13 +78,7 @@ use vars qw/$AUTOLOAD/;
 use warnings ();
 require feature;
 
-our(@EXPORT, @ISA);
 our $VERSION = '3.2.0';
-
-# Is the same as P522. Note however
-# we import from B::Deparse and there are differences
-# in those routines between 5.22 and 5.24
-@ISA = qw(Exporter B::DeparseTree::P522);
 
 BEGIN {
     # List version-specific constants here.
