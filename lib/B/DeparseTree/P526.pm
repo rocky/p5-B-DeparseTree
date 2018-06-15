@@ -568,10 +568,10 @@ sub e_method {
     my @body = ($obj);
     my $other_ops = $minfo->{other_ops};
 
-    my $meth = $minfo->{method};
-    my $meth_info;
+    my $meth_name = $minfo->{method};
+    my $meth_info = undef;
     if ($minfo->{variable_method}) {
-	$meth_info = $self->deparse($meth, 1, $op);
+	$meth_info = $self->deparse($meth_name, 1, $op);
 	push @body, $meth_info;
     }
     my @args = map { $self->deparse($_, 6, $op) } @{$minfo->{args}};
@@ -579,7 +579,7 @@ sub e_method {
     my @args_texts = map $_->{text}, @args;
     my $args = join(", ", @args_texts);
 
-    my $opts = {body => \@body, other_ops => $other_ops};
+    my $opts = {other_ops => $other_ops};
     my @texts = ();
     my $type;
 
@@ -589,23 +589,33 @@ sub e_method {
 	# of $object.
 	my $need_paren = $cx >= 6;
 	if ($need_paren) {
-	    @texts = ('(', $meth,  substr($obj,2),
+	    @texts = ('(', $meth_name,  substr($obj,2),
 		      $args, ')');
-	    $type = 'e_method_list_paren';
+	    $type = 'e_method list ()';
 	} else {
-	    @texts = ($meth,  substr($obj,2), $args);
-	    $type = 'e_method_list';
+	    @texts = ($meth_name,  substr($obj,2), $args);
+	    $type = 'e_method list, no ()';
 	}
 	return info_from_list($op, $self, \@texts, '', $type, $opts);
     }
-    if (length $args) {
-	@texts = ($obj->{text}, '->', $meth, '(', $args, ')');
-	$type = 'e_method_args';
+    my @nodes = ($obj, $meth_info ? $meth_info : $meth_name);
+    my $fmt;
+    my @args_spec = (0, 1);
+    if (@{$minfo->{args}}) {
+	my $prev_expr = undef;
+	foreach my $arg (@{$minfo->{args}}) {
+	    my $expr = $self->deparse($arg, 6, $op);
+	    $expr->{prev_expr} = $prev_expr;
+	    push @nodes, $expr;
+	}
+	$fmt = "%c->%c(%C)";
+	push @args_spec, [2, $#nodes, ', '];
+	$type = '$obj->method()';
     } else {
-	@texts = ($obj->{text}, '->', $meth);
-	$type = 'e_method_null';
+	$type = '$obj->method';
+	$fmt = "%c->%c";
     }
-    return info_from_list($op, $self, \@texts, '', $type, $opts);
+    return $self->info_from_template($type, $op, $fmt, \@args_spec, \@nodes, $opts);
 }
 
 # returns "&"  and the argument bodies if the prototype doesn't match the args,

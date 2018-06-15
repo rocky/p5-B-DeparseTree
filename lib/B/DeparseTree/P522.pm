@@ -547,7 +547,7 @@ sub e_method {
     my $other_ops = $minfo->{other_ops};
 
     my $meth_name = $minfo->{method};
-    my $meth_info;
+    my $meth_info = undef;
     if ($minfo->{variable_method}) {
 	$meth_info = $self->deparse($meth_name, 1, $op);
 	push @body, $meth_info;
@@ -569,7 +569,7 @@ sub e_method {
 	# of $object.
 	my $need_paren = $cx >= 6;
 	if ($need_paren) {
-	    @texts = ('(', $meth_object,  substr($obj,2),
+	    @texts = ('(', $meth_name,  substr($obj,2),
 		      $args, ')');
 	    $type = 'e_method list ()';
 	} else {
@@ -579,14 +579,24 @@ sub e_method {
 	return info_from_list($op, $self, \@texts, '', $type, $opts);
     }
 
-    if (length $args) {
-	@texts = ($obj, '->', $meth_object, '(', $args, ')');
-	$type = 'e_method -> ()';
+    my @nodes = ($obj, $meth_info ? $meth_info : $meth_name);
+    my $fmt;
+    my @args_spec = (0, 1);
+    if (@{$minfo->{args}}) {
+	my $prev_expr = undef;
+	foreach my $arg (@{$minfo->{args}}) {
+	    my $expr = $self->deparse($arg, 6, $op);
+	    $expr->{prev_expr} = $prev_expr;
+	    push @nodes, $expr;
+	}
+	$fmt = "%c->%c(%C)";
+	push @args_spec, [2, $#nodes, ', '];
+	$type = '$obj->method()';
     } else {
-	@texts = ($obj, '->', $meth_object);
-	$type = 'e_method -> no ()';
+	$type = '$obj->method';
+	$fmt = "%c->%c";
     }
-    return info_from_list($op, $self, \@texts, '', $type, $opts);
+    return $self->info_from_template($type, $op, $fmt, \@args_spec, \@nodes, $opts);
 }
 
 # returns "&"  and the argument bodies if the prototype doesn't match the args,
