@@ -6,8 +6,67 @@ package B::DeparseTree::TreeNode;
 use Carp;
 use Config;
 my $is_cperl = $Config::Config{usecperl};
+use Data::Printer;
 
 use Hash::Util qw[ lock_hash ];
+
+# A custom Data::Printer for a TreeNode object
+sub _data_printer {
+    my ($self, $properties) = @_;
+    my $indent = "\n    ";
+    my $subindent = $indent . '    ';
+    my $msg = "B::DeparseTree::TreeNode {";
+    foreach my $field (
+	qw(addr child_pos cop fmt indexes maybe_parens op other_ops
+	omit_next_semicolon_position
+	parent text texts type)) {
+	next if not exists $self->{$field};
+	my $data = $self->{$field};
+	next if not defined $data;
+	$msg .= sprintf("%s%-10s:\t", $indent, $field);
+	if ($field eq 'addr' or $field eq 'parent') {
+	    $msg .= sprintf("0x%x", $data);
+	} elsif ($field eq 'cop') {
+	    if (defined $data) {
+		$msg .=  sprintf("%s:%s", $data->file, $data->line);
+		$msg .= ", " . $data->name if $data->can("name");
+	    }
+	} elsif ($field eq 'op') {
+	    $msg .= $data->name . ', ' if $data->can("name");
+	    $msg .=  $data;
+	} elsif ($field eq 'indexes') {
+	    my $str = np @{$data};
+	    my @lines = split(/\n/, $str);
+	    if (@lines < 4) {
+		$str = sprintf("[%s]", join(", ", @{$data}));
+	    } else {
+		$str = join($subindent, @lines);
+	    }
+	    $msg .=  $str;
+	} elsif ($field eq 'texts' or $field eq 'other_ops') {
+	    if (!@$data) {
+		$msg .= '[]';
+	    } else {
+		$msg .= '[';
+		my $i=0;
+		foreach my $item (@$data) {
+		    $msg .= sprintf("%s[%d]: ", $subindent, $i++);
+		    if (ref($item) eq 'B::DeparseTree::TreeNode') {
+			$msg .= sprintf("B::DeparseTree::TreeNode 0x%x %s",
+					$item->{addr}, $item->{type});
+		    } else {
+			$msg .= sprintf("%s", $item);
+		    }
+		}
+		$msg .= $indent . ']';
+	    }
+	} else {
+	    $msg .=  np $data;
+	}
+    }
+    $msg .= "\n}";
+    return $msg;
+};
 
 # Set of unary precedences
 our %UNARY_PRECEDENCES = (
