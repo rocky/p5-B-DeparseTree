@@ -52,7 +52,6 @@ use B::DeparseTree::SyntaxTree;
 *lex_in_scope = *B::Deparse::lex_in_scope;
 *padname = *B::Deparse::padname;
 *print_protos = *B::Deparse::print_protos;
-*rv2gv_or_string = *B::Deparse::rv2gv_or_string;
 *stash_subs = *B::Deparse::stash_subs;
 *stash_variable = *B::Deparse::stash_variable;
 *todo = *B::Deparse::todo;

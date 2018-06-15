@@ -1043,6 +1043,11 @@ sub pp_readline {
     return $node
 }
 
+sub pp_split {
+    # 5.20 might drop "maybe_targmy?"
+    maybe_targmy(@_, \&split, "split");
+}
+
 sub pp_subst {
     $] < 5.022 ? subst_older(@_) : subst_newer(@_);
 }

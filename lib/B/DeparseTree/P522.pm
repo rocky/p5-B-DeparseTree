@@ -1,4 +1,3 @@
-# B::DeparseTree::P522.pm
 # Copyright (c) 1998-2000, 2002, 2003, 2004, 2005, 2006 Stephen McCamant.
 # Copyright (c) 2015, 2018 Rocky Bernstein
 # All rights reserved.
@@ -11,8 +10,6 @@
 
 # B::Parse in turn is based on the module of the same name by Malcolm Beattie,
 # but essentially none of his code remains.
-
-use v5.22;
 
 use rlib '../..';
 
@@ -61,6 +58,7 @@ use B::Deparse;
 *const_sv = *B::Deparse::const_sv;
 *escape_extended_re = *B::Deparse::escape_extended_re;
 *find_our_type = *B::Deparse::find_our_type;
+*find_scope_st = *B::Deparse::find_scope_st;
 *gv_name = *B::Deparse::gv_name;
 *meth_rclass_sv = *B::Deparse::meth_rclass_sv;
 *meth_sv = *B::Deparse::meth_sv;
@@ -70,6 +68,7 @@ use B::Deparse;
 *padval = *B::Deparse::padval;
 *populate_curcvlex = *B::Deparse::populate_curcvlex;
 *re_flags = *B::Deparse::re_flags;
+*rv2gv_or_string = *B::Deparse::rv2gv_or_string;
 *stash_variable = *B::Deparse::stash_variable;
 *stash_variable_name = *B::Deparse::stash_variable_name;
 *tr_chr = *B::Deparse::tr_chr;
@@ -259,7 +258,7 @@ sub list_const($$$) {
 	    $prec = 9;
 	}
     }
-    return info_from_list($op, $self, \@texts,  '', $type,
+    return info_from_list('const', $self, \@texts,  '', $type,
 	{maybe_parens => [$self, $cx, $prec]});
 }
 
@@ -839,79 +838,6 @@ sub regcomp
 	return ($info, 1);
     }
     return ($self->deparse($kid, $cx, $op), 0, $op);
-}
-
-sub pp_split {
-    maybe_targmy(@_, \&split, "split");
-}
-
-sub split
-{
-    my($self, $op, $cx) = @_;
-    my($kid, @exprs, $ary_info, $expr);
-    my $ary = '';
-    my @body = ();
-    my @other_ops = ();
-    $kid = $op->first;
-
-    # For our kid (an OP_PUSHRE), pmreplroot is never actually the
-    # root of a replacement; it's either empty, or abused to point to
-    # the GV for an array we split into (an optimization to save
-    # assignment overhead). Depending on whether we're using ithreads,
-    # this OP* holds either a GV* or a PADOFFSET. Luckily, B.xs
-    # figures out for us which it is.
-    my $replroot = $kid->pmreplroot;
-    my $gv = 0;
-    my $stacked = $op->flags & OPf_STACKED;
-    if (ref($replroot) eq "B::GV") {
-	$gv = $replroot;
-    } elsif (!ref($replroot) and $replroot > 0) {
-	$gv = $self->padval($replroot);
-    } elsif ($kid->targ) {
-	$ary = $self->padname($kid->targ)
-    } elsif ($stacked) {
-	$ary_info = $self->deparse($op->last, 7, $op);
-	push @body, $ary_info;
-	$ary = $ary_info->{text};
-    }
-    $ary_info = $self->maybe_local(@_,
-			      $self->stash_variable('@',
-						     $self->gv_name($gv),
-						     $cx))
-	if $gv;
-
-    # Skip the last kid when OPf_STACKED is set, since it is the array
-    # on the left.
-    for (; !B::Deparse::null($stacked ? $kid->sibling : $kid);
-	 $kid = $kid->sibling) {
-	push @exprs, $self->deparse($kid, 6, $op);
-    }
-
-    my $opts = {body => \@exprs};
-
-    my @args_texts = map $_->{text}, @exprs;
-    # handle special case of split(), and split(' ') that compiles to /\s+/
-    # Under 5.10, the reflags may be undef if the split regexp isn't a constant
-    # Under 5.17.5-5.17.9, the special flag is on split itself.
-    $kid = $op->first;
-    if ( $op->flags & OPf_SPECIAL ) {
-	$exprs[0]->{text} = "' '";
-    }
-
-    my $sep = '';
-    my $type;
-    my @expr_texts;
-    if ($ary) {
-	@expr_texts = ("$ary", '=', join(', ', @args_texts));
-	$sep = ' ';
-	$type = 'split_array';
-	$opts->{maybe_parens} = [$self, $cx, 7];
-    } else {
-	@expr_texts = ('split', '(', join(', ', @args_texts), ')');
-	$type = 'split';
-
-    }
-    return info_from_list($op, $self, \@expr_texts, $sep, $type, $opts);
 }
 
 unless (caller) {

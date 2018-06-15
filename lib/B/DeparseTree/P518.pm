@@ -12,8 +12,6 @@
 # B::Parse in turn is based on the module of the same name by Malcolm Beattie,
 # but essentially none of his code remains.
 
-use v5.16;
-
 use rlib '../..';
 
 package B::DeparseTree::P518;

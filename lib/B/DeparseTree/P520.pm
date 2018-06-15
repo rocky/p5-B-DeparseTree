@@ -11,8 +11,6 @@
 # B::Parse in turn is based on the module of the same name by Malcolm Beattie,
 # but essentially none of his code remains.
 
-use v5.16;
-
 use rlib '../..';
 
 package B::DeparseTree::P520;
@@ -35,7 +33,6 @@ use B::Deparse;
 *escape_extended_re = *B::Deparse::escape_extended_re;
 *find_scope_st = *B::Deparse::find_scope_st;
 *gv_name = *B::Deparse::gv_name;
-*keyword = *B::Deparse::keyword;
 *meth_rclass_sv = *B::Deparse::meth_rclass_sv;
 *meth_sv = *B::Deparse::meth_sv;
 *padany = *B::Deparse::padany;
@@ -74,17 +71,17 @@ BEGIN {
     }
 }
 
-BEGIN { for (qw[rv2sv list]) {
+BEGIN { for (qw[rv2sv list custom]) {
     eval "sub OP_\U$_ () { " . opnumber($_) . "}"
 }}
-
-# The following OPs don't have functions:
 
 # pp_padany -- does not exist after parsing
 
 sub AUTOLOAD {
     if ($AUTOLOAD =~ s/^.*::pp_//) {
-	warn "unexpected OP_".uc $AUTOLOAD;
+	warn "unexpected OP_".
+	    ($_[1]->type == OP_CUSTOM ? "CUSTOM ($AUTOLOAD)" : uc $AUTOLOAD);
+	return "XXX";
     } else {
 	Carp::confess "Undefined subroutine $AUTOLOAD called";
     }
@@ -97,6 +94,62 @@ sub DESTROY {}	#	Do not AUTOLOAD
 my %globalnames;
 BEGIN { map($globalnames{$_}++, "SIG", "STDIN", "STDOUT", "STDERR", "INC",
 	    "ENV", "ARGV", "ARGVOUT", "_"); }
+
+my %feature_keywords = (
+  # keyword => 'feature',
+    state   => 'state',
+    say     => 'say',
+    given   => 'switch',
+    when    => 'switch',
+    default => 'switch',
+    break   => 'switch',
+    evalbytes=>'evalbytes',
+    __SUB__ => '__SUB__',
+   fc       => 'fc',
+);
+
+# keywords that are strong and also have a prototype
+#
+my %strong_proto_keywords = map { $_ => 1 } qw(
+    pos
+    prototype
+    scalar
+    study
+    undef
+);
+
+# FIXME remove dup with 5.24 and 5.18
+# NOTE: This is the deparse 5.26 routine which
+# differs from 5.18 in that adds CORE:: when
+# appropriate.
+sub keyword {
+    my $self = shift;
+    my $name = shift;
+    return $name if $name =~ /^CORE::/; # just in case
+    if (exists $feature_keywords{$name}) {
+	my $hh;
+	my $hints = $self->{hints} & $feature::hint_mask;
+	if ($hints && $hints != $feature::hint_mask) {
+	    $hh = B::Deparse::_features_from_bundle($hints);
+	}
+	elsif ($hints) { $hh = $self->{'hinthash'} }
+	return "CORE::$name"
+	 if !$hh
+	 || !$hh->{"feature_$feature_keywords{$name}"}
+    }
+    if ($strong_proto_keywords{$name}
+        || ($name !~ /^(?:chom?p|do|exec|glob|s(?:elect|ystem))\z/
+	    && !defined eval{prototype "CORE::$name"})
+    ) { return $name }
+    if (
+	exists $self->{subs_declared}{$name}
+	 or
+	exists &{"$self->{curstash}::$name"}
+    ) {
+	return "CORE::$name"
+    }
+    return $name;
+}
 
 { no strict 'refs'; *{"pp_r$_"} = *{"pp_$_"} for qw< keys each values >; }
 
@@ -652,61 +705,6 @@ sub re_flags
 	$flags .= 'd';
     }
     $flags;
-}
-
-sub pp_split
-{
-    my($self, $op, $cx) = @_;
-    my($kid, @exprs, $ary_info, $expr);
-    my $ary = '';
-    my @body = ();
-    my @other_ops = ();
-    $kid = $op->first;
-
-    # For our kid (an OP_PUSHRE), pmreplroot is never actually the
-    # root of a replacement; it's either empty, or abused to point to
-    # the GV for an array we split into (an optimization to save
-    # assignment overhead). Depending on whether we're using ithreads,
-    # this OP* holds either a GV* or a PADOFFSET. Luckily, B.xs
-    # figures out for us which it is.
-    my $replroot = $kid->pmreplroot;
-    my $gv = 0;
-    if (ref($replroot) eq "B::GV") {
-	$gv = $replroot;
-    } elsif (!ref($replroot) and $replroot > 0) {
-	$gv = $self->padval($replroot);
-    }
-    $ary = $self->stash_variable('@', $self->gv_name($gv), $cx) if $gv;
-
-    for (; !B::Deparse::null($kid); $kid = $kid->sibling) {
-	push @exprs, $self->deparse($kid, 6, $op);
-    }
-
-    my $opts = {body => \@exprs};
-
-    my @args_texts = map $_->{text}, @exprs;
-    # handle special case of split(), and split(' ') that compiles to /\s+/
-    # Under 5.10, the reflags may be undef if the split regexp isn't a constant
-    # Under 5.17.5-5.17.9, the special flag is on split itself.
-    $kid = $op->first;
-    if ( $op->flags & OPf_SPECIAL ) {
-	$exprs[0]->{text} = "' '";
-    }
-
-    my $sep = '';
-    my $type;
-    my @expr_texts;
-    if ($ary) {
-	@expr_texts = ("$ary", '=', join(', ', @args_texts));
-	$sep = ' ';
-	$type = 'split_array';
-	$opts->{maybe_parens} = [$self, $cx, 7];
-    } else {
-	@expr_texts = ('split', '(', join(', ', @args_texts), ')');
-	$type = 'split';
-
-    }
-    return info_from_list($op, $self, \@expr_texts, $sep, $type, $opts);
 }
 
 # Kind of silly, but we prefer, subst regexp flags joined together to

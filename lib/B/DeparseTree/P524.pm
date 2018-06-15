@@ -4,8 +4,6 @@
 # This module is free software; you can redistribute and/or modify
 # it under the same terms as Perl itself.
 
-use v5.24;
-
 use rlib '../..';
 
 package B::DeparseTree::P524;
