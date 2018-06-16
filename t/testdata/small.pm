@@ -106,15 +106,23 @@ while (1) { my $k }
 # constants as method names without ()
 'Foo'->bar;
 ####
-# SKIP ?$] < 5.010 && "say not implemented on this Perl version"
-# CONTEXT use feature ':5.10';
-# say
-say 'foo'
+# SKIP ?1
+# [perl #47359] "indirect" method call notation
+our @bar;
+foo{@bar}+1,->foo;
+(foo{@bar}+1),foo();
+foo{@bar}1 xor foo();
+>>>>
+our @bar;
+(foo { @bar } 1)->foo;
+(foo { @bar } 1), foo();
+foo { @bar } 1 xor foo();
 ####
-# SKIP ?$] < 5.010 && "say not implemented on this Perl version"
-# CONTEXT use 5.10.0;
-# say in the context of use 5.10.0
-say 'foo';
+# indirops with blocks
+# CONTEXT use 5.01;
+print {*STDOUT} 'foo';
+printf {*STDOUT} 'foo';
+say {*STDOUT} 'foo';
 ####
 # SKIP ?$] < 5.010 && "say not implemented on this Perl version"
 # say with use 5.10.0

@@ -979,12 +979,13 @@ sub indirop
     my($self, $op, $cx, $name) = @_;
     my($expr, @exprs);
     my $firstkid = my $kid = $op->first->sibling;
-    my $indir_info;
+    my $indir_info = undef;
     my $type = $name;
     my $first_op = $op->first;
     my @skipped_ops = ($first_op);
     my @indir = ();
-    my @args_spec = ();
+    my @args_spec;
+
     my $fmt = '';
 
     if ($op->flags & OPf_STACKED) {
@@ -996,14 +997,12 @@ sub indirop
 		$fmt = '{;}';
 	    } else {
 		$fmt = '{%c}';
-		push @args_spec, $indir_info;
 	    }
 	} elsif ($indir_op->name eq "const" && $indir_op->private & OPpCONST_BARE) {
 	    $fmt = $self->const_sv($indir_op)->PV;
 	} else {
 	    $indir_info = $self->deparse($indir_op, 24, $op);
 	    $fmt = '%c';
-	    push @args_spec, $indir_info;
 	}
 	$fmt .= ' ';
 	$kid = $kid->sibling;
@@ -1085,15 +1084,26 @@ sub indirop
 
     } else {
 	if (@exprs) {
-	    my $fmt;
+	    my $args_fmt;
 	    if ($self->func_needs_parens($exprs[0]->{text}, $cx, 5)) {
-		$fmt = "$name2(%C)"
+		$args_fmt = "(%C)";
 	    } else {
-		$fmt = "$name2 %C"
+		$args_fmt = "%C";
 	    }
+	    @args_spec = ([0, $#exprs, ', ']);
+	    if ($fmt) {
+		$fmt = "$name2 $fmt$args_fmt";
+		if ($indir_info) {
+		    unshift @exprs, $indir_info;
+		    @args_spec = (0, [1, $#exprs, ', ']);
+		}
+	    } else {
+		$fmt = "$name2 $args_fmt";
+		@args_spec = [0, $#exprs, ', '];
+	    }
+
 	    $node = $self->info_from_template($name2, $first_op, $fmt,
-					      [[0, $#exprs, ', ']],
-					      \@exprs,
+					      \@args_spec, \@exprs,
 					      {other_ops => \@skipped_ops,
 					       maybe_parens => [$self, $cx, 5]});
 
