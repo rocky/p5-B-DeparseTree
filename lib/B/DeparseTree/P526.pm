@@ -505,7 +505,6 @@ sub _method
     my @other_ops = ($op->first);
     my $kid = $op->first->sibling; # skip pushmark
     my($meth, $obj, @exprs);
-    my $is_variable_method = 1;
     if ($kid->name eq "list" and B::Deparse::want_list $kid) {
 	# When an indirect object isn't a bareword but the args are in
 	# parens, the parens aren't part of the method syntax (the LLAFR
@@ -541,18 +540,18 @@ sub _method
     if ($meth->name eq "method_named") {
 	$method_name = $self->meth_sv($meth)->PV;
 	$type = 'named method';
-	$is_variable_method = 0;
     } elsif ($meth->name eq "method_super") {
 	$method_name = "SUPER::".$self->meth_sv($meth)->PV;
 	$type = 'SUPER:: method';
     } elsif ($meth->name eq "method_redir") {
         $method_name = $self->meth_rclass_sv($meth)->PV.'::'.$self->meth_sv($meth)->PV;
+	$type = 'method redirected ::';
     } elsif ($meth->name eq "method_redir_super") {
 	$type = '::SUPER:: redirected method';
         $method_name = $self->meth_rclass_sv($meth)->PV.'::SUPER::'.
                 $self->meth_sv($meth)->PV;
     } else {
-	$method_name = $meth->first;
+	$meth = $meth->first;
 	if ($meth->name eq "const") {
 	    # As of 5.005_58, this case is probably obsoleted by the
 	    # method_named case above
@@ -609,6 +608,7 @@ sub e_method {
 	}
 	return info_from_list($op, $self, \@texts, '', $type, $opts);
     }
+
     my @nodes = ($obj, $meth_info);
     my $fmt;
     my @args_spec = (0, 1);

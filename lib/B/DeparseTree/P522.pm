@@ -513,30 +513,42 @@ sub _method
 	$meth = $kid;
     }
 
+    my $method_name = undef;
+    my $type = 'method';
     if ($meth->name eq "method_named") {
-	$meth = $self->meth_sv($meth)->PV;
+	$method_name = $self->meth_sv($meth)->PV;
     } elsif ($meth->name eq "method_super") {
-	$meth = "SUPER::".$self->meth_sv($meth)->PV;
+	$method_name = "SUPER::".$self->meth_sv($meth)->PV;
+	$type = 'SUPER:: method';
     } elsif ($meth->name eq "method_redir") {
-        $meth = $self->meth_rclass_sv($meth)->PV.'::'.$self->meth_sv($meth)->PV;
+        $method_name = $self->meth_rclass_sv($meth)->PV.'::'.$self->meth_sv($meth)->PV;
+	$type = 'method redirected ::';
     } elsif ($meth->name eq "method_redir_super") {
-        $meth = $self->meth_rclass_sv($meth)->PV.'::SUPER::'.
+        $method_name = $self->meth_rclass_sv($meth)->PV.'::SUPER::'.
                 $self->meth_sv($meth)->PV;
+	$type = '::SUPER:: redirected method';
     } else {
 	$meth = $meth->first;
 	if ($meth->name eq "const") {
 	    # As of 5.005_58, this case is probably obsoleted by the
 	    # method_named case above
 	    $meth = $self->const_sv($meth)->PV; # needs to be bare
+	    $type = 'contant method';
 	}
     }
 
+    my $meth_node = undef;
+    if ($method_name) {
+	$meth_node = $self->info_from_string($type,
+					     $meth, $method_name,
+					     {other_ops => \@other_ops});
+    }
     return {
+	method_node => $meth_node,
 	method => $meth,
 	variable_method => ref($meth),
 	object => $obj,
 	args => \@exprs,
-	other_ops => \@other_ops
     }, $cx;
 }
 
@@ -546,40 +558,36 @@ sub e_method {
     my @body = ($obj);
     my $other_ops = $minfo->{other_ops};
 
-    my $meth_name = $minfo->{method};
-    my $meth_info = undef;
-    if ($minfo->{variable_method}) {
-	$meth_info = $self->deparse($meth_name, 1, $op);
-	push @body, $meth_info;
+    my $meth_info = $minfo->{method_node};
+    unless ($minfo->{method_node}) {
+	$meth_info = $self->deparse($minfo->{meth}, 1, $op);
     }
     my @args = map { $self->deparse($_, 6, $op) } @{$minfo->{args}};
-    push @body, @args;
     my @args_texts = map $_->{text}, @args;
     my $args = join(", ", @args_texts);
 
     my $opts = {other_ops => $other_ops};
-    my @texts = ();
     my $type;
 
-
-    my $meth_object = $meth_info ? defined($meth_info) : $meth_name;
     if ($minfo->{object}->name eq 'scope' && B::Deparse::want_list $minfo->{object}) {
 	# method { $object }
 	# This must be deparsed this way to preserve list context
 	# of $object.
+	# FIXME
+	my @texts = ();
 	my $need_paren = $cx >= 6;
 	if ($need_paren) {
-	    @texts = ('(', $meth_name,  substr($obj,2),
+	    @texts = ('(', $meth_info->{text},  substr($obj,2),
 		      $args, ')');
 	    $type = 'e_method list ()';
 	} else {
-	    @texts = ($meth_object,  substr($obj,2), $args);
+	    @texts = ($meth_info->{text},  substr($obj,2), $args);
 	    $type = 'e_method list, no ()';
 	}
 	return info_from_list($op, $self, \@texts, '', $type, $opts);
     }
 
-    my @nodes = ($obj, $meth_info ? $meth_info : $meth_name);
+    my @nodes = ($obj, $meth_info);
     my $fmt;
     my @args_spec = (0, 1);
     if (@{$minfo->{args}}) {
@@ -702,7 +710,6 @@ sub pp_stringify {
     push @{$info->{other_ops}}, @other_ops;
     return $info;
 }
-
 
 # Like dq(), but different
 sub re_dq {
