@@ -131,6 +131,8 @@ use B qw(
     pp_preinc
     pp_print
     pp_prtf
+    pp_pushre
+    pp_qr
     pp_rcatline
     pp_readline
     pp_refgen
@@ -147,6 +149,7 @@ use B qw(
     pp_slt
     pp_sne
     pp_sockpair
+    pp_split
     pp_smartmatch
     pp_stub
     pp_subst
@@ -201,6 +204,8 @@ sub pp_print    { indirop(@_, "print") }
 sub pp_prtf     { indirop(@_, "printf") }
 sub pp_sockpair { listop(@_, "socketpair") }
 sub pp_values   { unop(@_, "values") }
+sub pp_pushre   { matchop(@_, "m", "/") }  # Is also in OP_PP table
+sub pp_qr       { matchop(@_, "qr", "") }  # Is also in OP_PP table
 
 # Convert these to table entries...
 sub pp_aelem { maybe_local(@_, elem(@_, "[", "]", "padav")) }

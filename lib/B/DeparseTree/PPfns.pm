@@ -1049,7 +1049,7 @@ sub indirop
     if ($name eq "sort" && ($op->private & OPpSORT_INPLACE)) {
 	$fmt = "%c = $name2 $fmt %c";
 	# FIXME: do better with skipped ops
-	return $self->info_from_template($name2, $op,
+	return $self->info_from_template($name2, $op, $fmt,
 					     [0, 0], \@exprs, {other_ops => \@skipped_ops});
     }
 
@@ -1256,9 +1256,18 @@ sub listop
     $self->deparse_op_siblings(\@exprs, $kid, $op, 6);
 
     if ($name eq "reverse" && ($op->private & B::OPpREVERSE_INPLACE)) {
-	my $texts =  [$exprs[0->{text}], '=',
-		      $fullname . ($parens ? "($exprs[0]->{text})" : " $exprs[0]->{text}")];
-	return info_from_list($op, $self, $texts, ' ', 'listop_reverse', {});
+	my $fmt;
+	my $type;
+	if ($parens) {
+	    $fmt = "%c = $fullname(%c)";
+	    $type = "listop reverse ()"
+	} else {
+	    $fmt = "%c = $fullname(%c)";
+	    $type = "listop reverse"
+	}
+	my @nodes = ($exprs[0], $exprs[0]);
+	return $self->info_from_template($type, $op, $fmt, undef,
+					 [$exprs[0], $exprs[0]]);
     }
 
     my $opts = {};

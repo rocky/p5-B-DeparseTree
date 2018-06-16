@@ -271,6 +271,36 @@ my $pi : = 4;
 >>>>
 my $pi = 4;
 ####
+# in place sort
+our @a;
+my @b;
+@main::a = sort @main::a;
+@b = sort @b;
+();
+####
+# in place reverse
+# SKIP ?1
+our @a;
+my @b;
+@main::a = reverse @a;
+@b = reverse @b;
+();
+####
+# #71870 Use of uninitialized value in bitwise and B::Deparse
+# SKIP ?1
+my($r, $s, @a);
+@a = split(/foo/, $s, 0);
+$r = qr/foo/;
+@a = split(/$r/, $s, 0);
+();
+####
+# SKIP ?1
+# package declaration before label
+{
+    package Foo;
+    label: print 123;
+}
+####
 # shift optimisation
 shift;
 >>>>

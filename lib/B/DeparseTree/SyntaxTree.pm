@@ -231,6 +231,9 @@ sub info_from_list($$$$$$)
 sub info_from_template($$$$$) {
     my ($self, $type, $op, $fmt, $indexes, $args, $opts) = @_;
     $opts = {} unless defined($opts);
+    # if (ref($args) ne "ARRAY") {
+    # 	use Enbugger "trepan"; Enbugger->stop;
+    # }
     my @args = @$args;
     my $info = B::DeparseTree::TreeNode->new($op, $self, $args, undef, $type, $opts);
 
