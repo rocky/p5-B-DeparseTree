@@ -2185,6 +2185,9 @@ sub _method
 	$meth_node = $self->info_from_string($type,
 					     $meth, $method_name,
 					     {other_ops => \@other_ops});
+	$self->{optree}{$$meth} = $meth_node;
+	$meth_node->{parent} = $$op if $op;
+
     }
     return {
 	method_node => $meth_node,

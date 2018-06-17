@@ -229,9 +229,12 @@ sub init {
     delete $self->{'subs_declared'};
 }
 
-BEGIN { for (qw[ pushmark ]) {
-    eval "sub OP_\U$_ () { " . opnumber($_) . "}"
-}}
+BEGIN {
+    for (qw[ pushmark ])
+    {
+	eval "sub OP_\U$_ () { " . opnumber($_) . "}"
+    }
+}
 
 sub main2info
 {
@@ -244,18 +247,27 @@ sub main2info
 sub coderef2info
 {
     my ($self, $coderef, $start_op) = @_;
-    croak "Usage: ->coderef2info(CODEREF)" unless UNIVERSAL::isa($coderef, "CODE");
-    $self->init();
-    return $self->deparse_sub(svref_2object($coderef), $start_op);
+    if ($coderef eq 'main::main') {
+	return $self->main2info();
+    } else {
+	croak "Usage: ->coderef2info(CODEREF)"
+	    unless UNIVERSAL::isa($coderef, "CODE");
+	$self->init();
+	return $self->deparse_sub(svref_2object($coderef), $start_op);
+    }
 }
 
 sub coderef2text
 {
     my ($self, $func) = @_;
-    croak "Usage: ->coderef2text(CODEREF)" unless UNIVERSAL::isa($func, "CODE");
-
-    $self->init();
-    my $info = $self->coderef2info($func);
+    my $info;
+    if ($func eq 'main::main') {
+	$info = $self->main2info();
+    } else {
+	croak "Usage: ->coderef2text(CODEREF)" unless UNIVERSAL::isa($func, "CODE");
+	$self->init();
+	$info = $self->coderef2info($func);
+    }
     return $self->info2str($info);
 }
 
