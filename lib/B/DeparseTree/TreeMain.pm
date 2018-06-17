@@ -51,7 +51,6 @@ use B::DeparseTree::SyntaxTree;
 *gv_name = *B::Deparse::gv_name;
 *lex_in_scope = *B::Deparse::lex_in_scope;
 *padname = *B::Deparse::padname;
-*print_protos = *B::Deparse::print_protos;
 *stash_subs = *B::Deparse::stash_subs;
 *stash_variable = *B::Deparse::stash_variable;
 *todo = *B::Deparse::todo;
@@ -75,7 +74,6 @@ $VERSION = '3.2.0';
     new
     next_todo
     pragmata
-    print_protos
     seq_subs
     style_opts
     todo
@@ -747,7 +745,7 @@ sub compile {
 	my @ENDs    = B::end_av->isa("B::AV") ? B::end_av->ARRAY : ();
 	if ($] < 5.020) {
 	    for my $block (@BEGINs, @UNITCHECKs, @CHECKs, @INITs, @ENDs) {
-		$self->todo($block, 0);
+		$self->B::Deparse::todo($block, 0);
 	    }
 	} else {
 	    my @names = qw(BEGIN UNITCHECK CHECK INIT END);
@@ -759,7 +757,7 @@ sub compile {
 		}
 	    }
         }
-	$self->stash_subs();
+	$self->B::Deparse::stash_subs();
 	local($SIG{"__DIE__"}) =
 	    sub {
 		if ($self->{'curcop'}) {
@@ -773,7 +771,7 @@ sub compile {
 	    };
 	$self->{'curcv'} = main_cv;
 	$self->{'curcvlex'} = undef;
-	print $self->print_protos;
+	print $self->B::Deparse::print_protos;
 	@{$self->{'subs_todo'}} =
 	  sort {$a->[0] <=> $b->[0]} @{$self->{'subs_todo'}};
 	my $root = main_root;

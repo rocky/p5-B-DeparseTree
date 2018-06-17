@@ -545,3 +545,18 @@ $_ ^= $_;
 $_ |.= $_;
 $_ &.= $_;
 $_ ^.= $_;
+####
+# [perl #77096] functions that do not follow the llafr
+() = (return 1) + time;
+() = (return ($1 + $2) * $3) + time;
+() = (return ($a xor $b)) + time;
+() = (do 'file') + time;
+() = (do ($1 + $2) * $3) + time;
+() = (do ($1 xor $2)) + time;
+() = (require 'foo') + 3;
+() = (-R $_) + 3;
+() = (-W $_) + 3;
+() = (-X $_) + 3;
+() = (-r $_) + 3;
+() = (-w $_) + 3;
+() = (-x $_) + 3;

@@ -31,6 +31,10 @@ use B qw(
 use B::Deparse;
 use B::DeparseTree::OPflags;
 
+# Copied from B/const-xs.inc. Perl 5.16 doesn't have this
+use constant SVpad_STATE => 11;
+use constant SVpad_TYPED => 8;
+
 # FIXME: DRY $is_cperl
 # Version specific modification are next...
 use Config;
@@ -40,8 +44,6 @@ my $is_cperl = $Config::Config{usecperl};
 *balanced_delim = *B::Deparse::balanced_delim;
 *double_delim = *B::Deparse::double_delim;
 *escape_extended_re = *B::Deparse::escape_extended_re;
-*escape_re = *B::Deparse::escape_re;
-*lex_in_scope = *B::Deparse::lex_in_scope;
 
 use B::DeparseTree::SyntaxTree;
 
@@ -922,12 +924,19 @@ sub filetest
 	}
 	return $self->maybe_parens_unop($name, $op->first, $cx, $op);
     } elsif (B::class($op) =~ /^(SV|PAD)OP$/) {
-	# FIXME redo after maybe_parens_func returns a string.
-	my @list = $self->maybe_parens_func($name, $self->pp_gv($op, 1), $cx, 16);
-	return info_from_list($op, $self, \@list, ' ', "filetest list $name", {});
+	my ($fmt, $type);
+	my $gv_node = $self->pp_gv($op, 1);
+	if ($self->func_needs_parens($gv_node->{text}, $cx, 16)) {
+	    $fmt = "$name(%c)";
+	    $type = "filetest $name()";
+	} else {
+	    $fmt = "$name %c";
+	    $type = "filetest $name";
+	}
+	return $self->info_from_template($type, $op, $fmt, undef, [$gv_node]);
     } else {
 	# I don't think baseop filetests ever survive ck_filetest, but...
-	return info_from_text($op, $self, $name, 'unop', {});
+	return $self->info_from_string("filetest $name", $op, $name);
     }
 }
 
@@ -1728,7 +1737,7 @@ sub matchop_newer
     } elsif ($kid->name ne 'regcomp') {
         if ($op->name eq 'split') {
             # split has other kids, not just regcomp
-            $re = re_uninterp(escape_re(re_unback($op->precomp)));
+            $re = re_uninterp(B::Deparse::escape_re(re_unback($op->precomp)));
         } else {
 	    carp("found ".$kid->name." where regcomp expected");
 	}
@@ -1984,6 +1993,7 @@ sub maybe_my_newer
 	unless (defined($padname)) {
 	    Carp::confess("undefine padname $padname");
 	}
+
 	my $my =
 	    $self->keyword($padname->FLAGS & SVpad_STATE ? "state" : "my");
 	if ($padname->FLAGS & SVpad_TYPED) {
@@ -2106,8 +2116,8 @@ sub maybe_qualify {
 	 && $v    !~ /^\$[ab]\z/	 # not $a or $b
 	 && !$globalnames{$name}         # not a global name
 	 && $self->{hints} & $strict_bits{vars}  # strict vars
-	 && !$self->lex_in_scope($v,1)   # no "our"
-      or $self->lex_in_scope($v);        # conflicts with "my" variable
+	 && !$self->B::Deparse::lex_in_scope($v,1)   # no "our"
+      or $self->B::Deparse::lex_in_scope($v);        # conflicts with "my" variable
     return $name;
 }
 
@@ -2795,7 +2805,7 @@ sub subst_newer
     if (not B::Deparse::null my $code_list = $op->code_list) {
 	$re = $self->code_list($code_list);
     } elsif (B::Deparse::null $kid) {
-	$re = B::Deparse::re_uninterp(escape_re(B::Deparse::re_unback($op->precomp)));
+	$re = B::Deparse::re_uninterp(B::Deparse::escape_re(B::Deparse::re_unback($op->precomp)));
     } else {
 	my ($re_info, $junk) = $self->regcomp($kid, 1);
 	$re = $re_info->{text};
