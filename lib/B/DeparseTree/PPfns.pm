@@ -1540,7 +1540,8 @@ sub loopex
 			      "loop $name $op->pv", $opts);
     } elsif (B::class($op) eq "OP") {
 	# no-op
-	return info_from_text($op, $self, $name, "loopex $name", $opts);
+	return $self->info_from_string("loopex op $name",
+				       $op, $name,  $opts);
     } elsif (B::class($op) eq "UNOP") {
 	(my $kid_info = $self->deparse($op->first, 7)) =~ s/^\cS//;
 	# last foo() is a syntax error. So we might surround it with parens.
@@ -1549,10 +1550,12 @@ sub loopex
 	    $text = "($text)" if $text =~ /^(?!\d)\w/;
 	    return $text;
 	};
-	return $self->info_from_template("loop $name", $op, "$name %F",
+	return $self->info_from_template("loopex unop $name",
+					 $op, "$name %F",
 					 undef, [$kid_info], $opts);
     } else {
-	return info_from_text($op, $self, $name, "loop $name", $opts);
+	return $self->info_from_string("loop $name",
+				       $op, $name, "loop $name", $opts);
     }
     Carp::confess("unhandled condition in lopex");
 }
