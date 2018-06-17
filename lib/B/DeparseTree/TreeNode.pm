@@ -18,7 +18,7 @@ sub _data_printer {
     my $msg = "B::DeparseTree::TreeNode {";
     foreach my $field (
 	qw(addr child_pos cop fmt indexes maybe_parens op other_ops
-	omit_next_semicolon_position
+	omit_next_semicolon_position prev_expr
 	parent text texts type)) {
 	next if not exists $self->{$field};
 	my $data = $self->{$field};
@@ -31,9 +31,6 @@ sub _data_printer {
 		$msg .=  sprintf("%s:%s", $data->file, $data->line);
 		$msg .= ", " . $data->name if $data->can("name");
 	    }
-	} elsif ($field eq 'op') {
-	    $msg .= $data->name . ', ' if $data->can("name");
-	    $msg .=  $data;
 	} elsif ($field eq 'indexes') {
 	    my $str = np @{$data};
 	    my @lines = split(/\n/, $str);
@@ -43,6 +40,12 @@ sub _data_printer {
 		$str = join($subindent, @lines);
 	    }
 	    $msg .=  $str;
+	} elsif ($field eq 'op') {
+	    $msg .= $data->name . ', ' if $data->can("name");
+	    $msg .=  $data;
+	} elsif ($field eq 'prev_expr') {
+	    $msg .= sprintf("B::DeparseTree::TreeNode 0x%x %s",
+			    $data->{addr}, $data->{type});
 	} elsif ($field eq 'texts' or $field eq 'other_ops') {
 	    if (!@$data) {
 		$msg .= '[]';
@@ -195,8 +198,13 @@ sub new($$$$$)
 	# Leave {text} and {texts} uninitialized
     }
 
-    foreach my $optname (qw(other_ops parent_ops child_pos maybe_parens
-                            omit_next_semicolon position)) {
+    foreach my $optname (qw(child_pos
+			 maybe_parens
+			 omit_next_semicolon
+			 other_ops
+			 parent_ops
+			 position
+			 prev_expr)) {
 	$self->{$optname} = $opts->{$optname} if $opts->{$optname};
     }
     if ($opts->{maybe_parens}) {
@@ -209,9 +217,6 @@ sub new($$$$$)
 	    parens => $parens ? 'true' : ''
 	};
 	$self->{text} = "($self->{text})" if exists $self->{text} and $parens;
-    }
-    if ($opts->{prev_expr}) {
-	$self->{prev_expr} = $opts->{prev_expr};
     }
     return $self;
 }

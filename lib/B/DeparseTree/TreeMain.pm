@@ -493,12 +493,10 @@ sub walk_lineseq
 	if (B::Deparse::is_state $kids[$i]) {
 	    $expr = ($self->deparse($kids[$i], 0, $op));
 	    $callback->(\@body, $i, $expr, $op);
-	    $self->update_node($expr, $prev_expr, $op);
 	    $prev_expr = $expr;
 	    if ($fix_cop) {
 		$fix_cop->{text} = $expr->{text};
 	    }
-
 	    $i++;
 	    if ($i > $#kids) {
 		last;
@@ -509,7 +507,6 @@ sub walk_lineseq
 	    $callback->(\@body,
 			$i += $kids[$i]->sibling->name eq "unstack" ? 2 : 1,
 			$loop_expr);
-	    $self->update_node($expr, $prev_expr, $op);
 	    $prev_expr = $expr;
 	    next;
 	}
@@ -518,7 +515,9 @@ sub walk_lineseq
 	# Perform semantic action on $expr accumulating the result
 	# in @body. $op is the parent, and $i is the child position
 	$callback->(\@body, $i, $expr, $op);
-	$self->update_node($expr, $prev_expr, $op);
+	unless (exists $expr->{prev_expr}) {
+	    $self->update_node($expr, $prev_expr, $op);
+	}
 	$prev_expr = $expr;
 	if ($fix_cop) {
 	    $fix_cop->{text} = $expr->{text};

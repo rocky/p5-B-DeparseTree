@@ -1321,6 +1321,7 @@ sub listop
     my $node = $self->info_from_template($type, $op, $fmt,
 					 [[0, $#exprs, ', ']], \@exprs,
 					 $opts);
+    $node->{prev_expr} = $exprs[-1];
     if (@skipped_ops) {
 	# if we have skipped ops like pushmark, we will use $full name
 	# as the part it represents.
@@ -2051,8 +2052,8 @@ sub maybe_parens_func($$$$$)
 # the 'if it looks like a function' rule.
 sub maybe_parens_unop($$$$$)
 {
-    my $self = shift;
-    my($name, $op, $cx, $parent) = @_;
+    my ($self,$name, $op, $cx, $parent, $opts) = @_;
+    $opts = {} unless $opts;
     my $info =  $self->deparse($op, 1, $parent);
     my $fmt;
     my @exprs = ($info);
@@ -2065,8 +2066,8 @@ sub maybe_parens_unop($$$$$)
     }
     $name = $self->keyword($name);
     if ($cx > 16 or $self->{'parens'}) {
-	return $self->info_from_template("$name()", $op,
-					 "$name(%c)",[0], \@exprs);
+	return $self->info_from_template(
+	    "$name()", $op, "$name(%c)",[0], \@exprs, $opts);
     } else {
 	# FIXME: we don't do \cS
 	# if (substr($text, 0, 1) eq "\cS") {
@@ -2077,11 +2078,11 @@ sub maybe_parens_unop($$$$$)
 	if (substr($info->{text}, 0, 1) eq "(") {
 	    # avoid looks-like-a-function trap with extra parens
 	    # ('+' can lead to ambiguities)
-	    return $self->info_from_template("$name(())", $op,
-					     "$name(%c)", [0], \@exprs);
+	    return $self->info_from_template(
+		"$name(()) dup remove", $op, "$name(%c)", [0], \@exprs, $opts);
 	} else {
-	    return $self->info_from_template("$name <args>", $op,
-					     "$name %c", [0], \@exprs);
+	    return $self->info_from_template(
+		"$name <args>", $op, "$name %c", [0], \@exprs, $opts);
 	}
     }
     Carp::confess("unhandled condition in maybe_parens_unop");
@@ -2211,7 +2212,8 @@ sub e_method {
     my @args_texts = map $_->{text}, @args;
     my $args = join(", ", @args_texts);
 
-    my $opts = {other_ops => $other_ops};
+    my $opts = {other_ops => $other_ops,
+                prev_expr => $meth_info};
     my $type;
 
     if ($minfo->{object}->name eq 'scope' && B::Deparse::want_list $minfo->{object}) {
@@ -2820,6 +2822,7 @@ sub unop
 {
     my($self, $op, $cx, $name, $nollafr) = @_;
     my $kid;
+    my $opts = {};
     if ($op->flags & B::OPf_KIDS) {
 	$kid = $op->first;
  	if (not $name) {
@@ -2831,22 +2834,22 @@ sub unop
 	if (defined prototype($builtinname)
 	   && $builtinname ne 'CORE::readline'
 	   && prototype($builtinname) =~ /^;?\*/
-	   && $kid->name eq "rv2gv") {
+	    && $kid->name eq "rv2gv") {
+	    my $rv2gv = $kid;
 	    $kid = $kid->first;
+	    $opts->{other_ops} = [$rv2gv];
 	}
 
 	if ($nollafr) {
 	    $kid = $self->deparse($kid, 16, $op);
-	    my $opts = {
-		maybe_parens => [$self, $cx, 16],
-	    };
+	    $opts->{maybe_parens} = [$self, $cx, 16],
 	    my $fullname = $self->keyword($name);
 	    return $self->info_from_template("unary operator $name noallafr", $op,
 					     "$fullname %c", undef, [$kid], $opts);
 	}
-	return $self->maybe_parens_unop($name, $kid, $cx, $op);
+	return $self->maybe_parens_unop($name, $kid, $cx, $op, $opts);
     } else {
-	my $opts = {maybe_parens => [$self, $cx, 16]};
+	$opts->{maybe_parens} = [$self, $cx, 16];
 	my $fullname = ($self->keyword($name));
 	my $fmt = "$fullname";
 	$fmt .= '()' if $op->flags & B::OPf_SPECIAL;
