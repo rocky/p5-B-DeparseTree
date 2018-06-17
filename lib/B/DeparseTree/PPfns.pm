@@ -2052,7 +2052,7 @@ sub maybe_parens_func($$$$$)
 # the 'if it looks like a function' rule.
 sub maybe_parens_unop($$$$$)
 {
-    my ($self,$name, $op, $cx, $parent, $opts) = @_;
+    my ($self, $name, $op, $cx, $parent, $opts) = @_;
     $opts = {} unless $opts;
     my $info =  $self->deparse($op, 1, $parent);
     my $fmt;
@@ -2066,8 +2066,10 @@ sub maybe_parens_unop($$$$$)
     }
     $name = $self->keyword($name);
     if ($cx > 16 or $self->{'parens'}) {
-	return $self->info_from_template(
-	    "$name()", $op, "$name(%c)",[0], \@exprs, $opts);
+	my $node = $self->info_from_template(
+	    "$name()", $parent, "$name(%c)",[0], \@exprs, $opts);
+	$node->{prev_expr} = $exprs[0];
+	return $node;
     } else {
 	# FIXME: we don't do \cS
 	# if (substr($text, 0, 1) eq "\cS") {
@@ -2075,15 +2077,18 @@ sub maybe_parens_unop($$$$$)
 	#     return info_from_list($op, $self,[$name, substr($text, 1)],
 	# 			  '',  'maybe_parens_unop_cS', {body => [$info]});
 	# } else
+	my $node;
 	if (substr($info->{text}, 0, 1) eq "(") {
 	    # avoid looks-like-a-function trap with extra parens
 	    # ('+' can lead to ambiguities)
-	    return $self->info_from_template(
-		"$name(()) dup remove", $op, "$name(%c)", [0], \@exprs, $opts);
+	    $node = $self->info_from_template(
+		"$name(()) dup remove", $parent, "$name(%c)", [0], \@exprs, $opts);
 	} else {
-	    return $self->info_from_template(
-		"$name <args>", $op, "$name %c", [0], \@exprs, $opts);
+	    $node = $self->info_from_template(
+		"$name <args>", $parent, "$name %c", [0], \@exprs, $opts);
 	}
+	$node->{prev_expr} = $exprs[0];
+	return $node;
     }
     Carp::confess("unhandled condition in maybe_parens_unop");
 }
@@ -2824,10 +2829,14 @@ sub unop
     my $kid;
     my $opts = {};
     if ($op->flags & B::OPf_KIDS) {
+	my $parent = $op;
 	$kid = $op->first;
  	if (not $name) {
  	    # this deals with 'boolkeys' right now
- 	    return $self->deparse($kid, $cx, $op);
+	    my $kid_node = $self->deparse($kid, $cx, $parent);
+	    $opts->{prev_expr} = $kid_node;
+	    return $self->info_from_template("unop, see child", $op, "%c",
+					     undef, [$kid_node], $opts);
  	}
 	my $builtinname = $name;
 	$builtinname =~ /^CORE::/ or $builtinname = "CORE::$name";
@@ -2836,18 +2845,20 @@ sub unop
 	   && prototype($builtinname) =~ /^;?\*/
 	    && $kid->name eq "rv2gv") {
 	    my $rv2gv = $kid;
+	    $parent = $rv2gv;
 	    $kid = $kid->first;
 	    $opts->{other_ops} = [$rv2gv];
 	}
 
 	if ($nollafr) {
-	    $kid = $self->deparse($kid, 16, $op);
+	    $kid = $self->deparse($kid, 16, $parent);
 	    $opts->{maybe_parens} = [$self, $cx, 16],
 	    my $fullname = $self->keyword($name);
 	    return $self->info_from_template("unary operator $name noallafr", $op,
 					     "$fullname %c", undef, [$kid], $opts);
 	}
-	return $self->maybe_parens_unop($name, $kid, $cx, $op, $opts);
+	return $self->maybe_parens_unop($name, $kid, $cx, $parent, $opts)
+
     } else {
 	$opts->{maybe_parens} = [$self, $cx, 16];
 	my $fullname = ($self->keyword($name));
