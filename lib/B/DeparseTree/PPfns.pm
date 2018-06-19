@@ -108,6 +108,8 @@ $VERSION = '3.2.0';
     single_delim
     slice
     split
+    stringify_newer
+    stringify_older
     subst_newer
     subst_older
     unop
@@ -2559,6 +2561,33 @@ sub repeat {
     }
 
     return $node;
+}
+
+sub stringify_older {
+    maybe_targmy(@_, \&dquote)
+}
+
+# OP_STRINGIFY is a listop, but it only ever has one arg
+sub stringify_newer {
+    my ($self, $op, $cx) = @_;
+    my $kid = $op->first->sibling;
+    my @other_ops = ();
+    while ($kid->name eq 'null' && !B::Deparse::null($kid->first)) {
+        push(@other_ops, $kid);
+	$kid = $kid->first;
+    }
+    my $info;
+    if ($kid->name =~ /^(?:const|padsv|rv2sv|av2arylen|gvsv|multideref
+			  |aelemfast(?:_lex)?|[ah]elem|join|concat)\z/x) {
+	$info = maybe_targmy(@_, \&dquote);
+    }
+    else {
+	# Actually an optimised join.
+	my $info = listop(@_,"join");
+	$info->{text} =~ s/join([( ])/join$1$self->{'ex_const'}, /;
+    }
+    push @{$info->{other_ops}}, @other_ops;
+    return $info;
 }
 
 # Kind of silly, but we prefer, subst regexp flags joined together to

@@ -151,6 +151,7 @@ use B qw(
     pp_sockpair
     pp_split
     pp_smartmatch
+    pp_stringify
     pp_stub
     pp_subst
     pp_substr
@@ -1057,6 +1058,10 @@ sub pp_split {
     maybe_targmy(@_, \&split, "split");
 }
 
+sub pp_stringify {
+    $] < 5.022 ? stringify_older(@_) : stringify_newer(@_);
+}
+
 sub pp_subst {
     $] < 5.022 ? subst_older(@_) : subst_newer(@_);
 }
@@ -1071,6 +1076,7 @@ sub pp_substr {
     }
     return maybe_local(@_, listop(@_, "substr"))
 }
+
 # FIXME:
 # Different between 5.20 and 5.22. We've used 5.22 though.
 # Go over and make sure this is okay.
