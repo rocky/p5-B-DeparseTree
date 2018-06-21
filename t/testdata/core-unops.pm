@@ -30,26 +30,34 @@ abs              01    $
 alarm            01    $
 break            0     -
 caller           0     -
+chdir            01    -
+chmod            @     p1
+chomp            @     $ 5.020
+chop             @     $ 5.020
+chr              01    $
+chroot           01    $
 close            01    -
 closedir         1     -
 continue         0     -
 cos              01    $
 defined          01    $+
 eof              01    - # also tested specially
+exec             @     p1 # also tested specially
 exit             01    -
 fc               01    $
 fileno           1     -
 getc             01    -
-getpeername      1     -
-getsockname      1     -
 getgrgid         1     -
 getgrnam         1     -
 gethostbyname    1     -
 getnetbyname     1     -
-gmtime           01    -
+getpeername      1     -
+getpgrp          1     -
 getprotobyname   1     -
 getpwnam         1     -
 getpwuid         1     -
+getsockname      1     -
+gmtime           01    -
 hex              01    $
 int              01    $
 length           01    $
@@ -59,19 +67,30 @@ log              01    $
 oct              01    $
 ord              01    $
 pop              0     1 # also tested specially
+pos              01    $+
 prototype        1     +
+rand             01    -
 readdir          1     -
 readlink         01    $
 ref              01    $
 reset            01    -
 rewinddir        1     -
+rmdir            01    $
+scalar           1     +
+sethostent       1     -
+setnetent        1     -
+setprotoent      1     -
+setservent       1     -
 shift            0     1 # also tested specially
 sin              01    $
 sleep            01    -
 sqrt             01    $
 srand            01    -
+study            01    $+
 tell             01    -
 telldir          1     -
 tied             1     -
 umask            01    -
 undef            01    +
+untie            1     -
+write            01    -

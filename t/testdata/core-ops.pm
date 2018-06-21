@@ -31,13 +31,7 @@ atan2            2     p
 bind             2     p
 binmode          12    p
 bless            1     p
-chdir            01    -
-chmod            @     p1
-chomp            @     $ 5.020
-chop             @     $ 5.020
 chown            @     p1
-chr              01    $
-chroot           01    $
 cmp              B     -
 connect          2     p
 crypt            2     p
@@ -57,7 +51,6 @@ endservent       0     -
 eq               B     -
 eval             01    $+
 evalbytes        01    $
-exec             @     p1 # also tested specially
 # exists handled specially
 exp              01    $
 fcntl            3     p
@@ -71,7 +64,6 @@ gethostent       0     -
 getlogin         0     -
 getnetbyaddr     2     p
 getnetent        0     -
-getpgrp          1     -
 getppid          0     -
 getpriority      2     p
 getprotobynumber 1     p
@@ -116,12 +108,10 @@ or               B     -
 our              123   p+ # skip with 0 args, as our() => ()
 pack             123   p
 pipe             2     p
-pos              01    $+
 # print            @     p$+
 # printf           @     p$+
 # push handled specially
 quotemeta        01    $
-rand             01    -
 read             34    p
 # readline handled specially
 # readpipe handled specially
@@ -136,10 +126,8 @@ rename           2     p
 # return handled specially
 reverse          @     p1 # also tested specially
 rindex           23    p
-rmdir            01    $
 # our setp erroneously adds $_
 # say              @     p$+
-scalar           1     +
 seek             3     p
 seekdir          2     p
 select           014   p1
@@ -148,13 +136,9 @@ semget           3     p
 semop            2     p
 send             34    p
 setgrent         0     -
-sethostent       1     -
-setnetent        1     -
 setpgrp          2     p
 setpriority      3     p
-setprotoent      1     -
 setpwent         0     -
-setservent       1     -
 setsockopt       4     p
 shmctl           3     p
 shmget           3     p
@@ -169,7 +153,6 @@ socketpair       5     p
 sprintf          123   p
 stat             01    $
 state            123   p+ # skip with 0 args, as state() => ()
-study            01    $+
 # sub handled specially
 substr           234   p
 symlink          2     p
@@ -188,7 +171,6 @@ ucfirst          01    $
 unlink           @     p$
 unpack           12    p$
 # unshift handled specially
-untie            1     -
 utime            @     p1
 # values handled specially
 vec              3     p
@@ -196,6 +178,5 @@ wait             0     -
 waitpid          2     p
 wantarray        0     -
 warn             @     p1
-write            01    -
 x                B     -
 xor              B     -
