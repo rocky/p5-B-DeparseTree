@@ -1120,14 +1120,12 @@ sub indirop
 		@args_spec = [0, $#exprs, ', '];
 	    }
 
-	    $node = $self->info_from_template($type, $first_op, $fmt,
-					      \@args_spec, \@exprs,
-					      {other_ops => \@skipped_ops});
+	    $node = $self->info_from_template($type, $op, $fmt,
+					      \@args_spec, \@exprs);
 	} else {
 	    $type="indirop $name2";
 	    $type .= '()' if (7 < $cx);  # FIXME - do with format specifier
-	    $node = $self->info_from_string($type, $name2,
-					    {other_ops => \@skipped_ops})
+	    $node = $self->info_from_string($type, $name2);
 	}
     }
 
