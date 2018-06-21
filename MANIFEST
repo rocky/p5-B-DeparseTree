@@ -38,7 +38,8 @@ scripts/bug-sample.pm
 scripts/deparse.sh
 scripts/fib.pl
 scripts/frag.pl
-t/05-core-unops.t
+t/04-baseops.t
+t/05-unops.t
 t/10-core.t
 t/20-deparse-526c.t
 t/20-deparse-small.t
@@ -64,8 +65,9 @@ t/testdata/P526.pm
 t/testdata/README.md
 t/testdata/README.pod
 t/testdata/bug-sample.pm
+t/testdata/baseops.pm
 t/testdata/core-ops.pm
-t/testdata/core-unops.pm
+t/testdata/unops.pm
 t/testdata/small.pm
 t/testdata/subst.pm
 t/unit/01-test-pod.t

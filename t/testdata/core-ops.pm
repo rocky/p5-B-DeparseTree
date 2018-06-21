@@ -42,11 +42,6 @@ die              @     p1
 # do handled specially
 # dump handled specially
 # each handled specially
-endgrent         0     -
-endhostent       0     -
-endnetent        0     -
-endprotoent      0     -
-endpwent         0     -
 endservent       0     -
 eq               B     -
 eval             01    $+
@@ -55,23 +50,14 @@ evalbytes        01    $
 exp              01    $
 fcntl            3     p
 flock            2     p
-fork             0     -
 formline         2     p
 ge               B     -
-getgrent         0     -
 gethostbyaddr    2     p
-gethostent       0     -
-getlogin         0     -
 getnetbyaddr     2     p
-getnetent        0     -
-getppid          0     -
 getpriority      2     p
 getprotobynumber 1     p
-getprotoent      0     -
-getpwent         0     -
 getservbyname    2     p
 getservbyport    2     p
-getservent       0     -
 getsockopt       3     p
 # given handled specially
 # grep             123   p+ # also tested specially
@@ -138,7 +124,6 @@ send             34    p
 setgrent         0     -
 setpgrp          2     p
 setpriority      3     p
-setpwent         0     -
 setsockopt       4     p
 shmctl           3     p
 shmget           3     p
@@ -163,8 +148,6 @@ sysseek          3     p
 system           @     p1 # also tested specially
 syswrite         234   p
 tie              234   p
-time             0     -
-times            0     -
 truncate         2     p
 uc               01    $
 ucfirst          01    $
@@ -174,7 +157,6 @@ unpack           12    p$
 utime            @     p1
 # values handled specially
 vec              3     p
-wait             0     -
 waitpid          2     p
 wantarray        0     -
 warn             @     p1
