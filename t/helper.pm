@@ -84,8 +84,8 @@ sub testit_full($$$$$$)
 	my $desc = "$keyword: lex=$lex $expr => $expected_expr";
 	$desc .= " (lex sub)" if $lexsub;
 
-
 	my $code_ref;
+	my $code_text;
 	if ($] > 5.022 && 0) {
 	    package lexsubtest;
 	    eval q{
@@ -101,10 +101,13 @@ sub testit_full($$$$$$)
 	    no warnings;
 	    use subs ();
 	    import subs $keyword;
-	    $code_ref = eval "no strict 'vars'; sub { ${vars}() = $expr }"
-			    or die "$@ in $expr";
+	    $code_text = qq|
+no strict 'vars';
+sub {
+    ${vars}() = $expr
+    }|;
+	    $code_ref = eval $code_text or die "$@ in $expr";
 	}
-
 	my $got_info = $deparse->coderef2info($code_ref);
 	my $got_text = $got_info->{text};
 

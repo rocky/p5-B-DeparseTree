@@ -1020,11 +1020,11 @@ sub indirop
     }
 
     if ($name eq "sort" && $op->private & (OPpSORT_NUMERIC | OPpSORT_INTEGER)) {
-	$type = 'sort numeric or integer';
+	$type = 'indirop sort numeric or integer';
 	$fmt = ($op->private & OPpSORT_DESCEND)
 	    ? '{$b <=> $a} ': '{$a <=> $b} ';
     } elsif ($name eq "sort" && $op->private & OPpSORT_DESCEND) {
-	$type = 'sort_descend';
+	$type = 'indirop sort descend';
 	$fmt = '{$b cmp $a} ';
     }
 
@@ -1059,7 +1059,7 @@ sub indirop
     if ($name eq "sort" && ($op->private & OPpSORT_INPLACE)) {
 	$fmt = "%c = $name2 $fmt %c";
 	# FIXME: do better with skipped ops
-	return $self->info_from_template($name2, $op, $fmt,
+	return $self->info_from_template("indirop $name2", $op, $fmt,
 					     [0, 0], \@exprs, {other_ops => \@skipped_ops});
     }
 
@@ -1095,33 +1095,38 @@ sub indirop
 
     } else {
 	if (@exprs) {
+	    my $type = "indirop";
 	    my $args_fmt;
 	    if ($self->func_needs_parens($exprs[0]->{text}, $cx, 5)) {
+		$type = "indirop $name2()";
 		$args_fmt = "(%C)";
 	    } else {
+		$type = "indirop $name2";
 		$args_fmt = "%C";
 	    }
 	    @args_spec = ([0, $#exprs, ', ']);
 	    if ($fmt) {
-		$fmt = "$name2 $fmt$args_fmt";
+		$fmt = "${name2} ${fmt}${args_fmt}";
 		if ($indir_info) {
 		    unshift @exprs, $indir_info;
 		    @args_spec = (0, [1, $#exprs, ', ']);
 		}
 	    } else {
-		$fmt = "$name2 $args_fmt";
+		if (substr($args_fmt, 0, 1) eq '(') {
+		    $fmt = "${name2}$args_fmt";
+		} else {
+		    $fmt = "${name2} $args_fmt";
+		}
 		@args_spec = [0, $#exprs, ', '];
 	    }
 
-	    $node = $self->info_from_template($name2, $first_op, $fmt,
+	    $node = $self->info_from_template($type, $first_op, $fmt,
 					      \@args_spec, \@exprs,
-					      {other_ops => \@skipped_ops,
-					       maybe_parens => [$self, $cx, 5]});
-
+					      {other_ops => \@skipped_ops});
 	} else {
-	    $type="indirect $name2";
+	    $type="indirop $name2";
 	    $type .= '()' if (7 < $cx);  # FIXME - do with format specifier
-	    $node = $self->info_from_string($first_op, $name2,
+	    $node = $self->info_from_string($type, $name2,
 					    {other_ops => \@skipped_ops})
 	}
     }

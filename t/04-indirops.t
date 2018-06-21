@@ -6,10 +6,6 @@ use B::DeparseTree::Fragment;  # for dump
 use strict;
 use English;
 
-BEGIN {
-    plan skip_all => 'All indirops need fixing';
-}
-
 use feature (sprintf(":%vd", $^V)); # to avoid relying on the feature
                                     # logic to add CORE::
 

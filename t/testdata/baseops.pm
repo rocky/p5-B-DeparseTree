@@ -4,7 +4,9 @@ __DATA__
 #
 # format:
 #   keyword args flags
-#
+#   keyword args flags  # comment
+#   keyword args flags  5.022 (min perl version)
+
 # args consists of:
 #  * one of more digits indictating which lengths of args the function accepts,
 #  * or 'B' to indiate a binary infix operator,
