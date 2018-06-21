@@ -94,8 +94,6 @@ or               B     -
 our              123   p+ # skip with 0 args, as our() => ()
 pack             123   p
 pipe             2     p
-# print            @     p$+
-# printf           @     p$+
 # push handled specially
 quotemeta        01    $
 read             34    p
@@ -113,7 +111,6 @@ rename           2     p
 reverse          @     p1 # also tested specially
 rindex           23    p
 # our setp erroneously adds $_
-# say              @     p$+
 seek             3     p
 seekdir          2     p
 select           014   p1
@@ -132,7 +129,6 @@ shmwrite         4     p
 shutdown         2     p
 socket           4     p
 socketpair       5     p
-# sort             @     p1+
 # split handled specially
 # splice handled specially
 sprintf          123   p

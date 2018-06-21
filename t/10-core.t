@@ -28,8 +28,6 @@
 
 use rlib '.';
 use helper;
-use Data::Dumper;
-use B::DeparseTree::Fragment;  # for dump
 
 BEGIN {
     if ($] < 5.016 || $] > 5.0269) {

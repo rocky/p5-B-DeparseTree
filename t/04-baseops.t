@@ -1,8 +1,6 @@
 #!/usr/bin/env perl
 use rlib '.';
 use helper;
-use Data::Dumper;
-use B::DeparseTree::Fragment;  # for dump
 use strict;
 use English;
 
