@@ -28,5 +28,6 @@ __DATA__
 
 print            @     p$+
 printf           @     p$+
+# Causes a "bad setup expectation" ... find and fix
 # say              @     p$+
-# sort             @     p1+
+sort             @     p1+

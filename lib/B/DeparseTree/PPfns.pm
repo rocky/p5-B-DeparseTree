@@ -1059,8 +1059,8 @@ sub indirop
     if ($name eq "sort" && ($op->private & OPpSORT_INPLACE)) {
 	$fmt = "%c = $name2 $fmt %c";
 	# FIXME: do better with skipped ops
-	return $self->info_from_template("indirop $name2", $op, $fmt,
-					     [0, 0], \@exprs, {other_ops => \@skipped_ops});
+	return $self->info_from_template("indirop sort inplace", $op, $fmt,
+					 [0, 0], \@exprs);
     }
 
 
@@ -1124,8 +1124,9 @@ sub indirop
 					      \@args_spec, \@exprs);
 	} else {
 	    $type="indirop $name2";
+	    # Should this be maybe_parens()?
 	    $type .= '()' if (7 < $cx);  # FIXME - do with format specifier
-	    $node = $self->info_from_string($type, $name2);
+	    $node = $self->info_from_string($type, $op, $name2);
 	}
     }
 
