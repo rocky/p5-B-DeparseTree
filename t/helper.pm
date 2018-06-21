@@ -88,12 +88,14 @@ sub testit_full($$$$$$)
 	my $code_ref;
 	if ($] > 5.022 && 0) {
 	    package lexsubtest;
-	    no warnings 'experimental::lexical_subs';
-	    use feature 'lexical_subs';
-	    no strict 'vars';
-	    $code_ref =
-		eval "sub { state sub $keyword; ${vars}() = $expr }"
-			    || die "$@ in $expr";
+	    eval q{
+		no warnings 'experimental::lexical_subs';
+		use feature 'lexical_subs';
+		no strict 'vars';
+		$code_ref =
+		    eval "sub { state sub $keyword; ${vars}() = $expr }"
+		    || die "$@ in $expr";
+	    };
 	} else {
 	    package test;
 	    no warnings;
