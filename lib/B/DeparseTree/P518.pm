@@ -470,9 +470,6 @@ sub check_proto {
     return ('', \@reals);
 }
 
-# OP_STRINGIFY is a listop, but it only ever has one arg
-sub pp_stringify { maybe_targmy(@_, \&dquote) }
-
 # Like dq(), but different
 sub re_dq {
     my $self = shift;
