@@ -108,6 +108,7 @@ sub {
     }|;
 	    $code_ref = eval $code_text or die "$@ in $expr";
 	}
+	# print $code_text;
 	my $got_info = $deparse->coderef2info($code_ref);
 	my $got_text = $got_info->{text};
 
@@ -181,7 +182,7 @@ sub do_infix_keyword($$$$$$)
 {
     my ($keyword, $parens, $strong, $filename, $line, $min_version) = @_;
     print "WOOT $min_version" if defined($min_version);
-    return if defined($min_version) && $] >= $min_version;
+    return if defined($min_version) && $] <= $min_version;
 
     $SEEN_STRENGTH{$keyword} = $strong;
     my $expr = "(\$a $keyword \$b)";
@@ -216,7 +217,7 @@ sub do_infix_keyword($$$$$$)
 sub do_std_keyword($$$$$$$$)
 {
     my ($keyword, $narg, $parens, $dollar, $strong, $filename, $line, $min_version) = @_;
-    return if defined($min_version) && $] >= $min_version;
+    return if defined($min_version) && $] <= $min_version;
 
     $SEEN_STRENGTH{$keyword} = $strong;
 

@@ -1647,11 +1647,22 @@ sub mapop
     $self->deparse_op_siblings(\@nodes, $kid, $op, 6);
     push @args_spec, [1, $#nodes, ', '];
 
-    if ($self->func_needs_parens($nodes[1]->{text}, $cx, 5)) {
-	$fmt = "$name $first_arg_fmt (%C)";
+    my $suffix = '';
+    if ($self->func_needs_parens($nodes[0]->{text}, $cx, 5)) {
+	$fmt = "$name($first_arg_fmt";
+	$suffix = ')';
     } else {
-	$fmt = "$name $first_arg_fmt %C";
+	$fmt = "$name $first_arg_fmt";
     }
+    if (@nodes > 1) {
+	if ($is_block) {
+	    $fmt .= " ";
+	} else {
+	    $fmt .= ", ";
+	}
+	$fmt .= "%C";
+    }
+    $fmt .= $suffix;
     my $node = $self->info_from_template($type, $op, $fmt,
 					 \@args_spec, \@nodes,
 					 {other_ops => \@skipped_ops});

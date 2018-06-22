@@ -62,7 +62,6 @@ getservbyname    2     p
 getservbyport    2     p
 getsockopt       3     p
 # given handled specially
-# grep             123   p+ # also tested specially
 # glob handled specially
 # goto handled specially
 gt               B     -
@@ -80,7 +79,6 @@ listen           2     p
 local            1     p+
 lstat            01    $
 lt               B     -
-# map              123   p+ # also tested specially
 mkdir            @     p$
 msgctl           3     p
 msgget           2     p
