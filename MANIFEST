@@ -42,6 +42,7 @@ scripts/frag.pl
 t/04-baseops.t
 t/04-indirops.t
 t/04-mapops.t
+t/05-listops.t
 t/05-unops.t
 t/10-core.t
 t/20-deparse-526c.t
@@ -73,6 +74,7 @@ t/testdata/core-ops.pm
 t/testdata/mapops.pm
 t/testdata/unops.pm
 t/testdata/indirops.pm
+t/testdata/listops.pm
 t/testdata/small.pm
 t/testdata/subst.pm
 t/unit/01-test-pod.t

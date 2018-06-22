@@ -27,20 +27,11 @@ __DATA__
 # here.
 
 __SUB__          0     -
-accept           2     p
 and              B     -
-atan2            2     p
-bind             2     p
-binmode          12    p
-bless            1     p
-chown            @     p1
 cmp              B     -
-connect          2     p
-crypt            2     p
 # dbmopen  handled specially
 # dbmclose handled specially
 # delete handled specially
-die              @     p1
 # do handled specially
 # dump handled specially
 # each handled specially
@@ -50,111 +41,48 @@ eval             01    $+
 evalbytes        01    $
 # exists handled specially
 exp              01    $
-fcntl            3     p
-flock            2     p
-formline         2     p
 ge               B     -
-gethostbyaddr    2     p
-getnetbyaddr     2     p
-getpriority      2     p
-getprotobynumber 1     p
-getservbyname    2     p
-getservbyport    2     p
-getsockopt       3     p
 # given handled specially
 # glob handled specially
 # goto handled specially
 gt               B     -
-index            23    p
-ioctl            3     p
-join             13    p
 # keys handled specially
-kill             123   p
 # last handled specially
 lc               01    $
 lcfirst          01    $
 le               B     -
-link             2     p
-listen           2     p
 local            1     p+
 lstat            01    $
 lt               B     -
-mkdir            @     p$
-msgctl           3     p
-msgget           2     p
-msgrcv           5     p
-msgsnd           3     p
 my               123   p+ # skip with 0 args, as my() => ()
 ne               B     -
 # next handled specially
 # not handled specially
-open             12345 p
-opendir          2     p
 or               B     -
 our              123   p+ # skip with 0 args, as our() => ()
-pack             123   p
-pipe             2     p
 # push handled specially
 quotemeta        01    $
-read             34    p
 # readline handled specially
 # readpipe handled specially
-recv             4     p
 # redo handled specially
-rename           2     p
 # XXX This code prints 'Undefined subroutine &main::require called':
 #   use subs (); import subs 'require';
 #   eval q[no strict 'vars'; sub { () = require; }]; print $@;
 # so disable for now
 #require          01    $+
 # return handled specially
-reverse          @     p1 # also tested specially
-rindex           23    p
 # our setp erroneously adds $_
-seek             3     p
-seekdir          2     p
-select           014   p1
-semctl           4     p
-semget           3     p
-semop            2     p
-send             34    p
 setgrent         0     -
-setpgrp          2     p
-setpriority      3     p
-setsockopt       4     p
-shmctl           3     p
-shmget           3     p
-shmread          4     p
-shmwrite         4     p
-shutdown         2     p
-socket           4     p
-socketpair       5     p
 # split handled specially
 # splice handled specially
-sprintf          123   p
 stat             01    $
 state            123   p+ # skip with 0 args, as state() => ()
 # sub handled specially
-substr           234   p
-symlink          2     p
-syscall          2     p
-sysopen          34    p
-sysread          34    p
-sysseek          3     p
-system           @     p1 # also tested specially
-syswrite         234   p
-tie              234   p
 truncate         2     p
 uc               01    $
 ucfirst          01    $
-unlink           @     p$
-unpack           12    p$
 # unshift handled specially
-utime            @     p1
 # values handled specially
-vec              3     p
-waitpid          2     p
 wantarray        0     -
-warn             @     p1
 x                B     -
 xor              B     -
