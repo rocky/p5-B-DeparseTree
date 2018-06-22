@@ -43,7 +43,6 @@ use B::Deparse;
 *re_flags = *B::Deparse::re_flags;
 *rv2gv_or_string = *B::Deparse::rv2gv_or_string;
 *stash_variable = *B::Deparse::stash_variable;
-*stash_variable_name = *B::Deparse::stash_variable_name;
 *tr_chr = *B::Deparse::tr_chr;
 
 use strict;
@@ -116,7 +115,28 @@ my %strong_proto_keywords = map { $_ => 1 } qw(
     scalar
     study
     undef
-);
+    );
+
+# stash_variable_name is modified from B::Deparse Perl version 5.18. Perl 5.14 doesn't
+# have this.
+
+# Return just the name, without the prefix.  It may be returned as a quoted
+# string.  The second return value is a boolean indicating that.
+sub stash_variable_name {
+    my($self, $prefix, $gv) = @_;
+    my $name = $self->gv_name($gv, 1);
+    $name = $self->maybe_qualify($prefix,$name);
+    if ($name =~ /^(?:\S|(?!\d)[\ca-\cz]?(?:\w|::)*|\d+)\z/) {
+	$name =~ s/^([\ca-\cz])/'^'.($1|'@')/e;
+	$name =~ /^(\^..|{)/ and $name = "{$name}";
+	return $name, 0; # not quoted
+    }
+    else {
+	$self->single_delim(undef, "q", "'", $name), 1; # quoted
+    }
+}
+
+
 
 # FIXME: These we don't seem to be able to put in a table.
 sub pp_closedir { unop(@_, "closedir") }

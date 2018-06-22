@@ -4,10 +4,12 @@
 # This module is free software; you can redistribute and/or modify
 # it under the same terms as Perl itself.
 
+use v5.14;
+
 use rlib '../..';
 
-package B::DeparseTree::P516;
-use B::DeparseTree::P518;
+package B::DeparseTree::P514;
+use B::DeparseTree::P516;
 use strict;
 use warnings ();
 
@@ -18,5 +20,5 @@ our $VERSION = '3.2.0';
 # Is the same as P518. Note however
 # we import from B::Deparse and there are differences
 # in those routines between 5.16 and 5.18
-@ISA = qw(B::DeparseTree::P518);
+@ISA = qw(B::DeparseTree::P516);
 1;

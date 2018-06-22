@@ -83,7 +83,9 @@ use Config;
 my $is_cperl = $Config::Config{usecperl};
 
 my $module;
-if ($] >= 5.016 and $] < 5.018) {
+if ($] >= 5.014 and $] < 5.016) {
+    $module = "P514";
+} elsif ($] >= 5.016 and $] < 5.018) {
     $module = "P516";
 } elsif ($] >= 5.018 and $] < 5.020) {
     $module = "P518";
@@ -1155,8 +1157,12 @@ my %rev_feature;
 
 sub declare_hinthash {
     my ($self, $from, $to, $indent, $hints) = @_;
-    my $doing_features =
-	($hints & $feature::hint_mask) == $feature::hint_mask;
+    my $doing_features;
+    if ($] >= 5.016) {
+	$doing_features = ($hints & $feature::hint_mask) == $feature::hint_mask;
+    } else {
+	$doing_features = 0;
+    }
     my @decls;
     my @features;
     my @unfeatures; # bugs?

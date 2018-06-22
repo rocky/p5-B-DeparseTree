@@ -2289,6 +2289,9 @@ sub e_method {
     return $self->info_from_template($type, $op, $fmt, \@args_spec, \@nodes, $opts);
 }
 
+# Perl 5.14 doesn't have this
+use constant OP_GLOB => 25;
+
 sub null_older
 {
     my($self, $op, $cx) = @_;
@@ -2318,7 +2321,7 @@ sub null_older
 	return $self->pp_scope($kid, $cx);
     } elsif ($op->targ == B::Deparse::OP_STRINGIFY) {
 	return $self->dquote($op, $cx);
-    } elsif ($op->targ == B::Deparse::OP_GLOB) {
+    } elsif ($op->targ == OP_GLOB) {
 	my @other_ops = ($kid, $kid->first, $kid->first->first);
 	my $info = $self->pp_glob(
 	    $kid    # entersub
@@ -2420,7 +2423,7 @@ sub null_newer
 	} elsif ($op->targ == B::Deparse::OP_STRINGIFY) {
 	    # This case is duplicated the below "else". Can it ever happen?
 	    $node =  $self->dquote($op, $cx);
-	} elsif ($op->targ == B::Deparse::OP_GLOB) {
+	} elsif ($op->targ == OP_GLOB) {
 	    my @other_ops = ($kid, $kid->first, $kid->first->first);
 	    my $info = $self->pp_glob(
 		$kid    # entersub

@@ -1066,9 +1066,12 @@ sub pp_subst {
     $] < 5.022 ? subst_older(@_) : subst_newer(@_);
 }
 
+# Perl 5.14 doesn't have this
+use constant OPpSUBSTR_REPL_FIRST => 16;
+
 sub pp_substr {
     my ($self,$op,$cx) = @_;
-    if ($op->private & B::Deparse::OPpSUBSTR_REPL_FIRST) {
+    if ($op->private & OPpSUBSTR_REPL_FIRST) {
 	my $left = listop($self, $op, 7, "substr", $op->first->sibling->sibling);
 	my $right = $self->deparse($op->first->sibling, 7, $op);
 	return info_from_list($op, $self,[$left, '=', $right], ' ',
