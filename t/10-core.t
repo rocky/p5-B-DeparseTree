@@ -30,7 +30,7 @@ use rlib '.';
 use helper;
 
 BEGIN {
-    if ($] < 5.016 || $] > 5.0269) {
+    if ($] < 5.016 || $] > 5.0289) {
 	plan skip_all => 'Customized to the Perl 5.16 - 5.26 interpreters';
     }
     require Config;
