@@ -77,6 +77,7 @@
 # Skip Continuous Integration configurations
 ^\.travis\.yml$
 ^circle\.yml$
+^\.circleci/config.yml$
 
 # Avoid including a file that confuses cpanp in some configs
 ^GNUmakefile$
