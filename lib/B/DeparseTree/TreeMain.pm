@@ -165,9 +165,6 @@ sub new {
     # OP for that. FIXME: remove this
     $self->{optree} = {};
 
-    # Extra opcode information: parent_op
-    $self->{ops} = {};
-
     # For B::DeparseTree::TreeNode's that are created and don't have
     # real OPs associated with them, we assign a fake address;
     $self->{'last_fake_addr'} = 0;
@@ -451,10 +448,7 @@ sub deparse_root {
 	$info->{type} = $op->name;
 	$info->{op} = $op;
 
-	# FIXME: this is going away...
 	$self->{optree}{$$op} = $info;
-	# in favor of...
-	$self->{ops}{$$op}{info} = $info;
 
 	$info->{text} = $text;
 	$info->{parent} = $$parent if $parent;
@@ -477,8 +471,10 @@ sub update_node($$$$)
 {
     my ($self, $node, $prev_expr, $op) = @_;
     $node->{prev_expr} = $prev_expr;
-    $self->{optree}{$$op} = $node if $op;
-    $self->{ops}{$$op}{info} = $node if $op;
+    my $addr = $prev_expr->{addr};
+    if ($addr) {
+	$self->{optree}{$addr} = $node if $op;
+    }
 }
 
 sub walk_lineseq
@@ -573,9 +569,7 @@ sub lineseq {
 	    $info->{parent} = $$parent ;
 	}
 
-	# FIXME: remove optree?
 	$self->{optree}{$$op} = $info;
-	$self->{ops}{$$op}{info} = $info;
 
 	push @$exprs, $info;
     };

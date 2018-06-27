@@ -1060,11 +1060,13 @@ sub indirop
 	$fmt = "%c = $name2 $fmt %c";
 	# FIXME: do better with skipped ops
 	return $self->info_from_template("indirop sort inplace", $op, $fmt,
-					 [0, 0], \@exprs);
+					 [0, 0], \@exprs,
+	                                 {prev_expr => $prev_expr});
     }
 
 
     my $node;
+    $prev_expr = $exprs[-1];
     if ($fmt ne "" && $name eq "sort") {
 	# We don't want to say "sort(f 1, 2, 3)", since perl -w will
 	# give bareword warnings in that case. Therefore if context
@@ -1080,18 +1082,21 @@ sub indirop
 					     other_ops => \@skipped_ops,
 					     maybe_parens => {
 						 context => $cx,
-						 precedence => 5}});
+						 precedence => 5},
+					     prev_expr => $prev_expr
+					 });
 
     } elsif (!$fmt && $name eq "sort"
 	     && !B::Deparse::null($op->first->sibling)
 	     && $op->first->sibling->name eq 'entersub' ) {
 	# We cannot say sort foo(bar), as foo will be interpreted as a
 	# comparison routine.  We have to say sort(...) in that case.
-	$node = $self->info_from_template("$name2()", $op,
+	$node = $self->info_from_template("indirop $name2()", $op,
 					  "$name2(%C)",
 					  [[0, $#exprs, ', ']],
 					  \@exprs,
-					  {other_ops => \@skipped_ops});
+					  {other_ops => \@skipped_ops,
+					   prev_expr => $prev_expr});
 
     } else {
 	if (@exprs) {
@@ -1121,7 +1126,8 @@ sub indirop
 	    }
 
 	    $node = $self->info_from_template($type, $op, $fmt,
-					      \@args_spec, \@exprs);
+					      \@args_spec, \@exprs,
+                                              {prev_expr => $prev_expr});
 	} else {
 	    $type="indirop $name2";
 	    # Should this be maybe_parens()?
@@ -2403,7 +2409,7 @@ sub null_newer
     if (B::class($op) eq "OP") {
 	# If the Perl source constant value can't be recovered.
 	# We'll use the 'ex_const' value as a substitute
-	return $self->info_from_string("constant_unrecoverable",$op, $self->{'ex_const'})
+	return $self->info_from_string("null - constant_unrecoverable",$op, $self->{'ex_const'})
 	    if $op->targ == B::Deparse::OP_CONST;
 	return $self->dquote($op, $cx) if $op->targ == B::Deparse::OP_STRINGIFY;
     } elsif (B::class($op) eq "COP") {
@@ -2440,7 +2446,7 @@ sub null_newer
 		 $kid->sibling->flags & OPf_STACKED) {
 	    my $lhs = $self->deparse($kid, 7, $op);
 	    my $rhs = $self->deparse($kid->sibling, 7, $kid);
-	    $node = $self->info_from_template("readline = ", $op,
+	    $node = $self->info_from_template("null: readline = ", $op,
 					      "%c = %c", undef, [$lhs, $rhs],
 					      {maybe_parens => [$self, $cx, 7],
 					       prev_expr => $rhs});
@@ -2449,13 +2455,13 @@ sub null_newer
 		 $kid->sibling->flags & OPf_STACKED) {
 	    my $lhs = $self->deparse($kid, 20, $op);
 	    my $rhs = $self->deparse($kid->sibling, 20, $op);
-	    $node = $self->info_from_template("trans =~",$op,
+	    $node = $self->info_from_template("null: trans =~",$op,
 					      "%c =~ %c", undef, [$lhs, $rhs],
 					      { maybe_parens => [$self, $cx, 7],
 						prev_expr => $rhs });
 	} elsif ($op->flags & OPf_SPECIAL && $cx < 1 && !$op->targ) {
 	    my $kid_info = $self->deparse($kid, $cx, $op);
-	    $node = $self->info_from_template("do { }", $op,
+	    $node = $self->info_from_template("null: do { }", $op,
 					     "do {\n%+%c\n%-}", undef, [$kid_info]);
 	} elsif (!B::Deparse::null($kid->sibling) and
 		 $kid->sibling->name eq "null" and
@@ -2464,13 +2470,14 @@ sub null_newer
 		 $kid->sibling->first->name eq "rcatline") {
 	    my $lhs = $self->deparse($kid, 18, $op);
 	    my $rhs = $self->deparse($kid->sibling, 18, $op);
-	    $node = $self->info_from_template("rcatline =",$op,
+	    $node = $self->info_from_template("null: rcatline =",$op,
 					      "%c = %c", undef, [$lhs, $rhs],
 					      { maybe_parens => [$self, $cx, 20],
 						prev_expr => $rhs });
 	} else {
 	    my $node = $self->deparse($kid, $cx, $op);
-	    return $self->info_from_template($op->name, $op,
+	    my $type = "null: " . $op->name;
+	    return $self->info_from_template($type, $op,
 					     "%c", undef, [$node]);
 	}
 	my $position = pushmark_position($node);
