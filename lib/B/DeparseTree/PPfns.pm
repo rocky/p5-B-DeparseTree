@@ -3062,22 +3062,25 @@ sub scopeop
     for (; !B::Deparse::null($kid); $kid = $kid->sibling) {
 	push @kids, $kid;
     }
+    my $node;
     if ($cx > 0) {
 	# inside an expression, (a do {} while for lineseq)
 	my $body = $self->lineseq($op, 0, @kids);
 	my $text;
 	if (is_lexical_subs(@kids)) {
-	    return $self->info_from_template("scoped do", $op,
+	    $node = $self->info_from_template("scoped do", $op,
 					     'do {\n%+%c\n%-}',
 					     [0], [$body]);
 
 	} else {
-	    return $self->info_from_template("scoped expression", $op,
-					     '%c',[0], [$body]);
+	    $node = $self->info_from_template("scoped expression", $op,
+					      '%c',[0], [$body]);
 	}
     } else {
-	return $self->lineseq($op, $cx, @kids);
+	$node = $self->lineseq($op, $cx, @kids);
     }
+    $node->{other_ops} = \@other_ops if @other_ops;
+    return $node;
 }
 
 sub single_delim($$$$$) {
