@@ -1612,7 +1612,7 @@ sub mapop
     my($self, $op, $cx, $name) = @_;
     my $kid = $op->first; # this is the (map|grep)start
 
-    my @skipped_ops = ($kid, $kid->first);
+    my @skipped_ops = ($kid);
     $kid = $kid->first->sibling; # skip a pushmark
 
     my $code_block = $kid->first; # skip a null
@@ -1646,7 +1646,7 @@ sub mapop
 	$is_block = 0;
     }
     push @nodes, $code_block_node;
-
+    $self->{optree}{$code_block_node->{addr}} = $code_block_node;
 
     push @skipped_ops, $kid;
     $kid = $kid->sibling;
@@ -3017,6 +3017,8 @@ sub rv2x
     Carp::confess("unhandled condition in rv2x");
 }
 
+# Handle ops that can introduce blocks or scope. "while", "do", "until", and
+# possibly "map", and "grep" are examples such things.
 sub scopeop
 {
     my($real_block, $self, $op, $cx) = @_;
@@ -3024,8 +3026,10 @@ sub scopeop
     my @kids;
 
     local(@$self{qw'curstash warnings hints hinthash'})
-		= @$self{qw'curstash warnings hints hinthash'} if $real_block;
+	= @$self{qw'curstash warnings hints hinthash'} if $real_block;
+    my @other_ops = ();
     if ($real_block) {
+	push @other_ops, $op->first;
 	$kid = $op->first->sibling; # skip enter
 	if (B::Deparse::is_miniwhile($kid)) {
 	    my $top = $kid->first;
@@ -3036,18 +3040,19 @@ sub scopeop
 		$name = $self->keyword("until");
 	    } else { # no conditional -> while 1 or until 0
 		my $body = $self->deparse($top->first, 1, $top);
-		return info_from_list $op, $self, [$body, 'while', '1'],
-				      ' ', "$name 1", {};
+		return $self->info_from_template("scopeop: $name 1", $op,
+						 "%c while 1", undef, [$body],
+						 {other_ops => \@other_ops});
 	    }
 	    my $cond = $top->first;
-	    my $skipped_ops = [$cond->sibling];
+	    push @other_ops, $cond->sibling;
 	    my $body = $cond->sibling->first; # skip lineseq
 	    my $cond_info = $self->deparse($cond, 1, $top);
 	    my $body_info = $self->deparse($body, 1, $top);
-	    return  info_from_list($op, $self,
-				   [$body_info, $name, $cond_info], ' ',
-				   "$name",
-				   {other_ops => $skipped_ops});
+	    return $self->info_from_template("scopeop: $name",
+					     $op,"%c $name %c",
+					     undef, [$body_info, $cond_info],
+					     {other_ops => \@other_ops});
 	}
     } else {
 	$kid = $op->first;

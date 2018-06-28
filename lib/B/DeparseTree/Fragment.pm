@@ -276,6 +276,7 @@ sub extract_node_info($)
 	       && $parent_info->{parent}
 	       && $deparsed->{optree}{$parent_info->{parent}}
 	    ) {
+	    last if ! exists $deparsed->{optree}{$parent_info->{parent}};
 	    $parent_info = $deparsed->{optree}{$parent_info->{parent}};
 	}
 	my $fmt = $parent_info->{fmt};
@@ -287,6 +288,7 @@ sub extract_node_info($)
 	# Keep gathering parent text until we have at least one full line.
 	while (index($str, "\n") == -1 && $parent_info->{parent}) {
 	    $child_addr = $parent_info->{addr};
+	    last if ! exists $deparsed->{optree}{$parent_info->{parent}};
 	    $parent_info = $deparsed->{optree}{$parent_info->{parent}};
 	    $fmt = $parent_info->{fmt};
 	    $indexes = $parent_info->{indexes};
