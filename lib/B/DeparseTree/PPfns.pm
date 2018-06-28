@@ -2985,7 +2985,7 @@ sub range {
 
 sub rv2x
 {
-    my($self, $op, $cx, $type) = @_;
+    my($self, $op, $cx, $sigil) = @_;
     if (B::class($op) eq 'NULL' || !$op->can("first")) {
 	carp("Unexpected op in pp_rv2x");
 	return info_from_text($op, $self, 'XXX', 'bad_rv2x', {});
@@ -2994,8 +2994,8 @@ sub rv2x
     my $kid = $op->first;
     $kid_info = $self->deparse($kid, 0, $op);
     if ($kid->name eq "gv") {
-	my $transform_fn = sub {$self->stash_variable($type, $self->info2str(shift), $cx)};
-	return $self->info_from_template("rv2x $type", undef, "%F", [[0, $transform_fn]], [$kid_info])
+	my $transform_fn = sub {$self->stash_variable($sigil, $self->info2str(shift), $cx)};
+	return $self->info_from_template("rv2x $sigil", undef, "%F", [[0, $transform_fn]], [$kid_info])
     } elsif (B::Deparse::is_scalar $kid) {
 	my $str = $self->info2str($kid_info);
 	my $fmt = '%c';
@@ -3014,10 +3014,11 @@ sub rv2x
 	    $fmt = '%F';
 	    @args_spec = (0, $transform);
 	}
-	return $self->info_from_template("scalar $str", $op, $fmt, undef, \@args_spec, {})
+	return $self->info_from_template("scalar $str", $op, $fmt, undef, \@args_spec, {});
     } else {
-	my $str = "$type" . '{}';
-	return info_from_text($op, $self, $str, $str, {other_ops => [$kid_info]});
+	my $fmt = "$sigil\{%c\}";
+	my $type = "rv2x: $sigil\{}";
+	return $self->info_from_template($type, $op, $fmt, undef, [$kid_info]);
     }
     Carp::confess("unhandled condition in rv2x");
 }
@@ -3065,22 +3066,25 @@ sub scopeop
     for (; !B::Deparse::null($kid); $kid = $kid->sibling) {
 	push @kids, $kid;
     }
+    my $node;
     if ($cx > 0) {
 	# inside an expression, (a do {} while for lineseq)
 	my $body = $self->lineseq($op, 0, @kids);
 	my $text;
 	if (is_lexical_subs(@kids)) {
-	    return $self->info_from_template("scoped do", $op,
+	    $node = $self->info_from_template("scoped do", $op,
 					     'do {\n%+%c\n%-}',
 					     [0], [$body]);
 
 	} else {
-	    return $self->info_from_template("scoped expression", $op,
-					     '%c',[0], [$body]);
+	    $node = $self->info_from_template("scoped expression", $op,
+					      '%c',[0], [$body]);
 	}
     } else {
-	return $self->lineseq($op, $cx, @kids);
+	$node = $self->lineseq($op, $cx, @kids);
     }
+    $node->{other_ops} = \@other_ops if @other_ops;
+    return $node;
 }
 
 sub single_delim($$$$$) {
