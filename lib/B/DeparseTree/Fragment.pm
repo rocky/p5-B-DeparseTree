@@ -10,6 +10,7 @@ use vars qw(@ISA @EXPORT);
              get_addr_info
              get_parent_addr_info get_parent_op
              get_prev_addr_info
+             get_prev_info
              trim_line_pair
              underline_parent
     );

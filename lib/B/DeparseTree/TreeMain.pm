@@ -472,7 +472,7 @@ sub update_node($$$$)
     my ($self, $node, $prev_expr, $op) = @_;
     $node->{prev_expr} = $prev_expr;
     my $addr = $prev_expr->{addr};
-    if ($addr) {
+    if ($addr && ! exists $self->{optree}{$addr}) {
 	$self->{optree}{$addr} = $node if $op;
     }
 }
@@ -923,9 +923,9 @@ sub deparse
 		$self->{optree}{$other->{addr}} = $other;
 		$other->{parent} = $$op;
 	    } else {
-		# "$other" is just the OP. Have it mark everything
-		# or "info".
-		$self->{optree}{$$other} = $info;
+	    	# "$other" is just the OP. Have it mark everything
+	    	# or "info".
+	    	$self->{optree}{$$other} = $info;
 	    }
 	}
     }
