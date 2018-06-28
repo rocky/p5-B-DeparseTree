@@ -950,10 +950,14 @@ sub for_loop($$$$) {
     return $self->loop_common($ll, $cx, $init);
 }
 
+# Returns in function (whose name is not passed as a parameter) will
+# need to surround its argements (the first argument is $first_param)
+# in parenthesis. To determine this, we also pass in the operator
+# precedence, $prec, and the current expression context value, $cx
 sub func_needs_parens($$$$)
 {
     my($self, $first_param, $cx, $prec) = @_;
-    return ($prec <= $cx and substr($first_param, 0, 1) ne "(") || $self->{'parens'};
+    return ($prec <= $cx) || (substr($first_param, 0, 1) eq "(") || $self->{'parens'};
 }
 
 sub givwhen
