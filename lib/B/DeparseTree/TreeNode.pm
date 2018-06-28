@@ -207,6 +207,19 @@ sub new($$$$$)
 			 prev_expr)) {
 	$self->{$optname} = $opts->{$optname} if $opts->{$optname};
     }
+    if (exists $self->{other_ops}) {
+	my $ary = $self->{other_ops};
+	unless (ref $ary eq 'ARRAY') {
+	    Carp::confess("expecting other_ops to be a ref ARRAY; is $ary");
+	}
+	my $position = 0;
+	for my $other_addr (@$ary) {
+	    if ($other_addr == $addr) {
+		Carp::confess("other_ops contains my address $addr at position $position");
+	    }
+	    $position++;
+	}
+    }
     if ($opts->{maybe_parens}) {
 	my ($obj, $context, $precedence) = @{$opts->{maybe_parens}};
 	my $parens = parens_test($obj, $context, $precedence);

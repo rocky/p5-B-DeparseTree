@@ -1612,7 +1612,7 @@ sub mapop
     my($self, $op, $cx, $name) = @_;
     my $kid = $op->first; # this is the (map|grep)start
 
-    my @skipped_ops = ($kid);
+    my @skipped_ops = ($kid, $kid->first);
     $kid = $kid->first->sibling; # skip a pushmark
 
     my $code_block = $kid->first; # skip a null
@@ -1672,6 +1672,7 @@ sub mapop
     my $node = $self->info_from_template($type, $op, $fmt,
 					 \@args_spec, \@nodes,
 					 {other_ops => \@skipped_ops});
+    $code_block_node->{parent} = $node->{addr};
 
     # Handle skipped ops
     my @new_ops;

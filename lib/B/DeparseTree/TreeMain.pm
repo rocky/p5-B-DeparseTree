@@ -977,17 +977,17 @@ sub deparse_sub($$$$)
 	    my $scope_en = $self->find_scope_en($lineseq);
 	}
 	elsif ($start_op) {
-	    $body = $self->deparse($start_op, 0, $root);
+	    $body = $self->deparse($start_op, 0, $lineseq);
 	} else {
-	    $body = $self->deparse($root->first, 0, $root);
+	    $body = $self->deparse($root->first, 0, $lineseq);
 	}
 
 	my $fn_name = $cv->GV->NAME;
 	$node = $self->info_from_template("sub $fn_name$proto",
-					  $root,
+					  $lineseq,
 					  "$proto\n%|{\n%+%c\n%-}",
 					  [0], [$body]);
-
+	$body->{parent} = $$lineseq;
 	$self->{optree}{$$lineseq} = $node;
 
     } else {
@@ -1003,6 +1003,9 @@ sub deparse_sub($$$$)
 	}
     }
 
+
+    # Should we create a real node for this instead of the copy?
+    $self->{optree}{$$root} = $node;
 
     # Add additional DeparseTree tracking info
     if ($start_op) {
@@ -1103,7 +1106,10 @@ sub next_todo
 	}
 	my $node = $self->deparse_sub($cv, $parent);
 	$fmt .= '%c';
-	return $self->info_from_template($type, $cv, $fmt, [0], [$node]);
+	my $sub_node = $self->info_from_template($type, $cv, $fmt, [0], [$node]);
+	$node->{parent} = $sub_node->{addr};
+	$self->{optree}{$$cv} = $sub_node;
+	return $sub_node;
     }
 }
 
@@ -1113,8 +1119,10 @@ sub deparse_subname($$)
     my ($self, $funcname) = @_;
     my $cv = svref_2object(\&$funcname);
     my $info = $self->deparse_sub($cv);
-    return $self->info_from_template("sub $funcname", $cv, "sub $funcname %c",
-				 undef, [$info]);
+    my $sub_node =  $self->info_from_template("sub $funcname", $cv, "sub $funcname %c",
+					      undef, [$info]);
+    $self->{optree}{$$cv} = $sub_node;
+    return $sub_node;
 }
 
 # Return a list of info nodes for "use" and "no" pragmas.
