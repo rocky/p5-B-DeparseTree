@@ -780,11 +780,12 @@ sub dq($$$)
 	my $first = $self->dq($op->first, $op);
 	my $last  = $self->dq($op->last, $op);
 
+	# FIXME: convert to newer conventions
 	# Disambiguate "${foo}bar", "${foo}{bar}", "${foo}[1]", "$foo\::bar"
-	($last =~ /^[A-Z\\\^\[\]_?]/ &&
-	    $first =~ s/([\$@])\^$/${1}{^}/)  # "${^}W" etc
-	    || ($last =~ /^[:'{\[\w_]/ && #'
-		$first =~ s/([\$@])([A-Za-z_]\w*)$/${1}{$2}/);
+	($last->{text} =~ /^[A-Z\\\^\[\]_?]/ &&
+	    $first->{text} =~ s/([\$@])\^$/${1}{^}/)  # "${^}W" etc
+	    || ($last->{text} =~ /^[:'{\[\w_]/ && #'
+		$first->{text} =~ s/([\$@])([A-Za-z_]\w*)$/${1}{$2}/);
 
 	return info_from_list($op, $self, [$first->{text}, $last->{text}], '', 'dq_concat',
 			      {body => [$first, $last]});

@@ -55,6 +55,7 @@ t/roundtrip/base/cond.t
 t/roundtrip/base/if.t
 t/roundtrip/base/num.t
 t/roundtrip/base/pat.t
+t/roundtrip/base/lex-short1.t
 t/roundtrip/base/lex-short2.t
 t/roundtrip/base/rs.t
 t/roundtrip/base/term.t
