@@ -22,7 +22,6 @@ use Config;
 my $builder = Module::Build->new(
     module_name         => 'B::DeparseTree',
     add_to_cleanup      => [ 'p5-B-DeparseTree-*', 'tmp*', '*.got'  ],
-    create_makefile_pl  => 'passthrough',
     dist_abstract       =>
     'Like B::Deparse, but keeps tree structure indexable by OP address.',
     dist_author         => 'Rocky Bernstein <rocky@cpan.org>',
