@@ -35,6 +35,7 @@ use B::Deparse;
 *find_our_type = *B::Deparse::find_our_type;
 *find_scope_en = *B::Deparse::find_scope_en;
 *gv_name = *B::Deparse::gv_name;
+*meth_sv = *B::Deparse::meth_sv;
 *padany = *B::Deparse::padany;
 *padname = *B::Deparse::padname;
 *padname_sv = *B::Deparse::padname_sv;

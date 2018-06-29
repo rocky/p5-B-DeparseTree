@@ -2207,7 +2207,11 @@ sub _method
     my $method_name = undef;
     my $type = 'method';
     if ($meth->name eq "method_named") {
-	$method_name = $self->meth_sv($meth)->PV;
+	if ($] < 5.018) {
+	    $method_name = $self->const_sv($meth)->PV;
+	} else {
+	    $method_name = $self->meth_sv($meth)->PV;
+	}
 	$type = 'named method';
     } elsif ($meth->name eq "method_super") {
 	$method_name = "SUPER::".$self->meth_sv($meth)->PV;
@@ -2413,6 +2417,14 @@ sub null_newer
 {
     my($self, $op, $cx) = @_;
     my $node;
+
+    # might be 'my $s :Foo(bar);'
+    if ($] >= 5.028 && $op->targ == B::Deparse::OP_LIST) {
+	Carp::confess("Can't handle var attr yet");
+        # my $my_attr = maybe_var_attr($self, $op, $cx);
+        # return $my_attr if defined $my_attr;
+    }
+
     if (B::class($op) eq "OP") {
 	# If the Perl source constant value can't be recovered.
 	# We'll use the 'ex_const' value as a substitute
@@ -3089,7 +3101,8 @@ sub scopeop
     return $node;
 }
 
-sub single_delim($$$$$) {
+sub single_delim($$$$$)
+{
     my($self, $op, $q, $default, $str) = @_;
 
     return $self->info_from_template("string $default .. $default (default)", $op,
