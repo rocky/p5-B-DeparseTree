@@ -277,16 +277,17 @@ sub const {
     if (class($sv) eq "SPECIAL") {
 	# sv_undef, sv_yes, sv_no
 	my $text = ('undef', '1', $self->maybe_parens("!1", $cx, 21))[$$sv-1];
-	return info_from_text($sv, $self, $text, 'const_special', {});
+	return $self->info_from_string('const: special', $sv, $text);
     }
     if (class($sv) eq "NULL") {
-	return info_from_text($sv, $self, 'undef', 'const_NULL', {});
+	return $self->info_from_string('const: NULL', $sv, 'undef');
     }
     # convert a version object into the "v1.2.3" string in its V magic
     if ($sv->FLAGS & SVs_RMG) {
 	for (my $mg = $sv->MAGIC; $mg; $mg = $mg->MOREMAGIC) {
 	    if ($mg->TYPE eq 'V') {
-		return info_from_text($sv, $self, $mg->PTR, 'const_magic', {});
+		return $self->info_from_string('const_magic', $sv,
+					       $mg->PTR);
 	    }
 	}
     }
@@ -294,27 +295,32 @@ sub const {
     if ($sv->FLAGS & SVf_IOK) {
 	my $str = $sv->int_value;
 	$str = $self->maybe_parens($str, $cx, 21) if $str < 0;
-	return $self->info_from_string("integer constant $str", $sv, $str);
+	return $self->info_from_string("const: integer $str", $sv, $str);
     } elsif ($sv->FLAGS & SVf_NOK) {
 	my $nv = $sv->NV;
 	if ($nv == 0) {
 	    if (pack("F", $nv) eq pack("F", 0)) {
 		# positive zero
-		return info_from_text($sv, $self, "0", 'constant float positive 0', {});
+		return $self->info_from_string('const: float positive 0',
+					       $sv,
+					       "0");
 	    } else {
 		# negative zero
-		return info_from_text($sv, $self, $self->maybe_parens("-.0", $cx, 21),
-				 'constant float negative 0', {});
+		return $self->info_from_string('const: float negative 0',
+					       $sv, $self,
+					       $self->maybe_parens("-.0", $cx, 21));
 	    }
 	} elsif (1/$nv == 0) {
 	    if ($nv > 0) {
 		# positive infinity
-		return info_from_text($sv, $self, $self->maybe_parens("9**9**9", $cx, 22),
-				 'constant float +infinity', {});
+		return $self->info_from_string('const: float +infinity',
+					       $sv,
+					       $self->maybe_parens("9**9**9", $cx, 22));
 	    } else {
 		# negative infinity
-		return info_from_text($sv, $self, $self->maybe_parens("-9**9**9", $cx, 21),
-				 'constant float -infinity', {});
+		return $self->info_from_string('const: float -infinity',
+					       $sv,
+					       $self->maybe_parens("-9**9**9", $cx, 21));
 	    }
 	} elsif ($nv != $nv) {
 	    # NaN
@@ -324,12 +330,12 @@ sub const {
 	    } elsif (pack("F", $nv) eq pack("F", -sin(9**9**9))) {
 		# the inverted kind
 		return info_from_text($sv, $self, $self->maybe_parens("-sin(9**9**9)", $cx, 21),
-				 'constant float Nan invert', {});
+				 'const: float Nan invert', {});
 	    } else {
 		# some other kind
 		my $hex = unpack("h*", pack("F", $nv));
 		return info_from_text($sv, $self, qq'unpack("F", pack("h*", "$hex"))',
-				 'constant Na na na', {});
+				 'const: Na na na', {});
 	    }
 	}
 	# first, try the default stringification
@@ -343,7 +349,7 @@ sub const {
 		# and atof() Perl is using here.
 		my($mant, $exp) = B::Deparse::split_float($nv);
 		return info_from_text($sv, $self, $self->maybe_parens("$mant * 2**$exp", $cx, 19),
-				 'constant float not-sprintf/atof-able', {});
+				 'const: float not-sprintf/atof-able', {});
 	    }
 	}
 	$str = $self->maybe_parens($str, $cx, 21) if $nv < 0;
@@ -405,7 +411,7 @@ sub const {
 	    return $self->single_delim($sv, "q", "'", B::Deparse::unback $str);
 	}
     } else {
-	return info_from_text($sv, $self, "undef", 'constant undef', {});
+	return $self->info_from_string('const: undef', $sv, "undef");
     }
 }
 
@@ -713,6 +719,36 @@ sub style_opts
     }
 }
 
+# B::Deparse name is print_protos
+sub extract_prototypes($)
+{
+    my $self = shift;
+    my $ar;
+    my @ret;
+    foreach $ar (@{$self->{'protos_todo'}}) {
+	my $body;
+	if (defined $ar->[1]) {
+	    if (ref $ar->[1]) {
+		# FIXME: better optree tracking?
+		# And use formatting markup?
+		my $node = $self->const($ar->[1]->RV,0);
+		my $body_node =
+		    $self->info_from_template("protos", undef,
+					      "() {\n    %c;\n}",
+					      undef, [$node]);
+		$body = $body_node->{text};
+	    } else {
+		$body = sprintf " (%s);", $ar->[1];
+	    }
+	} else {
+	    $body = ";";
+	}
+	push @ret, sprintf "sub %s%s\n", $ar->[0], $body;
+    }
+    delete $self->{'protos_todo'};
+    return @ret;
+}
+
 # This gets called automatically when option:
 #   -MO="DeparseTree,sC" is added
 # Running this prints out the program text.
@@ -767,7 +803,7 @@ sub compile {
 	    };
 	$self->{'curcv'} = main_cv;
 	$self->{'curcvlex'} = undef;
-	print $self->B::Deparse::print_protos;
+	print $self->extract_prototypes;
 	@{$self->{'subs_todo'}} =
 	  sort {$a->[0] <=> $b->[0]} @{$self->{'subs_todo'}};
 	my $root = main_root;

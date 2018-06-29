@@ -474,6 +474,7 @@ sub concat {
 #
 # Notice how subs and formats are inserted between statements here;
 # also $[ assignments and pragmas.
+
 sub cops
 {
     my ($self, $op, $cx, $name) = @_;
@@ -484,6 +485,7 @@ sub cops
     my $fmt = '%;';
 
     push @texts, $self->B::Deparse::cop_subs($op);
+
     if (@texts) {
 	# Special marker to swallow up the semicolon
 	$opts->{'omit_next_semicolon'} = 1;
