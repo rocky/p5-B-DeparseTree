@@ -42,7 +42,6 @@ use B qw(class
 use Carp;
 use B::Deparse;
 use B::DeparseTree::OPflags;
-use B::DeparseTree::PPfns;
 use B::DeparseTree::PP_OPtable;
 use B::DeparseTree::SyntaxTree;
 
