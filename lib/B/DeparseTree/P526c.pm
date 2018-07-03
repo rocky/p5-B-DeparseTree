@@ -695,7 +695,7 @@ sub pp_enterxssub { goto &pp_entersub; }
 # 	$prefix = "";
 # 	my $grandkid = $kid->first;
 # 	my $arrow = ($lexical = $grandkid->name eq "padcv")
-# 		 || is_subscriptable($grandkid)
+# 		 || B::Deparse::is_subscriptable($grandkid)
 # 		    ? ""
 # 		    : "->";
 # 	$kid = $self->deparse($kid, 24) . $arrow;

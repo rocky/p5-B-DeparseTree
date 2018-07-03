@@ -349,7 +349,7 @@ sub elem
 	my $array_info = $self->deparse($array, 24, $op);
 	push @{$info->{body}}, $array_info;
 	@texts = ($array_info->{text});
-	if (is_subscriptable($array)) {
+	if (B::Deparse::is_subscriptable($array)) {
 	    push @texts, $left, $idx_info->{text}, $right;
 	    $type = 'elem_no_arrow';
 	} else {

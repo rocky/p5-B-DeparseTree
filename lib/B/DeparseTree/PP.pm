@@ -814,7 +814,8 @@ sub pp_entersub
 	$subname_info = $self->deparse($kid, 24, $op);
     } else {
 	$prefix = "";
-	my $arrow = is_subscriptable($kid->first) || $kid->first->name eq "padcv" ? "" : "->";
+	my $arrow = B::Deparse::is_subscriptable($kid->first)
+	    || $kid->first->name eq "padcv" ? "" : "->";
 	$subname_info = $self->deparse($kid, 24, $op);
 	$subname_info->{text} .= $arrow;
     }

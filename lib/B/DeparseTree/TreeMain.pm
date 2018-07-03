@@ -56,7 +56,7 @@ use B::DeparseTree::SyntaxTree;
 *todo = *B::Deparse::todo;
 
 our($VERSION, @EXPORT, @ISA);
-$VERSION = '3.2.0';
+$VERSION = '3.3.0';
 @ISA = qw(Exporter);
 @EXPORT = qw(
     %globalnames
@@ -244,13 +244,15 @@ sub main2info
 sub coderef2info
 {
     my ($self, $coderef, $start_op) = @_;
-    if ($coderef eq 'main::main') {
+    my $cv = svref_2object ( $coderef );
+    my $gv = $cv->GV;
+    if ($gv->NAME eq 'main') {
 	return $self->main2info();
     } else {
 	croak "Usage: ->coderef2info(CODEREF)"
 	    unless UNIVERSAL::isa($coderef, "CODE");
 	$self->init();
-	return $self->deparse_sub(svref_2object($coderef), $start_op);
+	return $self->deparse_sub($cv, $start_op);
     }
 }
 

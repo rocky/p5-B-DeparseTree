@@ -14,7 +14,7 @@ Build tarball:
     make check
     make distcheck
 
-    BDT_VERSION=3.0.0 # or whatever it says in lib/B/DeparseTree.pm
+    BDT_VERSION=3.3.0 # or whatever it says in lib/B/DeparseTree.pm
     git commit -m"Get ready for release $BDT_VERSION" .
 
 Update ChangeLog:
