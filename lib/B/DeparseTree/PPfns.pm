@@ -1247,21 +1247,20 @@ sub list_const
 					 $op, "(%c)", undef, [$a[0]]);
     }
 
-    my @texts = $self->map_texts(\@a);
+    my @texts = map $_->{text}, @a;
     if ( @a > 2 and !grep(!/^-?\d+$/, @texts)) {
-	# collapse (-1,0,1,2) into range (-1..2)
-	my ($s, $e) = @texts[0,-1];
-	my $i = $s;
-	unless (grep $i++ != $_, @texts) {
-	    $self->info_from_template('list const ..', $op,
-				      "%c..%c", undef,
-				      [$a[0], $a[-1]],
-				      {maybe_parens => [$self, $cx, 9]});
-	}
+	# collapse a consecutive sequence like (-1,0,1,2) into a range like (-1..2)
+	my $first = $texts[0];
+	my $i = $first;
+	return $self->info_from_template('list const ..', $op,
+					 "%c..%c", undef,
+					 [$a[0], $a[-1]],
+					 {maybe_parens => [$self, $cx, 9]})
+	    unless grep $i++ != $_, @texts;
     }
-    return $self->info_from_list('list const, more than one item',
-				 $op, \@texts,  '',
-				 {maybe_parens => [$self, $cx, $prec]});
+    return $self->info_from_template('list const, more than one item',
+				     $op, "%C", [[0, $#a, ', ']], \@a,
+				     {maybe_parens => [$self, $cx, $prec]});
 }
 
 # This handle list ops: "open", "pack", "return" ...
@@ -1491,14 +1490,17 @@ sub loop_common
 
 	if (!B::Deparse::is_state $body->first
 	    and $body->first->name !~ /^(?:stub|leave|scope)$/) {
-	    # FIXME:
-	   #  Carp::confess("var ne \$_") unless join('', @var_text) eq '$_';
+	    # Loop of body should be over "$_".
+	    Carp::confess('var ne $_') unless $var_info->{text} eq '_';
 	    push @skipped_ops, $body->first;
+	    push @skipped_ops, $nodes[0];
+	    $var_fmt = '%c';
 	    $body = $body->first;
 	    my $body_info = $self->deparse($body, 2, $op);
+	    @nodes[0] = $body_info;
 	    push @nodes, $body_info;
 	    return $self->info_from_template("foreach", $op,
-					     "$var_fmt foreach ($ary_fmt)",
+					     "$var_fmt foreach $ary_fmt",
 					     \@args_spec, \@nodes,
 					     {other_ops => \@skipped_ops});
 	}
@@ -1800,7 +1802,7 @@ sub matchop_newer
     } elsif ($kid->name ne 'regcomp') {
         if ($op->name eq 'split') {
             # split has other kids, not just regcomp
-            $re = re_uninterp(B::Deparse::escape_re(re_unback($op->precomp)));
+            $re = B::Deparse::re_uninterp(B::Deparse::escape_re(B::Deparse::re_unback($op->precomp)));
         } else {
 	    carp("found ".$kid->name." where regcomp expected");
 	}
