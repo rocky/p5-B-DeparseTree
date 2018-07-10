@@ -732,7 +732,7 @@ sub pp_const {
     my $self = shift;
     my($op, $cx) = @_;
     if ($op->private & OPpCONST_ARYBASE) {
-        return info_from_text($op, $self, '$[', 'const_ary', {});
+        return $self->info_from_string('const $[', $op, '$[');
     }
     # if ($op->private & OPpCONST_BARE) { # trouble with '=>' autoquoting
     # 	return $self->const_sv($op)->PV;

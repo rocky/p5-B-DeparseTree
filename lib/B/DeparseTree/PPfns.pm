@@ -80,6 +80,7 @@ $VERSION = '3.2.0';
     is_lexical_subs
     is_list_newer
     is_list_older
+    list_const
     listop
     logassignop
     logop
@@ -1232,6 +1233,37 @@ sub logop
 				     [0, 1], [$lhs, $rhs], $opts);
 }
 
+sub list_const
+{
+    my $self = shift;
+    my($op, $cx, @list) = @_;
+    my @a = map $self->const($_, 6), @list;
+    my $prec = 6;
+    if (@a == 0) {
+	return $self->info_from_string('list const ()', $op, '()');
+    }
+    if (@a == 1) {
+	return $self->info_from_template('list const: one item',
+					 $op, "(%c)", undef, [$a[0]]);
+    }
+
+    my @texts = $self->map_texts(\@a);
+    if ( @a > 2 and !grep(!/^-?\d+$/, @texts)) {
+	# collapse (-1,0,1,2) into range (-1..2)
+	my ($s, $e) = @texts[0,-1];
+	my $i = $s;
+	unless (grep $i++ != $_, @texts) {
+	    $self->info_from_template('list const ..', $op,
+				      "%c..%c", undef,
+				      [$a[0], $a[-1]],
+				      {maybe_parens => [$self, $cx, 9]});
+	}
+    }
+    return $self->info_from_list('list const, more than one item',
+				 $op, \@texts,  '',
+				 {maybe_parens => [$self, $cx, $prec]});
+}
+
 # This handle list ops: "open", "pack", "return" ...
 sub listop
 {
@@ -1445,11 +1477,11 @@ sub loop_common
 	    push @args_spec, scalar(@nodes), scalar(@nodes+1);
 	    push @nodes, ($self->deparse($ary->first->sibling, 9, $op),
 			 $self->deparse($ary->first->sibling->sibling, 9, $op));
-	    $ary_fmt = '(%c .. %c)';
+	    $ary_fmt = '(%c..%c)';
 
 	} else {
 	    push @nodes, $self->deparse($ary, 1, $op);
-	    $ary_fmt = "%c";
+	    $ary_fmt = "(%c)";
 	    push @args_spec, $#nodes;
 	}
 
@@ -1532,7 +1564,7 @@ sub loop_common
 			  $cont_info->{text} , "\n\b}");
 	}
     } else {
-	return info_from_text($op, $self, '', 'loop_no_body', {})
+	return $self->info_from_string('loop no body',  $op, '')
 	    if !defined $body;
 	if (defined $init) {
 	    @nodes = ($init, $cond_info);
@@ -2421,9 +2453,8 @@ sub null_newer
 
     # might be 'my $s :Foo(bar);'
     if ($] >= 5.028 && $op->targ == B::Deparse::OP_LIST) {
-	Carp::confess("Can't handle var attr yet");
-        # my $my_attr = maybe_var_attr($self, $op, $cx);
-        # return $my_attr if defined $my_attr;
+        my $my_attr = maybe_var_attr($self, $op, $cx);
+        return $my_attr if defined $my_attr;
     }
 
     if (B::class($op) eq "OP") {

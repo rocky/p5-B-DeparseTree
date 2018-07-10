@@ -98,6 +98,7 @@ t/roundtrip/5.026/base/rs.t
 t/roundtrip/5.026/base/term.t
 t/roundtrip/5.026/base/translate.t
 t/roundtrip/5.026/base/while.t
+t/roundtrip/5.026/cmd/elsif.t
 t/roundtrip/5.026/mro/basic_04_dfs.t
 t/roundtrip/Makefile
 t/roundtrip/README.md
