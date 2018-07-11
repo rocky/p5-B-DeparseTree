@@ -519,8 +519,7 @@ sub pp_list
     my @other_ops = ($pushmark_op);
 
     if (class($kid) eq 'NULL') {
-	return info_from_text($op, $self, '', 'list_null',
-			      {other_ops => \@other_ops});
+	return $self->info_from_string("list ''", $op, '', {other_ops => \@other_ops});
     }
     my $lop;
     my $local = "either"; # could be local(...), my(...), state(...) or our(...)

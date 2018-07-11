@@ -3120,13 +3120,12 @@ sub scopeop
 	my $body = $self->lineseq($op, 0, @kids);
 	my $text;
 	if (is_lexical_subs(@kids)) {
-	    $node = $self->info_from_template("scoped do", $op,
-					     'do {\n%+%c\n%-}',
-					     [0], [$body]);
-
-	} else {
 	    $node = $self->info_from_template("scoped expression", $op,
 					      '%c',[0], [$body]);
+	} else {
+	    $node = $self->info_from_template("scoped do", $op,
+					     "do {\n%+%c\n%-}",
+					     [0], [$body]);
 	}
     } else {
 	$node = $self->lineseq($op, $cx, @kids);
