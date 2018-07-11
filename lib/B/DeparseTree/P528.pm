@@ -134,6 +134,4 @@ sub maybe_var_attr {
     return "$res $attr_text";
 }
 
-
-
 1;

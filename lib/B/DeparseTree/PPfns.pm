@@ -1497,8 +1497,7 @@ sub loop_common
 	    $var_fmt = '%c';
 	    $body = $body->first;
 	    my $body_info = $self->deparse($body, 2, $op);
-	    @nodes[0] = $body_info;
-	    push @nodes, $body_info;
+	    $nodes[0] = $body_info;
 	    return $self->info_from_template("foreach", $op,
 					     "$var_fmt foreach $ary_fmt",
 					     \@args_spec, \@nodes,
@@ -2187,6 +2186,7 @@ sub maybe_qualify {
 }
 
 # FIXME: need a way to pass in skipped_ops
+# FIXME: see if we can move to some 5.xx-specific module
 sub maybe_targmy
 {
     my($self, $op, $cx, $func, @args) = @_;
@@ -2201,6 +2201,132 @@ sub maybe_targmy
     } else {
 	return $self->$func($op, $cx, @args);
     }
+}
+
+# Note: this is used in 5.28 and later versions only.
+# FIXME: see if we can move to some 5.xx-specific module
+sub maybe_var_attr {
+    my ($self, $op, $cx) = @_;
+
+    my @skipped_ops = ($op->first);
+    my $kid = $op->first->sibling; # skip pushmark
+    return if B::class($kid) eq 'NULL';
+
+    my $lop;
+    my $type;
+
+    # Extract out all the pad ops and entersub ops into
+    # @padops and @entersubops. Return if anything else seen.
+    # Also determine what class (if any) all the pad vars belong to
+    my $class;
+    my $decl; # 'my' or 'state'
+    my (@padops, @entersubops);
+    for ($lop = $kid; !B::Deparse::null($lop); $lop = $lop->sibling) {
+	my $lopname = $lop->name;
+	my $loppriv = $lop->private;
+        if ($lopname =~ /^pad[sah]v$/) {
+            return unless $loppriv & B::Deparse::OPpLVAL_INTRO;
+
+            my $padname = $self->padname_sv($lop->targ);
+            my $thisclass = ($padname->FLAGS & SVpad_TYPED)
+                                ? $padname->B::Deparse::SvSTASH->NAME : 'main';
+
+            # all pad vars must be in the same class
+            $class //= $thisclass;
+            return unless $thisclass eq $class;
+
+            # all pad vars must be the same sort of declaration
+            # (all my, all state, etc)
+            my $this = ($loppriv & B::Deparse::OPpPAD_STATE) ? 'state' : 'my';
+            if (defined $decl) {
+                return unless $this eq $decl;
+            }
+            $decl = $this;
+
+            push @padops, $lop;
+        }
+        elsif ($lopname eq 'entersub') {
+            push @entersubops, $lop;
+        }
+        else {
+            return;
+        }
+    }
+
+    return unless @padops && @padops == @entersubops;
+
+    # there should be a balance: each padop has a corresponding
+    # 'attributes'->import() method call, in the same order.
+
+    my @varnames;
+    my $attr_text;
+
+    for my $i (0..$#padops) {
+        my $padop = $padops[$i];
+        my $esop  = $entersubops[$i];
+
+        push @varnames, $self->padname($padop->targ);
+
+        return unless ($esop->flags & B::Deparse::OPf_KIDS);
+
+	push @skipped_ops, $esop;
+        my $kid = $esop->first;
+        return unless $kid->type == OP_PUSHMARK;
+
+	push @skipped_ops, $kid;
+        $kid = $kid->sibling;
+        return unless $$kid && $kid->type == B::Deparse::OP_CONST;
+	return unless $self->const_sv($kid)->PV eq 'attributes';
+
+	push @skipped_ops, $kid;
+        $kid = $kid->sibling;
+        return unless $$kid && $kid->type == B::Deparse::OP_CONST; # __PACKAGE__
+
+	push @skipped_ops, $kid;
+        $kid = $kid->sibling;
+        return unless  $$kid
+                    && $kid->name eq "srefgen"
+                    && ($kid->flags & B::Deparse::OPf_KIDS)
+                    && ($kid->first->flags & B::Deparse::OPf_KIDS)
+                    && $kid->first->first->name =~ /^pad[sah]v$/
+                    && $kid->first->first->targ == $padop->targ;
+
+        $kid = $kid->sibling;
+        my @attr;
+	my @nodes = ();
+        while ($$kid) {
+            last if ($kid->type != B::Deparse::OP_CONST);
+	    push @nodes, $kid;
+            push @attr, $self->const_sv($kid)->PV;
+            $kid = $kid->sibling;
+        }
+        return unless @attr;
+
+	my $thisattr_node = $self->info_from_template("maybe var attr", $op,
+						      ":%C", [[0, $#nodes, ', ']],
+						      \@nodes);
+        my $thisattr = ":" . join(' ', @attr);
+        $attr_text //= $thisattr;
+        # all import calls must have the same list of attributes
+        return unless $attr_text eq $thisattr;
+
+        return unless $kid->name eq 'method_named';
+	return unless $self->meth_sv($kid)->PV eq 'import';
+
+        $kid = $kid->sibling;
+        return if $$kid;
+    }
+
+    my $fmt = $decl;
+    $fmt .= " $class " if $class ne 'main';
+    $fmt .=
+            (@varnames > 1)
+            ? "(" . join(', ', @varnames) . ')'
+            : " $varnames[0]";
+
+    $self->info_from_string('maybe_var_attr', $op,
+			    "$fmt $attr_text",
+			    {other_ops => @skipped_ops});
 }
 
 sub _method
