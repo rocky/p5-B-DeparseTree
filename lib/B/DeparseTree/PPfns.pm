@@ -1517,7 +1517,7 @@ sub loop_common
 	@args_spec = (0);
     } elsif ($kid->name eq "stub") {
 	# bare and empty
-	return info_from_text($op, $self, '{;}', 'empty loop', {});
+	return $self->info_from_string('loop_common {;}', $op, '{;}');
     }
 
     # If there isn't a continue block, then the next pointer for the loop
@@ -1550,6 +1550,14 @@ sub loop_common
 	    and not B::Deparse::is_scope($cont)
 	    and $self->{'expand'} < 3) {
 	    my $cont_info = $self->deparse($cont, 1, $op);
+	    if ($body_info->{type} eq 'statements') {
+		Carp::confess('expecting statements to have only 1')
+		    unless scalar @{$body_info->{texts}} != 1;
+
+		# Use the last entry the lineseq for prev_expr
+		my $last_stmts_node = $body_info->{texts}[0]{texts}[-1];
+		$cont_info->{prev_expr} = $last_stmts_node;
+	    }
 	    my $init = defined($init) ? $init : ' ';
 	    @nodes = ($init, $cond_info, $cont_info);
 	    # @nodes_text = ('for', '(', "$init_text;", $cont_info->{text}, ')');
